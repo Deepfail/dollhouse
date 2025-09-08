@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { useHouse } from '@/hooks/useHouse';
 import { Character } from '@/types';
-import { Plus, X, Save } from '@phosphor-icons/react';
+import { Plus, X, FloppyDisk as Save } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
 interface CharacterCreatorProps {
@@ -67,7 +67,7 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
       setFormData(prev => ({
         ...prev,
         [parent]: {
-          ...prev[parent as keyof typeof prev],
+          ...(prev[parent as keyof typeof prev] as object),
           [child]: value
         }
       }));

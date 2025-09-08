@@ -10,11 +10,11 @@ import {
   Robot, 
   Bell, 
   CheckCircle, 
-  AlertTriangle, 
+  Warning as AlertTriangle, 
   Info, 
   Heart,
-  Battery,
-  Smile,
+  BatteryMedium as Battery,
+  Smiley as Smile,
   Star,
   Clock
 } from '@phosphor-icons/react';
@@ -23,6 +23,9 @@ export function Copilot() {
   const { house } = useHouse();
   const [updates, setUpdates] = useKV<CopilotUpdate[]>('copilot-updates', []);
   const [isOnline, setIsOnline] = useState(true);
+
+  // Ensure updates is never undefined
+  const safeUpdates = updates || [];
 
   // Simulate copilot monitoring
   useEffect(() => {
@@ -77,13 +80,13 @@ export function Copilot() {
     });
 
     if (newUpdates.length > 0) {
-      setUpdates(current => [...current, ...newUpdates].slice(-20)); // Keep last 20
+      setUpdates(current => [...(current || []), ...newUpdates].slice(-20)); // Keep last 20
     }
   };
 
   const handleUpdate = (updateId: string) => {
     setUpdates(current =>
-      current.map(update =>
+      (current || []).map(update =>
         update.id === updateId ? { ...update, handled: true } : update
       )
     );
@@ -110,7 +113,7 @@ export function Copilot() {
     }
   };
 
-  const unhandledUpdates = updates.filter(u => !u.handled);
+  const unhandledUpdates = safeUpdates.filter(u => !u.handled);
 
   return (
     <div className="h-full flex flex-col bg-card">
@@ -214,14 +217,14 @@ export function Copilot() {
         
         <ScrollArea className="flex-1 px-4">
           <div className="space-y-2 pb-4">
-            {updates.length === 0 ? (
+            {safeUpdates.length === 0 ? (
               <Card className="p-4 text-center text-muted-foreground">
                 <Robot size={24} className="mx-auto mb-2 opacity-50" />
                 <p className="text-sm">All quiet for now</p>
                 <p className="text-xs">I'll keep an eye on things!</p>
               </Card>
             ) : (
-              updates
+              safeUpdates
                 .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                 .map(update => {
                   const character = update.characterId 

@@ -6,7 +6,9 @@ export function useChat() {
   const [sessions, setSessions] = useKV<ChatSession[]>('chat-sessions', []);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   
-  const activeSession = sessions.find(s => s.id === activeSessionId);
+  // Ensure sessions is never undefined
+  const safeSessions = sessions || [];
+  const activeSession = safeSessions.find(s => s.id === activeSessionId);
 
   const createSession = (type: 'individual' | 'group' | 'scene', participantIds: string[], context?: string) => {
     const newSession: ChatSession = {
@@ -20,7 +22,7 @@ export function useChat() {
       updatedAt: new Date()
     };
 
-    setSessions(current => [...current, newSession]);
+    setSessions(current => [...(current || []), newSession]);
     setActiveSessionId(newSession.id);
     return newSession.id;
   };
@@ -36,8 +38,9 @@ export function useChat() {
       type: 'text'
     };
 
-    setSessions(current =>
-      current.map(session =>
+    setSessions(current => {
+      const currentSessions = current || [];
+      return currentSessions.map(session =>
         session.id === activeSessionId
           ? {
               ...session,
@@ -45,8 +48,8 @@ export function useChat() {
               updatedAt: new Date()
             }
           : session
-      )
-    );
+      );
+    });
 
     // If this is a user message, trigger AI responses
     if (!characterId && activeSession.participantIds.length > 0) {
@@ -55,7 +58,7 @@ export function useChat() {
   };
 
   const generateAIResponses = async (sessionId: string, userMessage: ChatMessage) => {
-    const session = sessions.find(s => s.id === sessionId);
+    const session = safeSessions.find(s => s.id === sessionId);
     if (!session) return;
 
     // This would integrate with the AI service
@@ -64,8 +67,9 @@ export function useChat() {
       setTimeout(async () => {
         const response = await generateCharacterResponse(characterId, userMessage, session);
         if (response) {
-          setSessions(current =>
-            current.map(s =>
+          setSessions(current => {
+            const currentSessions = current || [];
+            return currentSessions.map(s =>
               s.id === sessionId
                 ? {
                     ...s,
@@ -73,8 +77,8 @@ export function useChat() {
                     updatedAt: new Date()
                   }
                 : s
-            )
-          );
+            );
+          });
         }
       }, Math.random() * 2000 + 500); // Stagger responses
     }
@@ -116,22 +120,26 @@ export function useChat() {
   };
 
   const closeSession = (sessionId: string) => {
-    setSessions(current =>
-      current.map(session =>
+    setSessions(current => {
+      const currentSessions = current || [];
+      return currentSessions.map(session =>
         session.id === sessionId
           ? { ...session, active: false }
           : session
-      )
-    );
+      );
+    });
     
     if (activeSessionId === sessionId) {
-      const remainingSessions = sessions.filter(s => s.active && s.id !== sessionId);
+      const remainingSessions = safeSessions.filter(s => s.active && s.id !== sessionId);
       setActiveSessionId(remainingSessions.length > 0 ? remainingSessions[0].id : null);
     }
   };
 
   const deleteSession = (sessionId: string) => {
-    setSessions(current => current.filter(s => s.id !== sessionId));
+    setSessions(current => {
+      const currentSessions = current || [];
+      return currentSessions.filter(s => s.id !== sessionId);
+    });
     
     if (activeSessionId === sessionId) {
       setActiveSessionId(null);
@@ -139,13 +147,13 @@ export function useChat() {
   };
 
   const getSessionsByCharacter = (characterId: string) => {
-    return sessions.filter(session => 
+    return safeSessions.filter(session => 
       session.participantIds.includes(characterId)
     );
   };
 
   return {
-    sessions,
+    sessions: safeSessions,
     activeSession,
     activeSessionId,
     createSession,

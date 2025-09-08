@@ -8,19 +8,19 @@ import { useHouse } from '@/hooks/useHouse';
 import { useChat } from '@/hooks/useChat';
 import { Room, Character } from '@/types';
 import { 
-  Home, 
+  House as Home, 
   Plus, 
   Users, 
-  MessageCircle, 
+  ChatCircle as MessageCircle, 
   Heart,
-  Battery,
-  Smile,
+  BatteryMedium as Battery,
+  Smiley as Smile,
   Gift,
-  Settings,
+  Gear as Settings,
   Bed,
   Coffee,
   BookOpen,
-  Gamepad2
+  GameController as Gamepad2
 } from '@phosphor-icons/react';
 import { motion } from 'framer-motion';
 
@@ -34,7 +34,7 @@ export function HouseView({ onStartChat }: HouseViewProps) {
   const [selectedRoom, setSelectedRoom] = useState<string | null>(house.rooms[0]?.id || null);
 
   const selectedRoomData = house.rooms.find(r => r.id === selectedRoom);
-  const roomCharacters = selectedRoomData 
+  const roomCharacters = selectedRoomData
     ? house.characters.filter(c => selectedRoomData.residents.includes(c.id))
     : [];
 

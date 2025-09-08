@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useChat } from '@/hooks/useChat';
 import { useHouse } from '@/hooks/useHouse';
 import { ChatMessage } from '@/types';
-import { Send, MessageCircle, Users, Camera } from '@phosphor-icons/react';
+import { PaperPlaneTilt as Send, ChatCircle as MessageCircle, Users, Camera } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ChatInterfaceProps {

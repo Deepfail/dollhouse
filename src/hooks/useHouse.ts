@@ -35,64 +35,84 @@ const DEFAULT_HOUSE: House = {
 export function useHouse() {
   const [house, setHouse] = useKV<House>('character-house', DEFAULT_HOUSE);
 
+  // Ensure house is never undefined by providing the default
+  const safeHouse = house || DEFAULT_HOUSE;
+
   const addCharacter = (character: Character) => {
-    setHouse(current => ({
-      ...current,
-      characters: [...current.characters, character],
-      updatedAt: new Date()
-    }));
+    setHouse(current => {
+      const currentHouse = current || DEFAULT_HOUSE;
+      return {
+        ...currentHouse,
+        characters: [...currentHouse.characters, character],
+        updatedAt: new Date()
+      };
+    });
   };
 
   const updateCharacter = (characterId: string, updates: Partial<Character>) => {
-    setHouse(current => ({
-      ...current,
-      characters: current.characters.map(char =>
-        char.id === characterId ? { ...char, ...updates, updatedAt: new Date() } : char
-      ),
-      updatedAt: new Date()
-    }));
+    setHouse(current => {
+      const currentHouse = current || DEFAULT_HOUSE;
+      return {
+        ...currentHouse,
+        characters: currentHouse.characters.map(char =>
+          char.id === characterId ? { ...char, ...updates, updatedAt: new Date() } : char
+        ),
+        updatedAt: new Date()
+      };
+    });
   };
 
   const removeCharacter = (characterId: string) => {
-    setHouse(current => ({
-      ...current,
-      characters: current.characters.filter(char => char.id !== characterId),
-      rooms: current.rooms.map(room => ({
-        ...room,
-        residents: room.residents.filter(id => id !== characterId)
-      })),
-      updatedAt: new Date()
-    }));
+    setHouse(current => {
+      const currentHouse = current || DEFAULT_HOUSE;
+      return {
+        ...currentHouse,
+        characters: currentHouse.characters.filter(char => char.id !== characterId),
+        rooms: currentHouse.rooms.map(room => ({
+          ...room,
+          residents: room.residents.filter(id => id !== characterId)
+        })),
+        updatedAt: new Date()
+      };
+    });
   };
 
   const addRoom = (room: Room) => {
-    setHouse(current => ({
-      ...current,
-      rooms: [...current.rooms, room],
-      updatedAt: new Date()
-    }));
+    setHouse(current => {
+      const currentHouse = current || DEFAULT_HOUSE;
+      return {
+        ...currentHouse,
+        rooms: [...currentHouse.rooms, room],
+        updatedAt: new Date()
+      };
+    });
   };
 
   const updateRoom = (roomId: string, updates: Partial<Room>) => {
-    setHouse(current => ({
-      ...current,
-      rooms: current.rooms.map(room =>
-        room.id === roomId ? { ...room, ...updates } : room
-      ),
-      updatedAt: new Date()
-    }));
+    setHouse(current => {
+      const currentHouse = current || DEFAULT_HOUSE;
+      return {
+        ...currentHouse,
+        rooms: currentHouse.rooms.map(room =>
+          room.id === roomId ? { ...room, ...updates } : room
+        ),
+        updatedAt: new Date()
+      };
+    });
   };
 
   const moveCharacterToRoom = (characterId: string, roomId: string) => {
     setHouse(current => {
-      const character = current.characters.find(c => c.id === characterId);
-      const room = current.rooms.find(r => r.id === roomId);
+      const currentHouse = current || DEFAULT_HOUSE;
       
-      if (!character || !room) return current;
-      if (room.residents.length >= room.capacity) return current;
+      const character = currentHouse.characters.find(c => c.id === characterId);
+      const room = currentHouse.rooms.find(r => r.id === roomId);
+      
+      if (!character || !room) return currentHouse;
+      if (room.residents.length >= room.capacity) return currentHouse;
 
       // Remove from old room
-      const updatedRooms = current.rooms.map(room => ({
+      const updatedRooms = currentHouse.rooms.map(room => ({
         ...room,
         residents: room.residents.filter(id => id !== characterId)
       }));
@@ -105,14 +125,14 @@ export function useHouse() {
       );
 
       // Update character
-      const updatedCharacters = current.characters.map(char =>
+      const updatedCharacters = currentHouse.characters.map(char =>
         char.id === characterId 
           ? { ...char, roomId, updatedAt: new Date() }
           : char
       );
 
       return {
-        ...current,
+        ...currentHouse,
         rooms: finalRooms,
         characters: updatedCharacters,
         updatedAt: new Date()
@@ -121,31 +141,40 @@ export function useHouse() {
   };
 
   const spendCurrency = (amount: number) => {
-    setHouse(current => ({
-      ...current,
-      currency: Math.max(0, current.currency - amount),
-      updatedAt: new Date()
-    }));
+    setHouse(current => {
+      const currentHouse = current || DEFAULT_HOUSE;
+      return {
+        ...currentHouse,
+        currency: Math.max(0, currentHouse.currency - amount),
+        updatedAt: new Date()
+      };
+    });
   };
 
   const earnCurrency = (amount: number) => {
-    setHouse(current => ({
-      ...current,
-      currency: current.currency + amount,
-      updatedAt: new Date()
-    }));
+    setHouse(current => {
+      const currentHouse = current || DEFAULT_HOUSE;
+      return {
+        ...currentHouse,
+        currency: currentHouse.currency + amount,
+        updatedAt: new Date()
+      };
+    });
   };
 
   const updateSettings = (updates: Partial<House>) => {
-    setHouse(current => ({
-      ...current,
-      ...updates,
-      updatedAt: new Date()
-    }));
+    setHouse(current => {
+      const currentHouse = current || DEFAULT_HOUSE;
+      return {
+        ...currentHouse,
+        ...updates,
+        updatedAt: new Date()
+      };
+    });
   };
 
   return {
-    house,
+    house: safeHouse,
     addCharacter,
     updateCharacter,
     removeCharacter,

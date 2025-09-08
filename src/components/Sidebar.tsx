@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { useHouse } from '@/hooks/useHouse';
 import { useChat } from '@/hooks/useChat';
-import { Plus, Home, Users, MessageCircle, Settings, Heart, Battery, Smile } from '@phosphor-icons/react';
+import { Plus, House as Home, Users, ChatCircle as MessageCircle, Gear as Settings, Heart, BatteryMedium as Battery, Smiley as Smile } from '@phosphor-icons/react';
 import { CharacterCreator } from './CharacterCreator';
 
 export function Sidebar() {
