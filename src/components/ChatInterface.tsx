@@ -19,55 +19,61 @@ interface ChatInterfaceProps {
 }
 
 export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat }: ChatInterfaceProps) {
-  const { sessions, sendMessage, switchToSession } = useChat();
+  const { sessions, sendMessage, switchToSession, activeSession: hookActiveSession, setActiveSessionId } = useChat();
   const { house } = useHouse();
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Find the active session directly from sessions array using sessionId
-  const activeSession = sessionId ? sessions.find(s => s.id === sessionId) : null;
+  // Find the active session - prefer the one from sessionId, fallback to hook's activeSession
+  const activeSession = sessionId ? sessions.find(s => s.id === sessionId) : hookActiveSession;
 
-  // Create a temporary session if we have sessionId but no session found yet
-  // This handles the case where the KV hasn't synced yet but we have a valid sessionId
-  const tempSession = sessionId && !activeSession ? {
-    id: sessionId,
-    type: 'individual' as const,
-    participantIds: house.characters ? [house.characters[0]?.id].filter(Boolean) : [],
-    messages: [],
-    active: true,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  } : null;
-
-  // Find the most recently created session if no sessionId is provided but we're in chat view
-  // This helps when there's a timing issue with session creation
-  const fallbackSession = !activeSession && sessionId && sessions.length > 0 
-    ? sessions
-        .filter(s => s.active)
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
-    : null;
-
-  const displaySession = activeSession || fallbackSession;
-
-  // Switch to session when it becomes available
+  // Try to auto-switch to the session when it becomes available, with retries
   useEffect(() => {
     if (sessionId && !activeSession && sessions.length > 0) {
       const foundSession = sessions.find(s => s.id === sessionId);
       if (foundSession) {
-        console.log('Session found after delay, switching to it:', foundSession.id);
-        switchToSession(sessionId);
+        console.log('Found session after delay, switching to it:', foundSession.id);
+        setActiveSessionId(sessionId);
       }
     }
-  }, [sessionId, sessions, activeSession, switchToSession]);
+  }, [sessionId, sessions, activeSession, setActiveSessionId]);
+
+  // Enhanced retry mechanism for session finding
+  useEffect(() => {
+    if (sessionId && !activeSession) {
+      let retryCount = 0;
+      const maxRetries = 10;
+      
+      const checkForSession = () => {
+        const foundSession = sessions.find(s => s.id === sessionId);
+        
+        if (foundSession) {
+          console.log(`Session found after ${retryCount} retries:`, foundSession.id);
+          setActiveSessionId(sessionId);
+        } else if (retryCount < maxRetries) {
+          retryCount++;
+          console.log(`Session not found, retry ${retryCount}/${maxRetries} in 200ms...`);
+          setTimeout(checkForSession, 200);
+        } else {
+          console.warn(`Session ${sessionId} not found after ${maxRetries} retries`);
+        }
+      };
+      
+      // Start checking after a small delay to allow for KV sync
+      setTimeout(checkForSession, 100);
+    }
+  }, [sessionId, sessions, activeSession, setActiveSessionId]);
+
+  // If we don't have an active session but we have a sessionId, we might be waiting for KV sync
+  const isWaitingForSession = sessionId && !activeSession;
 
   // Debug logging
   console.log('ChatInterface render:', {
     sessionId,
-    availableSessions: sessions.map(s => ({ id: s.id, type: s.type, participants: s.participantIds.length })),
-    activeSession: activeSession ? { id: activeSession.id, type: activeSession.type, messageCount: activeSession.messages.length } : null,
-    fallbackSession: fallbackSession ? { id: fallbackSession.id, type: fallbackSession.type, messageCount: fallbackSession.messages.length } : null,
-    displaySession: displaySession ? { id: displaySession.id, type: displaySession.type, messageCount: displaySession.messages?.length || 0 } : null,
+    availableSessions: sessions.map(s => ({ id: s.id.slice(0, 8) + '...', type: s.type, participants: s.participantIds.length })),
+    activeSession: activeSession ? { id: activeSession.id.slice(0, 8) + '...', type: activeSession.type, messageCount: activeSession.messages.length } : null,
+    isWaitingForSession,
     charactersCount: house.characters?.length || 0,
     aiProvider: house.aiSettings?.provider,
     hasApiKey: !!house.aiSettings?.apiKey
@@ -76,18 +82,18 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [displaySession?.messages]);
+  }, [activeSession?.messages]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || !displaySession) return;
+    if (!message.trim() || !activeSession) return;
 
     await sendMessage(message);
     setMessage('');
 
     // Simulate typing indicators
-    if (displaySession.participantIds.length > 0) {
-      const typingCharacters = displaySession.participantIds.slice(0, Math.min(2, displaySession.participantIds.length));
+    if (activeSession.participantIds.length > 0) {
+      const typingCharacters = activeSession.participantIds.slice(0, Math.min(2, activeSession.participantIds.length));
       setIsTyping(typingCharacters);
       
       setTimeout(() => {
@@ -100,7 +106,30 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
     return house.characters?.find(c => c.id === characterId);
   };
 
-  if (!displaySession) {
+  // Show loading state while waiting for session to sync from KV
+  if (isWaitingForSession) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-background p-8">
+        <Card className="p-8 text-center max-w-md w-full">
+          <div className="flex flex-col items-center space-y-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <h3 className="text-xl font-semibold">Starting Chat...</h3>
+            <p className="text-muted-foreground">
+              Setting up your conversation. This should only take a moment.
+            </p>
+            <div className="text-xs text-muted-foreground mt-4 p-3 bg-muted rounded">
+              <strong>Debug Info:</strong><br/>
+              Session ID: {sessionId?.slice(0, 12)}...<br/>
+              Available Sessions: {sessions.length}<br/>
+              Waiting for KV sync...
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!activeSession) {
     const provider = house.aiSettings?.provider || 'spark';
     const needsApiKey = provider === 'openrouter' && !house.aiSettings?.apiKey;
     const sparkUnavailable = provider === 'spark' && (!window.spark || !window.spark.llm);
@@ -201,77 +230,51 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                   Spark LLMPrompt Available: {!!(window.spark && window.spark.llmPrompt) ? 'Yes' : 'No'}
                 </div>
                 
-                {/* Character List */}
-                {house.characters && house.characters.length > 0 && (
-                  <div className="mb-3">
-                    <strong>Available Characters:</strong><br/>
-                    {house.characters.map(char => (
-                      <div key={char.id} className="text-xs">
-                        • {char.name} ({char.id.slice(0, 8)}...)
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {/* Session List */}
-                {sessions.length > 0 && (
-                  <div className="mb-3">
-                    <strong>Available Sessions:</strong><br/>
-                    {sessions.map(session => (
-                      <div key={session.id} className="text-xs">
-                        • {session.type} - {session.id.slice(0, 8)}... ({session.participantIds.length} participants)
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
                 {/* Debug Actions */}
                 <div className="flex gap-2">
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      console.log('=== Manual Session Creation Test ===');
-                      console.log('House characters:', house.characters?.map(c => ({ id: c.id, name: c.name })));
-                      console.log('Current sessions:', sessions.map(s => ({ id: s.id, type: s.type, active: s.active })));
-                      console.log('Session ID provided to ChatInterface:', sessionId);
-                      console.log('Active session found in ChatInterface:', activeSession ? 'YES' : 'NO');
-                      console.log('Fallback session found:', fallbackSession ? 'YES' : 'NO');
-                      console.log('Display session:', displaySession ? { id: displaySession.id, type: displaySession.type } : 'NONE');
+                      console.log('=== Manual Test Chat ===');
                       if (house.characters && house.characters.length > 0) {
-                        console.log('Attempting to start chat with first character...');
+                        console.log('Starting test chat with first character:', house.characters[0].name);
                         onStartChat?.(house.characters[0].id);
+                      } else {
+                        console.log('No characters available for test');
                       }
                     }}
                     className="flex-1 text-xs"
                   >
-                    🔧 Test Chat Creation
+                    🔧 Test Start Chat
                   </Button>
                   
                   <Button
                     size="sm" 
                     variant="outline"
-                    onClick={async () => {
-                      console.log('=== KV Storage Test ===');
-                      try {
-                        // Test if KV is working
-                        if (window.spark && window.spark.kv) {
-                          const keys = await window.spark.kv.keys();
-                          console.log('KV keys available:', keys);
-                          const chatSessions = await window.spark.kv.get('chat-sessions');
-                          console.log('Chat sessions in KV:', chatSessions);
-                          const house = await window.spark.kv.get('character-house');
-                          console.log('House in KV:', house);
-                        } else {
-                          console.log('Spark KV not available');
-                        }
-                      } catch (error) {
-                        console.error('KV test error:', error);
-                      }
+                    onClick={() => {
+                      console.log('=== Session Debug ===');
+                      console.log('Sessions from useChat:', sessions.map(s => ({ 
+                        id: s.id.slice(0, 12) + '...', 
+                        type: s.type, 
+                        participants: s.participantIds.length,
+                        messageCount: s.messages.length
+                      })));
+                      console.log('Hook active session:', hookActiveSession ? {
+                        id: hookActiveSession.id.slice(0, 12) + '...',
+                        type: hookActiveSession.type,
+                        messageCount: hookActiveSession.messages.length
+                      } : 'None');
+                      console.log('Current sessionId:', sessionId);
+                      console.log('Found active session:', activeSession ? {
+                        id: activeSession.id.slice(0, 12) + '...',
+                        type: activeSession.type,
+                        messageCount: activeSession.messages.length
+                      } : 'None');
                     }}
                     className="flex-1 text-xs"
                   >
-                    🔍 Test KV Storage
+                    🔍 Debug Sessions
                   </Button>
                 </div>
               </div>
@@ -282,7 +285,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
     );
   }
 
-  const participants = displaySession.participantIds
+  const participants = activeSession.participantIds
     .map(id => getCharacter(id))
     .filter(Boolean);
 
@@ -303,13 +306,13 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
           
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              {displaySession.type === 'group' ? (
+              {activeSession.type === 'group' ? (
                 <Users size={20} className="text-muted-foreground" />
               ) : (
                 <MessageCircle size={20} className="text-muted-foreground" />
               )}
               <h2 className="font-semibold">
-                {displaySession.type === 'group' 
+                {activeSession.type === 'group' 
                   ? `Group Chat (${participants.length})`
                   : participants[0]?.name || 'Chat'
                 }
@@ -336,21 +339,13 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
       {/* Messages Area */}
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
-          {!activeSession && fallbackSession && (
-            <div className="text-center text-muted-foreground py-8">
-              <MessageCircle size={32} className="mx-auto mb-2 opacity-50" />
-              <p>Using most recent chat session...</p>
-              <p className="text-xs">Session: {fallbackSession.id.slice(0, 8)}...</p>
-            </div>
-          )}
-          
           <AnimatePresence initial={false}>
-            {(displaySession.messages || []).map((msg, index) => {
+            {(activeSession.messages || []).map((msg, index) => {
               const character = msg.characterId ? getCharacter(msg.characterId) : null;
               const isUser = !msg.characterId;
               const showAvatar = !isUser && (
                 index === 0 || 
-                (displaySession.messages && displaySession.messages[index - 1].characterId !== msg.characterId)
+                (activeSession.messages && activeSession.messages[index - 1].characterId !== msg.characterId)
               );
 
               return (
@@ -453,7 +448,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
           <Input
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder={`Message ${displaySession.type === 'group' ? 'the group' : participants[0]?.name || '...'}`}
+            placeholder={`Message ${activeSession.type === 'group' ? 'the group' : participants[0]?.name || '...'}`}
             className="flex-1"
             autoFocus
           />
