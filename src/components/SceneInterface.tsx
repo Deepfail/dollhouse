@@ -18,8 +18,7 @@ import {
   Eye,
   EyeSlash,
   Clock,
-  Warning,
-  Gear
+  Warning
 } from '@phosphor-icons/react';
 
 interface SceneInterfaceProps {
@@ -72,8 +71,6 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
   const participatingCharacters = session.participantIds
     .map(id => house.characters?.find(c => c.id === id))
     .filter(Boolean);
-  
-  const hasApiConfig = house.aiSettings?.apiKey && house.aiSettings.apiKey.trim().length > 0;
 
   const handleSendMessage = () => {
     if (!userInput.trim()) return;
@@ -152,24 +149,6 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
         </CardHeader>
       </Card>
 
-      {/* API Configuration Warning */}
-      {!hasApiConfig && (
-        <Alert className="mb-4 border-yellow-500/50 bg-yellow-500/10">
-          <Warning className="h-4 w-4" />
-          <AlertDescription>
-            <div className="flex items-center justify-between">
-              <span>
-                No API key configured. Characters can't respond automatically until you set up your AI settings.
-              </span>
-              <Button variant="outline" size="sm" onClick={onClose}>
-                <Gear size={16} className="mr-1" />
-                House Settings
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* Objectives Panel */}
       {showObjectives && session.sceneObjectives && (
         <Card className="mb-4">
@@ -213,7 +192,7 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
             <div className="flex items-center justify-center gap-2">
               <Button
                 onClick={handlePlayPause}
-                disabled={!session.active || !hasApiConfig}
+                disabled={!session.active}
                 variant={isAutoPlaying ? "default" : "outline"}
               >
                 {isAutoPlaying ? <Pause size={16} /> : <Play size={16} />}

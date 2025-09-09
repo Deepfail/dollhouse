@@ -15,76 +15,71 @@ export const useSceneMode = () => {
     objectives: SceneObjective[],
     context?: string
   ): Promise<string> => {
-    const sessionId = `scene_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    const sceneObjectives: Record<string, string> = {};
-    objectives.forEach(obj => {
-      sceneObjectives[obj.characterId] = obj.objective;
-    });
-    
-    const newSession: ChatSession = {
-      id: sessionId,
-      type: 'scene',
-      participantIds: characterIds,
-      messages: [],
-      context,
-      active: true,
-      sceneObjectives,
-      sceneSettings: {
-        autoPlay: true,
-        turnDuration: 5000, // 5 seconds per turn
-        maxTurns: 50
-      },
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    
-    // Add system message explaining the scene
-    const systemMessage: ChatMessage = {
-      id: `msg_${Date.now()}_sys`,
-      content: `Scene started with ${characterIds.length} characters. Each character has been given secret objectives they will try to fulfill through their interactions.`,
-      timestamp: new Date(),
-      type: 'system'
-    };
-    
-    newSession.messages.push(systemMessage);
-    
-    // Update state using functional update to get current state
-    return new Promise<string>((resolve) => {
+    return new Promise((resolve, reject) => {
+      const sessionId = `scene_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const sceneObjectives: Record<string, string> = {};
+      objectives.forEach(obj => {
+        sceneObjectives[obj.characterId] = obj.objective;
+      });
+      
+      const newSession: ChatSession = {
+        id: sessionId,
+        type: 'scene',
+        participantIds: characterIds,
+        messages: [],
+        context,
+        active: true,
+        sceneObjectives,
+        sceneSettings: {
+          autoPlay: true,
+          turnDuration: 5000, // 5 seconds per turn
+          maxTurns: 50
+        },
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      // Add system message explaining the scene
+      const systemMessage: ChatMessage = {
+        id: `msg_${Date.now()}_sys`,
+        content: `Scene started with ${characterIds.length} characters. Each character has been given secret objectives they will try to fulfill through their interactions.`,
+        timestamp: new Date(),
+        type: 'system'
+      };
+      
+      newSession.messages.push(systemMessage);
+      
+      console.log('Creating scene session:', sessionId);
+      
+      // Update sessions immediately and synchronously
       setActiveSessions(sessions => {
         const updatedSessions = [...sessions, newSession];
         console.log('Sessions updated, new count:', updatedSessions.length);
         console.log('New session added:', newSession.id);
+        console.log('All session IDs:', updatedSessions.map(s => s.id));
         
-        // Resolve after state update
+        // Resolve immediately after state update
         setTimeout(() => {
-          console.log('Scene session created:', sessionId);
-          
-          // Start auto-play after state is confirmed updated
-          setTimeout(() => {
-            console.log('Attempting to start auto-play for session:', sessionId);
-            startAutoPlayForNewSession(sessionId);
-          }, 100);
-          
           resolve(sessionId);
-        }, 50);
+          
+          // Start auto-play after resolving
+          setTimeout(() => {
+            console.log('Starting auto-play for session:', sessionId);
+            startAutoPlayForNewSession(sessionId);
+          }, 500);
+        }, 100);
         
         return updatedSessions;
       });
+      
+      toast.success('Scene session created! Characters will begin interacting automatically.');
     });
-    
-    toast.success('Scene session created! Characters will begin interacting automatically.');
+  };
   };
   
   const startAutoPlayForNewSession = async (sessionId: string) => {
     console.log('Starting auto-play for session:', sessionId);
-    
-    // Check if API key is configured first
-    if (!house.aiSettings?.apiKey) {
-      console.log('No API key configured, scene will wait for configuration');
-      toast.warning('Scene created but waiting for API configuration. Please set up your OpenRouter API key in House Settings.');
-      return;
-    }
     
     setIsProcessing(true);
     
@@ -224,11 +219,6 @@ System prompt for character behavior: ${character.prompts.system}`;
       // Create AI service instance with current house settings
       const aiService = new AIService(house);
       
-      // Check if API key is configured
-      if (!house.aiSettings?.apiKey) {
-        throw new Error('API key not configured. Please set up your AI settings in House Settings.');
-      }
-      
       const response = await aiService.generateResponse(characterPrompt);
       
       console.log(`Generated response for ${character.name}:`, response);
@@ -289,22 +279,15 @@ System prompt for character behavior: ${character.prompts.system}`;
       toast.error(`Error generating response for ${character.name}: ${errorMessage}`);
       
       // If this is an API configuration error, pause the scene
-      if (errorMessage.includes('API key not configured')) {
+      if (errorMessage.includes('API')) {
         await pauseScene(sessionId);
-        toast.error('Scene paused due to API configuration error. Please check House Settings.');
+        toast.error('Scene paused due to API error. Please try again.');
       }
     }
   };
   
   const startAutoPlay = async (sessionId: string) => {
     console.log('Starting auto-play for session:', sessionId);
-    
-    // Check if API key is configured first
-    if (!house.aiSettings?.apiKey) {
-      console.log('No API key configured, cannot start auto-play');
-      toast.error('Cannot start auto-play: No API key configured. Please set up your OpenRouter API key in House Settings.');
-      return;
-    }
     
     setIsProcessing(true);
     

@@ -61,25 +61,41 @@ export const SceneCreator: React.FC<SceneCreatorProps> = ({ onSceneCreated }) =>
       return `${char?.name} (${char?.personality})`;
     }).join(', ');
 
-    const objectivePrompt = spark.llmPrompt`
-      Generate unique secret objectives for ${selectedCharacters.length} characters in a scene.
+    const objectivePrompt = `Generate unique secret objectives for ${selectedCharacters.length} characters in a scene.
       
-      Characters: ${charactersInfo}
-      Scene context: ${sceneContext || 'A social gathering'}
-      
-      Create objectives that:
-      - Are achievable through conversation and social interaction
-      - Create potential for interesting conflicts or alliances
-      - Are not directly opposing but create natural tension
-      - Fit each character's personality
-      
-      Format as JSON object with character names as keys and objectives as values.
-      Each objective should be 1-2 sentences describing what the character wants to achieve.
-    `;
+Characters: ${charactersInfo}
+Scene context: ${sceneContext || 'A social gathering'}
+
+Create objectives that:
+- Are achievable through conversation and social interaction
+- Create potential for interesting conflicts or alliances
+- Are not directly opposing but create natural tension
+- Fit each character's personality
+
+Format as JSON object with character names as keys and objectives as values.
+Each objective should be 1-2 sentences describing what the character wants to achieve.`;
 
     try {
-      const response = await spark.llm(objectivePrompt, 'gpt-4o', true);
-      const generatedObjectives = JSON.parse(response);
+      const response = await (window as any).spark?.llm?.(objectivePrompt, 'gpt-4o');
+      
+      if (!response) {
+        throw new Error('No response from AI service');
+      }
+      
+      // Try to parse as JSON, fallback to simple text parsing
+      let generatedObjectives: Record<string, string> = {};
+      
+      try {
+        generatedObjectives = JSON.parse(response);
+      } catch {
+        // If JSON parsing fails, create simple objectives
+        selectedCharacters.forEach((characterId, index) => {
+          const character = house.characters?.find(c => c.id === characterId);
+          if (character) {
+            generatedObjectives[character.name] = `Objective ${index + 1}: Engage meaningfully with other characters based on your personality.`;
+          }
+        });
+      }
       
       const mappedObjectives: Record<string, string> = {};
       selectedCharacters.forEach(characterId => {
@@ -92,6 +108,7 @@ export const SceneCreator: React.FC<SceneCreatorProps> = ({ onSceneCreated }) =>
       setObjectives(mappedObjectives);
       toast.success('Random objectives generated!');
     } catch (error) {
+      console.error('Failed to generate objectives:', error);
       toast.error('Failed to generate objectives');
     }
   };
