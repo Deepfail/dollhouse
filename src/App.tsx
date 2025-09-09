@@ -67,7 +67,6 @@ function App() {
   const handleStartChat = async (characterId: string) => {
     console.log('=== handleStartChat called ===');
     console.log('Character ID:', characterId);
-    console.log('Available characters:', house.characters?.map(c => ({ id: c.id, name: c.name })) || []);
     
     if (!house.characters || house.characters.length === 0) {
       toast.error('No characters available');
@@ -80,81 +79,84 @@ function App() {
       return;
     }
     
-    // Check AI configuration first
-    const provider = house.aiSettings?.provider || 'spark';
-    if (provider === 'spark' && (!window.spark || !window.spark.llm)) {
-      console.warn('Spark AI not available, continuing with fallback responses');
-    }
-    if (provider === 'openrouter' && !house.aiSettings?.apiKey) {
-      toast.error('Please configure your OpenRouter API key in House Settings');
-      return;
-    }
+    // Clear any existing active session to avoid conflicts
+    setActiveSessionId(null);
     
-    // Create the session
-    const sessionId = createSession('individual', [characterId]);
-    console.log('createSession returned:', sessionId);
-    
-    if (sessionId) {
-      console.log('Setting active session ID to:', sessionId);
+    try {
+      // Create the session with a small delay to ensure KV is ready
+      await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Switch to the session in the hook immediately
-      setChatActiveSessionId(sessionId);
+      const sessionId = createSession('individual', [characterId]);
+      console.log('createSession returned:', sessionId);
       
-      // Switch views immediately
-      setCurrentView('chat');
-      setActiveSessionId(sessionId);
-      
-      toast.success(`Started chat with ${character.name}`);
-    } else {
-      console.error('Failed to create session for character:', characterId);
-      toast.error('Failed to create chat session');
+      if (sessionId) {
+        console.log('Setting session states:', sessionId);
+        
+        // Set all the states in the right order
+        setActiveSessionId(sessionId);
+        setChatActiveSessionId(sessionId);
+        
+        // Wait a bit for states to propagate, then switch view
+        setTimeout(() => {
+          setCurrentView('chat');
+          toast.success(`Started chat with ${character.name}`);
+        }, 200);
+      } else {
+        console.error('Failed to create session for character:', characterId);
+        toast.error('Failed to create chat session');
+      }
+    } catch (error) {
+      console.error('Error in handleStartChat:', error);
+      toast.error('Failed to start chat');
     }
   };
 
   const handleStartGroupChat = async (sessionId?: string) => {
     console.log('=== handleStartGroupChat called ===');
     console.log('Session ID provided:', sessionId);
-    console.log('Available characters:', house.characters?.length || 0);
     
-    // Check AI configuration first
-    const provider = house.aiSettings?.provider || 'spark';
-    if (provider === 'spark' && (!window.spark || !window.spark.llm)) {
-      console.warn('Spark AI not available, continuing with fallback responses');
-    }
-    if (provider === 'openrouter' && !house.aiSettings?.apiKey) {
-      toast.error('Please configure your OpenRouter API key in House Settings');
-      return;
-    }
-    
-    if (sessionId) {
-      // Use existing session - set it active in hook first
-      setChatActiveSessionId(sessionId);
-      setCurrentView('chat');
-      setActiveSessionId(sessionId);
-      toast.success('Started group chat');
-    } else {
-      // Create new group chat with all characters
-      const characterIds = (house.characters || []).map(c => c.id);
-      console.log('Character IDs for group chat:', characterIds);
-      
-      if (characterIds.length > 1) {
-        const newSessionId = createSession('group', characterIds);
-        console.log('Group session created:', newSessionId);
-        
-        if (newSessionId) {
-          // Set active in hook first, then switch views
-          setChatActiveSessionId(newSessionId);
+    try {
+      if (sessionId) {
+        // Use existing session
+        setActiveSessionId(sessionId);
+        setChatActiveSessionId(sessionId);
+        setTimeout(() => {
           setCurrentView('chat');
-          setActiveSessionId(newSessionId);
-          toast.success(`Started group chat with ${characterIds.length} characters`);
-        } else {
-          toast.error('Failed to create group chat');
-        }
-      } else if (characterIds.length === 1) {
-        toast.error('Need at least 2 characters for group chat. You only have 1 character.');
+          toast.success('Started group chat');
+        }, 200);
       } else {
-        toast.error('No characters available for group chat');
+        // Create new group chat with all characters
+        const characterIds = (house.characters || []).map(c => c.id);
+        console.log('Character IDs for group chat:', characterIds);
+        
+        if (characterIds.length > 1) {
+          // Clear any existing active session
+          setActiveSessionId(null);
+          
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          const newSessionId = createSession('group', characterIds);
+          console.log('Group session created:', newSessionId);
+          
+          if (newSessionId) {
+            setActiveSessionId(newSessionId);
+            setChatActiveSessionId(newSessionId);
+            setTimeout(() => {
+              setCurrentView('chat');
+              toast.success(`Started group chat with ${characterIds.length} characters`);
+            }, 200);
+          } else {
+            toast.error('Failed to create group chat');
+          }
+        } else if (characterIds.length === 1) {
+          toast.error('Need at least 2 characters for group chat. You only have 1 character.');
+        } else {
+          toast.error('No characters available for group chat');
+        }
       }
+    } catch (error) {
+      console.error('Error in handleStartGroupChat:', error);
+      toast.error('Failed to start group chat');
     }
   };
 

@@ -1,6 +1,6 @@
 import { useKV } from '@github/spark/hooks';
 import { ChatSession, ChatMessage, Character } from '@/types';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useHouse } from './useHouse';
 import { AIService } from '@/lib/aiService';
 import { toast } from 'sonner';
@@ -15,12 +15,14 @@ export function useChat() {
   const activeSession = safeSessions.find(s => s.id === activeSessionId);
 
   // Debug session finding
-  console.log('useChat state:', {
-    sessionCount: safeSessions.length,
-    activeSessionId: activeSessionId ? activeSessionId.slice(0, 12) + '...' : null,
-    activeSessionFound: !!activeSession,
-    sessionIds: safeSessions.map(s => s.id.slice(0, 12) + '...')
-  });
+  useEffect(() => {
+    console.log('useChat state update:', {
+      sessionCount: safeSessions.length,
+      activeSessionId: activeSessionId ? activeSessionId.slice(0, 12) + '...' : null,
+      activeSessionFound: !!activeSession,
+      sessionIds: safeSessions.map(s => s.id.slice(0, 12) + '...')
+    });
+  }, [safeSessions, activeSessionId, activeSession]);
 
   const createSession = (type: 'individual' | 'group' | 'scene', participantIds: string[], context?: string) => {
     console.log('=== createSession Debug ===');
@@ -29,7 +31,6 @@ export function useChat() {
     console.log('Context:', context);
     console.log('Available characters:', house.characters?.map(c => ({ id: c.id, name: c.name })) || []);
     console.log('Current sessions before creation:', (sessions || []).length);
-    console.log('Current sessions details:', (sessions || []).map(s => ({ id: s.id.slice(0, 8), type: s.type, participants: s.participantIds.length })));
     
     // Basic validation
     if (!participantIds || participantIds.length === 0) {
@@ -50,7 +51,6 @@ export function useChat() {
     );
     
     console.log('Valid participants after filtering:', validParticipants);
-    console.log('Invalid participants removed:', participantIds.filter(id => !validParticipants.includes(id)));
     
     if (validParticipants.length === 0) {
       console.warn('No valid participants found for session');
@@ -89,20 +89,21 @@ export function useChat() {
     console.log('New session object:', newSession);
 
     try {
-      // Update local state immediately for instant UI response
-      const updatedSessions = [...safeSessions, newSession];
-      
+      // Update sessions immediately and synchronously
       setSessions(current => {
         const currentSessions = current || [];
         const finalSessions = [...currentSessions, newSession];
         console.log('Session array update - before:', currentSessions.length, 'after:', finalSessions.length);
         console.log('Updated sessions:', finalSessions.map(s => ({ id: s.id.slice(0, 8), type: s.type, participants: s.participantIds.length })));
+        
+        // Also set as active immediately
+        setTimeout(() => {
+          console.log('Setting newly created session as active:', sessionId);
+          setActiveSessionId(sessionId);
+        }, 0);
+        
         return finalSessions;
       });
-      
-      // Immediately set this as the active session
-      console.log('Setting newly created session as active:', sessionId);
-      setActiveSessionId(sessionId);
       
       console.log('Session creation completed successfully, returning ID:', sessionId);
       return sessionId;
@@ -204,7 +205,7 @@ export function useChat() {
       // Check provider configuration
       if (provider === 'spark') {
         if (!window.spark || !window.spark.llm || !window.spark.llmPrompt) {
-          console.error('Spark AI service not available');
+          console.warn('Spark AI service not available, using fallback');
           // Create a simple fallback response instead of showing error
           const fallbackResponses = [
             "I hear you!",
@@ -325,11 +326,12 @@ Respond as ${character.name} would, staying true to your character. Keep respons
       }
       
       // Always provide a fallback response instead of failing completely
+      const character = house.characters?.find(c => c.id === characterId);
       const fallbackResponses = [
-        `*${character.name} nods thoughtfully*`,
+        `*${character?.name || 'Character'} nods thoughtfully*`,
         `I see what you mean.`,
         `That's fascinating!`,
-        `*${character.name} considers your words*`,
+        `*${character?.name || 'Character'} considers your words*`,
         `Tell me more about that.`
       ];
       const response = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
@@ -351,7 +353,7 @@ Respond as ${character.name} would, staying true to your character. Keep respons
     console.log('Available sessions:', safeSessions.map(s => ({ id: s.id, type: s.type, active: s.active })));
     
     const session = safeSessions.find(s => s.id === sessionId);
-    console.log('Found session in switchToSession:', session ? 'YES' : 'NO', session ? { id: session.id, type: session.type, active: session.active } : null);
+    console.log('Found session in switchToSession:', session ? 'YES' : 'NO');
     
     if (session) {
       console.log('Setting active session ID to:', sessionId);
@@ -364,33 +366,10 @@ Respond as ${character.name} would, staying true to your character. Keep respons
     }
   };
 
-  // Override setActiveSessionId to ensure session exists
+  // Simple setActiveSessionId that just sets it
   const setActiveSessionIdSafe = (sessionId: string) => {
     console.log('setActiveSessionIdSafe called with:', sessionId);
-    console.log('Current sessions available:', safeSessions.map(s => s.id));
-    
-    const session = safeSessions.find(s => s.id === sessionId);
-    if (session) {
-      console.log('Session found, setting as active:', sessionId);
-      setActiveSessionId(sessionId);
-    } else {
-      console.warn('Session not found when trying to set as active:', sessionId);
-      
-      // Force re-check sessions from KV after a short delay
-      setTimeout(() => {
-        setSessions(current => {
-          const currentSessions = current || [];
-          const retrySession = currentSessions.find(s => s.id === sessionId);
-          if (retrySession) {
-            console.log('Session found after KV sync, setting as active:', sessionId);
-            setActiveSessionId(sessionId);
-          } else {
-            console.error('Session still not found after KV sync:', sessionId);
-          }
-          return currentSessions;
-        });
-      }, 100);
-    }
+    setActiveSessionId(sessionId);
   };
 
   const closeSession = (sessionId: string) => {
@@ -426,7 +405,13 @@ Respond as ${character.name} would, staying true to your character. Keep respons
     );
   };
 
-    return {
+  const clearAllSessions = () => {
+    console.log('Clearing all chat sessions');
+    setSessions([]);
+    setActiveSessionId(null);
+  };
+
+  return {
     sessions: safeSessions,
     activeSession,
     activeSessionId,
@@ -436,6 +421,7 @@ Respond as ${character.name} would, staying true to your character. Keep respons
     closeSession,
     deleteSession,
     getSessionsByCharacter,
-    setActiveSessionId: setActiveSessionIdSafe  // Use the safe version
+    setActiveSessionId: setActiveSessionIdSafe,
+    clearAllSessions
   };
 }

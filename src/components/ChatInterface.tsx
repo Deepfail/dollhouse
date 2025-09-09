@@ -19,25 +19,22 @@ interface ChatInterfaceProps {
 }
 
 export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat }: ChatInterfaceProps) {
-  const { sessions, sendMessage, switchToSession, activeSession, setActiveSessionId } = useChat();
+  const { sessions, sendMessage, switchToSession, activeSession, setActiveSessionId, clearAllSessions } = useChat();
   const { house } = useHouse();
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Use the sessionId if provided, otherwise use the hook's active session
-  const currentSession = sessionId ? sessions.find(s => s.id === sessionId) || activeSession : activeSession;
+  const currentSession = sessionId ? sessions.find(s => s.id === sessionId) : activeSession;
 
   // Ensure the hook knows about the sessionId if provided
   useEffect(() => {
     if (sessionId && sessionId !== activeSession?.id) {
-      const foundSession = sessions.find(s => s.id === sessionId);
-      if (foundSession) {
-        console.log('Setting active session in hook:', sessionId);
-        setActiveSessionId(sessionId);
-      }
+      console.log('Setting active session in hook:', sessionId);
+      setActiveSessionId(sessionId);
     }
-  }, [sessionId, sessions, activeSession, setActiveSessionId]);
+  }, [sessionId, setActiveSessionId]);
 
   // If we don't have a session, we might be waiting for it to be created
   const isWaitingForSession = sessionId && !currentSession;
@@ -97,6 +94,25 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
               Available Sessions: {sessions.length}<br/>
               Waiting for KV sync...
             </div>
+            
+            {/* Auto-retry mechanism */}
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                // Try to find the session again
+                const foundSession = sessions.find(s => s.id === sessionId);
+                if (foundSession) {
+                  setActiveSessionId(sessionId!);
+                } else {
+                  // Force refresh and try again
+                  window.location.reload();
+                }
+              }}
+              className="mt-4"
+            >
+              Retry Connection
+            </Button>
           </div>
         </Card>
       </div>
@@ -236,6 +252,54 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                     className="flex-1 text-xs"
                   >
                     🔄 Refresh
+                  </Button>
+                  
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      console.log('=== Clear All Sessions ===');
+                      clearAllSessions();
+                    }}
+                    className="flex-1 text-xs"
+                  >
+                    🗑️ Clear Sessions
+                  </Button>
+                </div>
+                
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => {
+                      console.log('=== Emergency Test Chat ===');
+                      if (house.characters && house.characters.length > 0) {
+                        const testCharacter = house.characters[0];
+                        console.log('Emergency creating test session for:', testCharacter.name);
+                        
+                        // Create a session directly bypassing all the complex logic
+                        const testSessionId = `test-${Date.now()}`;
+                        const testSession = {
+                          id: testSessionId,
+                          type: 'individual' as const,
+                          participantIds: [testCharacter.id],
+                          messages: [],
+                          active: true,
+                          createdAt: new Date(),
+                          updatedAt: new Date()
+                        };
+                        
+                        // Try to manually set the session
+                        spark.kv.set('test-session', testSession).then(() => {
+                          console.log('Test session saved to KV');
+                          setActiveSessionId(testSessionId);
+                          setTimeout(() => window.location.reload(), 500);
+                        });
+                      }
+                    }}
+                    className="flex-1 text-xs"
+                  >
+                    🚨 Emergency Test
                   </Button>
                 </div>
               </div>
