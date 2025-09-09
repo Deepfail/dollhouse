@@ -46,7 +46,7 @@ export function ChatInterface({ sessionId, onBack }: ChatInterfaceProps) {
   };
 
   const getCharacter = (characterId: string) => {
-    return house.characters.find(c => c.id === characterId);
+    return house.characters?.find(c => c.id === characterId);
   };
 
   if (!activeSession) {

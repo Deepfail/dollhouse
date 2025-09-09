@@ -27,7 +27,7 @@ export const useAutoCharacterCreator = () => {
       // Add to house
       const updatedHouse = {
         ...house,
-        characters: [...house.characters, character]
+        characters: [...(house.characters || []), character]
       };
       await updateHouse(updatedHouse);
       
@@ -38,14 +38,14 @@ export const useAutoCharacterCreator = () => {
   };
 
   const scheduleNextCreation = () => {
-    if (!house.autoCreator.enabled) return;
+    if (!house?.autoCreator?.enabled) return;
     
-    const interval = house.autoCreator.interval * 60 * 1000; // Convert minutes to ms
+    const interval = (house.autoCreator?.interval || 30) * 60 * 1000; // Convert minutes to ms
     const nextTime = new Date(Date.now() + interval);
     setNextCreationTime(nextTime);
     
     setTimeout(() => {
-      if (house.characters.length < house.autoCreator.maxCharacters) {
+      if ((house.characters?.length || 0) < (house.autoCreator?.maxCharacters || 20)) {
         createRandomCharacter().then(() => {
           scheduleNextCreation();
         });
@@ -54,27 +54,32 @@ export const useAutoCharacterCreator = () => {
   };
 
   useEffect(() => {
-    if (house.autoCreator.enabled) {
+    if (house?.autoCreator?.enabled) {
       scheduleNextCreation();
     }
-  }, [house.autoCreator.enabled, house.autoCreator.interval]);
+  }, [house?.autoCreator?.enabled, house?.autoCreator?.interval]);
 
   const toggleAutoCreator = async (enabled: boolean) => {
     const updatedHouse = {
       ...house,
       autoCreator: {
-        ...house.autoCreator,
+        ...house?.autoCreator,
         enabled
       }
     };
     await updateHouse(updatedHouse);
   };
 
-  const updateAutoCreatorConfig = async (newConfig: Partial<typeof house.autoCreator>) => {
+  const updateAutoCreatorConfig = async (newConfig: Partial<{
+    enabled: boolean;
+    interval: number;
+    maxCharacters: number;
+    themes: string[];
+  }>) => {
     const updatedHouse = {
       ...house,
       autoCreator: {
-        ...house.autoCreator,
+        ...house?.autoCreator,
         ...newConfig
       }
     };
@@ -89,8 +94,8 @@ export const useAutoCharacterCreator = () => {
     nextCreationTime,
     toggleAutoCreator,
     updateAutoCreatorConfig,
-    isEnabled: house.autoCreator.enabled,
-    maxCharacters: house.autoCreator.maxCharacters,
-    interval: house.autoCreator.interval
+    isEnabled: house?.autoCreator?.enabled || false,
+    maxCharacters: house?.autoCreator?.maxCharacters || 20,
+    interval: house?.autoCreator?.interval || 30
   };
 };

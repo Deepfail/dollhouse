@@ -57,7 +57,7 @@ export const SceneCreator: React.FC<SceneCreatorProps> = ({ onSceneCreated }) =>
     }
 
     const charactersInfo = selectedCharacters.map(id => {
-      const char = house.characters.find(c => c.id === id);
+      const char = house.characters?.find(c => c.id === id);
       return `${char?.name} (${char?.personality})`;
     }).join(', ');
 
@@ -83,7 +83,7 @@ export const SceneCreator: React.FC<SceneCreatorProps> = ({ onSceneCreated }) =>
       
       const mappedObjectives: Record<string, string> = {};
       selectedCharacters.forEach(characterId => {
-        const character = house.characters.find(c => c.id === characterId);
+        const character = house.characters?.find(c => c.id === characterId);
         if (character && generatedObjectives[character.name]) {
           mappedObjectives[characterId] = generatedObjectives[character.name];
         }
@@ -169,7 +169,7 @@ export const SceneCreator: React.FC<SceneCreatorProps> = ({ onSceneCreated }) =>
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {house.characters.map(character => (
+            {(house.characters || []).map(character => (
               <div
                 key={character.id}
                 className={`
@@ -221,7 +221,7 @@ export const SceneCreator: React.FC<SceneCreatorProps> = ({ onSceneCreated }) =>
               
               <div className="space-y-3">
                 {selectedCharacters.map(characterId => {
-                  const character = house.characters.find(c => c.id === characterId);
+                  const character = house.characters?.find(c => c.id === characterId);
                   if (!character) return null;
                   
                   return (

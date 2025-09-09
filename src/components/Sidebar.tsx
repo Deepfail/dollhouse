@@ -51,7 +51,7 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
   };
 
   const startGroupChat = () => {
-    const characterIds = house.characters.map(c => c.id);
+    const characterIds = (house.characters || []).map(c => c.id);
     if (characterIds.length > 0) {
       createSession('group', characterIds);
     }
@@ -124,7 +124,7 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
                 <p className="text-xs">Create your first companion!</p>
               </Card>
             ) : (
-              house.characters.map(character => (
+              (house.characters || []).map(character => (
                 <Card key={character.id} className="p-3 hover:bg-accent/50 transition-colors cursor-pointer">
                   <div className="flex items-start gap-3">
                     <Avatar>
@@ -204,7 +204,7 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
           </div>
 
           <div className="space-y-2">
-            {house.rooms.map(room => (
+            {(house.rooms || []).map(room => (
               <Card key={room.id} className="p-3">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-medium text-sm">{room.name}</h4>

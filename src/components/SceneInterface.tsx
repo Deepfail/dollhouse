@@ -61,7 +61,7 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
 
   const isAutoPlaying = session.sceneSettings?.autoPlay && session.active;
   const participatingCharacters = session.participantIds
-    .map(id => house.characters.find(c => c.id === id))
+    .map(id => house.characters?.find(c => c.id === id))
     .filter(Boolean);
 
   const handleSendMessage = () => {
@@ -149,7 +149,7 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
           </CardHeader>
           <CardContent className="space-y-3">
             {Object.entries(session.sceneObjectives).map(([characterId, objective]) => {
-              const character = house.characters.find(c => c.id === characterId);
+              const character = house.characters?.find(c => c.id === characterId);
               return (
                 <div key={characterId} className="p-3 bg-muted rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
@@ -172,7 +172,7 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
                 <MessageBubble 
                   key={message.id}
                   message={message}
-                  character={message.characterId ? house.characters.find(c => c.id === message.characterId) : undefined}
+                  character={message.characterId ? house.characters?.find(c => c.id === message.characterId) : undefined}
                 />
               ))}
               <div ref={messagesEndRef} />

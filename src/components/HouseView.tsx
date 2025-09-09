@@ -32,11 +32,11 @@ interface HouseViewProps {
 export function HouseView({ onStartChat, onStartScene }: HouseViewProps) {
   const { house, moveCharacterToRoom } = useHouse();
   const { createSession } = useChat();
-  const [selectedRoom, setSelectedRoom] = useState<string | null>(house.rooms[0]?.id || null);
+  const [selectedRoom, setSelectedRoom] = useState<string | null>((house.rooms || [])[0]?.id || null);
 
-  const selectedRoomData = house.rooms.find(r => r.id === selectedRoom);
+  const selectedRoomData = (house.rooms || []).find(r => r.id === selectedRoom);
   const roomCharacters = selectedRoomData
-    ? house.characters.filter(c => selectedRoomData.residents.includes(c.id))
+    ? (house.characters || []).filter(c => selectedRoomData.residents.includes(c.id))
     : [];
 
   const getRoomIcon = (type: string) => {
@@ -98,7 +98,7 @@ export function HouseView({ onStartChat, onStartScene }: HouseViewProps) {
 
         {/* Room Navigation */}
         <div className="flex gap-2 mt-6 overflow-x-auto">
-          {house.rooms.map(room => (
+          {(house.rooms || []).map(room => (
             <Button
               key={room.id}
               variant={selectedRoom === room.id ? "default" : "outline"}

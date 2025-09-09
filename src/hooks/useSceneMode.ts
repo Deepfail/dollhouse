@@ -59,7 +59,7 @@ export const useSceneMode = () => {
     const session = activeSessions.find(s => s.id === sessionId);
     if (!session || !session.active) return;
     
-    const character = house.characters.find(c => c.id === characterId);
+    const character = house.characters?.find(c => c.id === characterId);
     if (!character) return;
     
     const objective = session.sceneObjectives?.[characterId];
@@ -69,7 +69,7 @@ export const useSceneMode = () => {
     const recentMessages = session.messages.slice(-10);
     const conversationContext = recentMessages.map(msg => {
       if (msg.characterId) {
-        const char = house.characters.find(c => c.id === msg.characterId);
+        const char = house.characters?.find(c => c.id === msg.characterId);
         return `${char?.name || 'Unknown'}: ${msg.content}`;
       }
       return `System: ${msg.content}`;
@@ -88,7 +88,7 @@ export const useSceneMode = () => {
       
       Other characters present: ${session.participantIds
         .filter(id => id !== characterId)
-        .map(id => house.characters.find(c => c.id === id)?.name)
+        .map(id => house.characters?.find(c => c.id === id)?.name)
         .filter(Boolean)
         .join(', ')}
       
