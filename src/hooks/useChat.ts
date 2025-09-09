@@ -15,13 +15,20 @@ export function useChat() {
   const activeSession = safeSessions.find(s => s.id === activeSessionId);
 
   const createSession = (type: 'individual' | 'group' | 'scene', participantIds: string[], context?: string) => {
+    console.log('createSession called with:', { type, participantIds, context });
+    console.log('Available characters:', house.characters?.map(c => ({ id: c.id, name: c.name })) || []);
+    
     // Verify participants exist first
     const validParticipants = participantIds.filter(id => 
       house.characters?.some(c => c.id === id)
     );
     
+    console.log('Valid participants after filtering:', validParticipants);
+    
     if (validParticipants.length === 0) {
       console.warn('No valid participants found for session');
+      console.log('Requested participants:', participantIds);
+      console.log('Available character IDs:', house.characters?.map(c => c.id) || []);
       toast.error('No valid characters found for chat session');
       return '';
     }
@@ -40,12 +47,13 @@ export function useChat() {
     console.log('Creating chat session:', newSession.id, 'for participants:', validParticipants);
 
     setSessions(current => {
-      const updatedSessions = [...(current || []), newSession];
-      console.log('Chat sessions updated, new count:', updatedSessions.length);
+      const currentSessions = current || [];
+      const updatedSessions = [...currentSessions, newSession];
+      console.log('Chat sessions updated, old count:', currentSessions.length, 'new count:', updatedSessions.length);
+      console.log('New session added:', newSession);
       return updatedSessions;
     });
     
-    console.log('Valid participants:', validParticipants.length);
     return newSession.id;
   };
 

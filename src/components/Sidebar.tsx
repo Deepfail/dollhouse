@@ -8,6 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useHouse } from '@/hooks/useHouse';
 import { useChat } from '@/hooks/useChat';
+import { toast } from 'sonner';
 import { 
   Plus, 
   House as Home, 
@@ -27,10 +28,11 @@ import { HouseSettings } from './HouseSettings';
 
 interface SidebarProps {
   onStartChat?: (characterId: string) => void;
+  onStartGroupChat?: (sessionId?: string) => void;
   onStartScene?: (sessionId: string) => void;
 }
 
-export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
+export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: SidebarProps) {
   const { house } = useHouse();
   const { createSession, sessions } = useChat();
   const [showCreator, setShowCreator] = useState(false);
@@ -53,9 +55,17 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
   };
 
   const startGroupChat = () => {
-    const characterIds = (house.characters || []).map(c => c.id);
-    if (characterIds.length > 0) {
-      createSession('group', characterIds);
+    if (onStartGroupChat) {
+      onStartGroupChat();
+    } else {
+      // Fallback: use the old method
+      const characterIds = (house.characters || []).map(c => c.id);
+      if (characterIds.length > 1) {
+        createSession('group', characterIds);
+        toast.success('Group chat started');
+      } else {
+        toast.error('Need at least 2 characters for group chat');
+      }
     }
   };
 

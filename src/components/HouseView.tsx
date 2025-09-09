@@ -26,10 +26,11 @@ import { motion } from 'framer-motion';
 
 interface HouseViewProps {
   onStartChat: (characterId: string) => void;
+  onStartGroupChat?: (sessionId?: string) => void;
   onStartScene: (sessionId: string) => void;
 }
 
-export function HouseView({ onStartChat, onStartScene }: HouseViewProps) {
+export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: HouseViewProps) {
   const { house, moveCharacterToRoom } = useHouse();
   const { createSession } = useChat();
   const [selectedRoom, setSelectedRoom] = useState<string | null>((house.rooms || [])[0]?.id || null);
@@ -177,8 +178,12 @@ export function HouseView({ onStartChat, onStartScene }: HouseViewProps) {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      const sessionId = createSession('group', roomCharacters.map(c => c.id));
-                      // Navigate to chat
+                      if (onStartGroupChat) {
+                        onStartGroupChat();
+                      } else {
+                        const sessionId = createSession('group', roomCharacters.map(c => c.id));
+                        // Navigate to chat - fallback
+                      }
                     }}
                   >
                     <Users size={16} className="mr-2" />

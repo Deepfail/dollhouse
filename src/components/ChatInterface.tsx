@@ -14,9 +14,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface ChatInterfaceProps {
   sessionId: string | null;
   onBack?: () => void;
+  onStartChat?: (characterId: string) => void;
+  onStartGroupChat?: () => void;
 }
 
-export function ChatInterface({ sessionId, onBack }: ChatInterfaceProps) {
+export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat }: ChatInterfaceProps) {
   const { sessions, sendMessage, switchToSession } = useChat();
   const { house } = useHouse();
   const [message, setMessage] = useState('');
@@ -25,6 +27,14 @@ export function ChatInterface({ sessionId, onBack }: ChatInterfaceProps) {
 
   // Find the active session from sessions array using sessionId
   const activeSession = sessionId ? sessions.find(s => s.id === sessionId) : null;
+
+  // Debug logging
+  console.log('ChatInterface render:', {
+    sessionId,
+    availableSessions: sessions.map(s => ({ id: s.id, type: s.type, participants: s.participantIds.length })),
+    activeSession: activeSession ? { id: activeSession.id, type: activeSession.type } : null,
+    charactersCount: house.characters?.length || 0
+  });
 
   // Switch to the session when sessionId changes
   useEffect(() => {
@@ -64,8 +74,8 @@ export function ChatInterface({ sessionId, onBack }: ChatInterfaceProps) {
     const hasCharacters = house.characters && house.characters.length > 0;
     
     return (
-      <div className="flex-1 flex items-center justify-center bg-background">
-        <Card className="p-8 text-center max-w-md">
+      <div className="flex-1 flex items-center justify-center bg-background p-8">
+        <Card className="p-8 text-center max-w-md w-full">
           {needsApiKey ? (
             <>
               <Warning size={48} className="mx-auto text-yellow-500 mb-4" />
@@ -87,16 +97,80 @@ export function ChatInterface({ sessionId, onBack }: ChatInterfaceProps) {
             </>
           ) : (
             <>
-              <MessageCircle size={48} className="mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-xl font-semibold mb-2">No Active Chat</h3>
-              <p className="text-muted-foreground mb-4">
-                Select a character or start a group chat to begin conversation.
+              <MessageCircle size={48} className="mx-auto text-primary mb-4" />
+              <h3 className="text-xl font-semibold mb-2">Start a Conversation</h3>
+              <p className="text-muted-foreground mb-6">
+                Choose a character to chat with individually or start a group chat.
               </p>
-              <div className="text-xs text-muted-foreground mt-2">
-                Available characters: {house.characters?.length || 0}<br/>
-                Session ID: {sessionId || 'None'}<br/>
-                Provider: {house.aiSettings?.provider || 'Not set'}<br/>
-                Has API Key: {house.aiSettings?.apiKey ? 'Yes' : 'No'}
+              
+              {/* Character Selection */}
+              <div className="space-y-3 mb-6">
+                <h4 className="text-sm font-medium text-left">Individual Chat</h4>
+                <div className="space-y-2">
+                  {house.characters?.map(character => (
+                    <Button
+                      key={character.id}
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => onStartChat?.(character.id)}
+                    >
+                      <Avatar className="w-6 h-6 mr-3">
+                        <AvatarFallback className="text-xs">
+                          {character.name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span>{character.name}</span>
+                      <Badge variant="secondary" className="ml-auto text-xs">
+                        {character.role}
+                      </Badge>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Group Chat */}
+              {house.characters && house.characters.length > 1 && (
+                <>
+                  <h4 className="text-sm font-medium text-left mb-3">Group Chat</h4>
+                  <Button
+                    variant="default"
+                    className="w-full"
+                    onClick={() => onStartGroupChat?.()}
+                  >
+                    <Users size={16} className="mr-2" />
+                    Start Group Chat ({house.characters.length} characters)
+                  </Button>
+                </>
+              )}
+
+              <div className="text-xs text-muted-foreground mt-6 p-3 bg-muted rounded">
+                <div className="mb-3">
+                  <strong>Debug Information:</strong><br/>
+                  Available characters: {house.characters?.length || 0}<br/>
+                  Session ID: {sessionId || 'None'}<br/>
+                  Provider: {house.aiSettings?.provider || 'Not set'}<br/>
+                  Has API Key: {house.aiSettings?.apiKey ? 'Yes' : 'No'}<br/>
+                  Available Sessions: {sessions.length}<br/>
+                  Active Session Found: {activeSession ? 'Yes' : 'No'}
+                </div>
+                
+                {/* Debug Test Button */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    console.log('=== Debug Test Session Creation ===');
+                    console.log('House characters:', house.characters?.map(c => ({ id: c.id, name: c.name })));
+                    console.log('Current sessions:', sessions);
+                    if (house.characters && house.characters.length > 0) {
+                      console.log('Attempting to start chat with first character...');
+                      onStartChat?.(house.characters[0].id);
+                    }
+                  }}
+                  className="w-full text-xs"
+                >
+                  🔧 Debug: Test Session Creation
+                </Button>
               </div>
             </>
           )}

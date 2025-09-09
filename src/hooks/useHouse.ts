@@ -105,11 +105,11 @@ const DEFAULT_HOUSE: House = {
     themes: ['fantasy', 'sci-fi', 'modern']
   },
   aiSettings: {
-    provider: 'spark',
-    model: 'gpt-4o',
-    apiKey: '', // Not needed for Spark
-    imageProvider: 'none',
-    imageApiKey: ''
+    provider: 'openrouter',
+    model: 'deepseek/deepseek-chat-v3.1',
+    apiKey: '', // User needs to add their OpenRouter API key
+    imageProvider: 'venice',
+    imageApiKey: '' // User needs to add their Venice AI API key for image generation
   },
   createdAt: new Date(),
   updatedAt: new Date()

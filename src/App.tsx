@@ -25,15 +25,45 @@ function App() {
   }, [house]);
 
   const handleStartChat = (characterId: string) => {
-    console.log('Starting chat with character:', characterId);
+    console.log('handleStartChat called with characterId:', characterId);
+    console.log('Available characters:', house.characters?.map(c => c.id) || []);
+    console.log('Character exists:', house.characters?.some(c => c.id === characterId));
+    
     const sessionId = createSession('individual', [characterId]);
-    console.log('Created session:', sessionId);
+    console.log('createSession returned:', sessionId);
+    
     if (sessionId) {
+      console.log('Setting active session ID to:', sessionId);
       setActiveSessionId(sessionId);
       setCurrentView('chat');
       toast.success(`Started chat with ${house.characters?.find(c => c.id === characterId)?.name || 'character'}`);
     } else {
+      console.error('Failed to create session for character:', characterId);
       toast.error('Failed to create chat session');
+    }
+  };
+
+  const handleStartGroupChat = (sessionId?: string) => {
+    if (sessionId) {
+      // Use existing session
+      setActiveSessionId(sessionId);
+      setCurrentView('chat');
+      toast.success('Started group chat');
+    } else {
+      // Create new group chat with all characters
+      const characterIds = (house.characters || []).map(c => c.id);
+      if (characterIds.length > 1) {
+        const newSessionId = createSession('group', characterIds);
+        if (newSessionId) {
+          setActiveSessionId(newSessionId);
+          setCurrentView('chat');
+          toast.success('Started group chat');
+        } else {
+          toast.error('Failed to create group chat');
+        }
+      } else {
+        toast.error('Need at least 2 characters for group chat');
+      }
     }
   };
 
@@ -61,17 +91,21 @@ function App() {
     <div className="h-screen bg-background">
       <Layout
         onStartChat={handleStartChat}
+        onStartGroupChat={handleStartGroupChat}
         onStartScene={handleStartScene}
       >
         {currentView === 'house' ? (
           <HouseView 
             onStartChat={handleStartChat}
+            onStartGroupChat={handleStartGroupChat}
             onStartScene={handleStartScene}
           />
         ) : currentView === 'chat' ? (
           <ChatInterface 
             sessionId={activeSessionId} 
             onBack={handleBackToHouse}
+            onStartChat={handleStartChat}
+            onStartGroupChat={handleStartGroupChat}
           />
         ) : (
           <SceneInterface 
