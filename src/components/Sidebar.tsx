@@ -85,7 +85,7 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="flex-1 flex flex-col min-h-0">
         <div className="m-4 mb-2 space-y-1">
           {/* First Row */}
-          <div className="flex gap-1">
+          <TabsList className="w-full h-auto p-1 grid grid-cols-3 gap-1">
             <TabsTrigger 
               value="characters" 
               className="flex-1 text-xs justify-start px-2 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
@@ -107,10 +107,10 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
               <MessageCircle size={14} className="mr-1" />
               Chats
             </TabsTrigger>
-          </div>
+          </TabsList>
           
           {/* Second Row */}
-          <div className="flex gap-1">
+          <TabsList className="w-full h-auto p-1 grid grid-cols-2 gap-1">
             <TabsTrigger 
               value="auto" 
               className="flex-1 text-xs justify-start px-2 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
@@ -125,7 +125,7 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
               <Theater size={14} className="mr-1" />
               Scenes
             </TabsTrigger>
-          </div>
+          </TabsList>
         </div>
 
         {/* Characters Tab */}
