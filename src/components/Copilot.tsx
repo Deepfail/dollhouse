@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useKV } from '@github/spark/hooks';
 import { useHouse } from '@/hooks/useHouse';
 import { CopilotUpdate } from '@/types';
+import { toast } from 'sonner';
 import { 
   Robot, 
   Bell, 
@@ -19,17 +22,141 @@ import {
   Clock,
   Key,
   CheckCircle as Check,
-  XCircle as X
+  XCircle as X,
+  PaperPlaneRight,
+  Chat,
+  House
 } from '@phosphor-icons/react';
+
+interface CopilotMessage {
+  id: string;
+  sender: 'user' | 'copilot';
+  content: string;
+  timestamp: Date;
+}
 
 export function Copilot() {
   const { house } = useHouse();
   const [updates, setUpdates] = useKV<CopilotUpdate[]>('copilot-updates', []);
+  const [chatMessages, setChatMessages] = useKV<CopilotMessage[]>('copilot-chat', []);
+  const [inputMessage, setInputMessage] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
   // Ensure updates is never undefined
   const safeUpdates = updates || [];
+  const safeChatMessages = chatMessages || [];
 
+  // Scroll to bottom of chat when new messages arrive
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [safeChatMessages]);
+
+  // Initialize copilot with welcome message if chat is empty
+  useEffect(() => {
+    if (safeChatMessages.length === 0) {
+      const welcomeMessage: CopilotMessage = {
+        id: `welcome-${Date.now()}`,
+        sender: 'copilot',
+        content: "Hello! I'm your House Manager. I monitor your characters' well-being, help manage your house, and assist with any questions you might have. How can I help you today?",
+        timestamp: new Date()
+      };
+      setChatMessages([welcomeMessage]);
+    }
+  }, []);
+
+  const sendMessage = async () => {
+    if (!inputMessage.trim()) return;
+
+    const userMessage: CopilotMessage = {
+      id: `user-${Date.now()}`,
+      sender: 'user',
+      content: inputMessage.trim(),
+      timestamp: new Date()
+    };
+
+    // Add user message
+    setChatMessages(current => [...(current || []), userMessage]);
+    setInputMessage('');
+    setIsTyping(true);
+
+    try {
+      // Generate copilot response using spark.llm
+      const houseContext = {
+        characterCount: house.characters.length,
+        avgRelationship: house.characters.length > 0 
+          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.relationship, 0) / house.characters.length)
+          : 0,
+        avgHappiness: house.characters.length > 0 
+          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.happiness, 0) / house.characters.length)
+          : 0,
+        avgEnergy: house.characters.length > 0 
+          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.energy, 0) / house.characters.length)
+          : 0,
+        characters: house.characters.map(c => ({ name: c.name, role: c.role, stats: c.stats })),
+        aiProvider: house.aiSettings?.provider,
+        hasApiKey: !!house.aiSettings?.apiKey
+      };
+
+      const prompt = spark.llmPrompt`You are a helpful House Manager copilot for a character creator house application. You monitor characters, provide status updates, and assist users with managing their virtual house and characters.
+
+Current house status:
+- ${houseContext.characterCount} characters
+- Average relationship: ${houseContext.avgRelationship}%
+- Average happiness: ${houseContext.avgHappiness}%  
+- Average energy: ${houseContext.avgEnergy}%
+- AI Provider: ${houseContext.aiProvider || 'spark'}
+- API Key configured: ${houseContext.hasApiKey ? 'Yes' : 'No'}
+
+Characters: ${JSON.stringify(houseContext.characters)}
+
+Recent updates: ${JSON.stringify(safeUpdates.slice(-3))}
+
+User message: "${userMessage.content}"
+
+Respond as a knowledgeable, friendly house manager who can:
+- Provide insights about character stats and needs
+- Suggest activities or improvements
+- Help troubleshoot issues
+- Offer advice on character management
+- Explain house features
+
+Keep responses concise but helpful (2-3 sentences max unless more detail is specifically requested).`;
+
+      const response = await spark.llm(prompt);
+
+      const copilotMessage: CopilotMessage = {
+        id: `copilot-${Date.now()}`,
+        sender: 'copilot',
+        content: response,
+        timestamp: new Date()
+      };
+
+      setChatMessages(current => [...(current || []), copilotMessage]);
+    } catch (error) {
+      console.error('Error generating copilot response:', error);
+      const errorMessage: CopilotMessage = {
+        id: `error-${Date.now()}`,
+        sender: 'copilot',
+        content: "I apologize, but I'm having trouble processing your message right now. Please try again or check your AI settings.",
+        timestamp: new Date()
+      };
+      setChatMessages(current => [...(current || []), errorMessage]);
+      toast.error('Failed to get copilot response');
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
   // Simulate copilot monitoring
   useEffect(() => {
     const interval = setInterval(() => {
@@ -149,202 +276,281 @@ export function Copilot() {
         </div>
       </div>
 
-      {/* House Overview */}
-      <div className="p-4 space-y-4">
-        <div>
-          <h3 className="font-medium mb-3">House Status</h3>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <Card className="p-3">
-              <div className="flex items-center gap-2">
-                <Heart size={16} className="text-red-500" />
-                <div>
-                  <p className="font-medium">
-                    {house.characters.length > 0 
-                      ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.relationship, 0) / house.characters.length)
-                      : 0}%
-                  </p>
-                  <p className="text-xs text-muted-foreground">Avg Relationship</p>
-                </div>
-              </div>
-            </Card>
+      {/* Tabs for Status and Chat */}
+      <Tabs defaultValue="status" className="flex-1 flex flex-col">
+        <TabsList className="grid w-full grid-cols-2 mx-6 mt-4">
+          <TabsTrigger value="status" className="flex items-center gap-2">
+            <House size={16} />
+            Status
+          </TabsTrigger>
+          <TabsTrigger value="chat" className="flex items-center gap-2">
+            <Chat size={16} />
+            Chat
+          </TabsTrigger>
+        </TabsList>
 
-            <Card className="p-3">
-              <div className="flex items-center gap-2">
-                <Smile size={16} className="text-yellow-500" />
-                <div>
-                  <p className="font-medium">
-                    {house.characters.length > 0 
-                      ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.happiness, 0) / house.characters.length)
-                      : 0}%
-                  </p>
-                  <p className="text-xs text-muted-foreground">Avg Happiness</p>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-3">
-              <div className="flex items-center gap-2">
-                <Battery size={16} className="text-blue-500" />
-                <div>
-                  <p className="font-medium">
-                    {house.characters.length > 0 
-                      ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.energy, 0) / house.characters.length)
-                      : 0}%
-                  </p>
-                  <p className="text-xs text-muted-foreground">Avg Energy</p>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-3">
-              <div className="flex items-center gap-2">
-                <Clock size={16} className="text-purple-500" />
-                <div>
-                  <p className="font-medium">{house.characters.filter(c => 
-                    c.lastInteraction && 
-                    Date.now() - new Date(c.lastInteraction).getTime() < 24 * 60 * 60 * 1000
-                  ).length}</p>
-                  <p className="text-xs text-muted-foreground">Active Today</p>
-                </div>
-              </div>
-            </Card>
-          </div>
-        </div>
-
-        {/* API Status */}
-        <div>
-          <h3 className="font-medium mb-3">AI Service Status</h3>
-          <Card className="p-3">
-            <div className="flex items-center gap-2">
-              {house.aiSettings?.provider === 'openrouter' ? (
-                house.aiSettings?.apiKey ? (
-                  <>
-                    <Check size={16} className="text-green-500" />
+        <TabsContent value="status" className="flex-1 flex flex-col mt-4">
+          {/* House Overview */}
+          <div className="p-4 space-y-4">
+            <div>
+              <h3 className="font-medium mb-3">House Status</h3>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <Card className="p-3">
+                  <div className="flex items-center gap-2">
+                    <Heart size={16} className="text-red-500" />
                     <div>
-                      <p className="font-medium text-green-600">OpenRouter Connected</p>
-                      <p className="text-xs text-muted-foreground">
-                        Model: {house.aiSettings.model}
+                      <p className="font-medium">
+                        {house.characters.length > 0 
+                          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.relationship, 0) / house.characters.length)
+                          : 0}%
                       </p>
+                      <p className="text-xs text-muted-foreground">Avg Relationship</p>
                     </div>
-                  </>
-                ) : (
-                  <>
-                    <X size={16} className="text-red-500" />
-                    <div>
-                      <p className="font-medium text-red-600">API Key Required</p>
-                      <p className="text-xs text-muted-foreground">
-                        Configure in House Settings
-                      </p>
-                    </div>
-                  </>
-                )
-              ) : (
-                <>
-                  <Check size={16} className="text-green-500" />
-                  <div>
-                    <p className="font-medium text-green-600">Spark AI Ready</p>
-                    <p className="text-xs text-muted-foreground">
-                      Model: {house.aiSettings?.model || 'gpt-4o'}
-                    </p>
                   </div>
-                </>
-              )}
+                </Card>
+
+                <Card className="p-3">
+                  <div className="flex items-center gap-2">
+                    <Smile size={16} className="text-yellow-500" />
+                    <div>
+                      <p className="font-medium">
+                        {house.characters.length > 0 
+                          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.happiness, 0) / house.characters.length)
+                          : 0}%
+                      </p>
+                      <p className="text-xs text-muted-foreground">Avg Happiness</p>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className="p-3">
+                  <div className="flex items-center gap-2">
+                    <Battery size={16} className="text-blue-500" />
+                    <div>
+                      <p className="font-medium">
+                        {house.characters.length > 0 
+                          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.energy, 0) / house.characters.length)
+                          : 0}%
+                      </p>
+                      <p className="text-xs text-muted-foreground">Avg Energy</p>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className="p-3">
+                  <div className="flex items-center gap-2">
+                    <Clock size={16} className="text-purple-500" />
+                    <div>
+                      <p className="font-medium">{house.characters.filter(c => 
+                        c.lastInteraction && 
+                        Date.now() - new Date(c.lastInteraction).getTime() < 24 * 60 * 60 * 1000
+                      ).length}</p>
+                      <p className="text-xs text-muted-foreground">Active Today</p>
+                    </div>
+                  </div>
+                </Card>
+              </div>
             </div>
-          </Card>
-        </div>
-      </div>
 
-      {/* Updates Feed */}
-      <div className="flex-1 flex flex-col">
-        <div className="px-4 pb-2">
-          <h3 className="font-medium">Recent Updates</h3>
-        </div>
-        
-        <ScrollArea className="flex-1 px-4">
-          <div className="space-y-2 pb-4">
-            {safeUpdates.length === 0 ? (
-              <Card className="p-4 text-center text-muted-foreground">
-                <Robot size={24} className="mx-auto mb-2 opacity-50" />
-                <p className="text-sm">All quiet for now</p>
-                <p className="text-xs">I'll keep an eye on things!</p>
+            {/* API Status */}
+            <div>
+              <h3 className="font-medium mb-3">AI Service Status</h3>
+              <Card className="p-3">
+                <div className="flex items-center gap-2">
+                  {house.aiSettings?.provider === 'openrouter' ? (
+                    house.aiSettings?.apiKey ? (
+                      <>
+                        <Check size={16} className="text-green-500" />
+                        <div>
+                          <p className="font-medium text-green-600">OpenRouter Connected</p>
+                          <p className="text-xs text-muted-foreground">
+                            Model: {house.aiSettings.model}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <X size={16} className="text-red-500" />
+                        <div>
+                          <p className="font-medium text-red-600">API Key Required</p>
+                          <p className="text-xs text-muted-foreground">
+                            Configure in House Settings
+                          </p>
+                        </div>
+                      </>
+                    )
+                  ) : (
+                    <>
+                      <Check size={16} className="text-green-500" />
+                      <div>
+                        <p className="font-medium text-green-600">Spark AI Ready</p>
+                        <p className="text-xs text-muted-foreground">
+                          Model: {house.aiSettings?.model || 'gpt-4o'}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
               </Card>
-            ) : (
-              safeUpdates
-                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                .map(update => {
-                  const character = update.characterId 
-                    ? house.characters.find(c => c.id === update.characterId)
-                    : null;
+            </div>
+          </div>
 
-                  return (
-                    <Card
-                      key={update.id}
-                      className={`p-3 ${update.handled ? 'opacity-60' : ''} ${
-                        update.priority === 'high' ? 'border-red-200' : 
-                        update.priority === 'medium' ? 'border-yellow-200' : ''
+          {/* Updates Feed */}
+          <div className="flex-1 flex flex-col">
+            <div className="px-4 pb-2">
+              <h3 className="font-medium">Recent Updates</h3>
+            </div>
+            
+            <ScrollArea className="flex-1 px-4">
+              <div className="space-y-2 pb-4">
+                {safeUpdates.length === 0 ? (
+                  <Card className="p-4 text-center text-muted-foreground">
+                    <Robot size={24} className="mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">All quiet for now</p>
+                    <p className="text-xs">I'll keep an eye on things!</p>
+                  </Card>
+                ) : (
+                  safeUpdates
+                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                    .map(update => {
+                      const character = update.characterId 
+                        ? house.characters.find(c => c.id === update.characterId)
+                        : null;
+
+                      return (
+                        <Card
+                          key={update.id}
+                          className={`p-3 ${update.handled ? 'opacity-60' : ''} ${
+                            update.priority === 'high' ? 'border-red-200' : 
+                            update.priority === 'medium' ? 'border-yellow-200' : ''
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 mt-0.5">
+                              {getTypeIcon(update.type)}
+                            </div>
+                            
+                            <div className="flex-1 space-y-1">
+                              <div className="flex items-center gap-2">
+                                {character && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {character.name}
+                                  </Badge>
+                                )}
+                                {getPriorityIcon(update.priority)}
+                              </div>
+                              
+                              <p className="text-sm">{update.message}</p>
+                              
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(update.timestamp).toLocaleTimeString()}
+                                </span>
+                                
+                                {!update.handled && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 px-2 text-xs"
+                                    onClick={() => handleUpdate(update.id)}
+                                  >
+                                    Handle
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </Card>
+                      );
+                    })
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="p-4 border-t border-border space-y-2">
+            <h3 className="font-medium text-sm">Quick Actions</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <Button size="sm" variant="outline" className="text-xs">
+                Gather All
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs">
+                Rest All
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs">
+                Feed All
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs">
+                Check Status
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="chat" className="flex-1 flex flex-col mt-4">
+          {/* Chat Messages */}
+          <div className="flex-1 flex flex-col">
+            <ScrollArea className="flex-1 px-4" ref={chatScrollRef}>
+              <div className="space-y-4 pb-4">
+                {safeChatMessages.map(message => (
+                  <div
+                    key={message.id}
+                    className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[80%] rounded-lg p-3 ${
+                        message.sender === 'user'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground'
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 mt-0.5">
-                          {getTypeIcon(update.type)}
-                        </div>
-                        
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-2">
-                            {character && (
-                              <Badge variant="outline" className="text-xs">
-                                {character.name}
-                              </Badge>
-                            )}
-                            {getPriorityIcon(update.priority)}
-                          </div>
-                          
-                          <p className="text-sm">{update.message}</p>
-                          
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(update.timestamp).toLocaleTimeString()}
-                            </span>
-                            
-                            {!update.handled && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 px-2 text-xs"
-                                onClick={() => handleUpdate(update.id)}
-                              >
-                                Handle
-                              </Button>
-                            )}
-                          </div>
-                        </div>
+                      <p className="text-sm">{message.content}</p>
+                      <p className="text-xs opacity-70 mt-1">
+                        {new Date(message.timestamp).toLocaleTimeString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                
+                {isTyping && (
+                  <div className="flex justify-start">
+                    <div className="bg-muted text-muted-foreground rounded-lg p-3 max-w-[80%]">
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       </div>
-                    </Card>
-                  );
-                })
-            )}
-          </div>
-        </ScrollArea>
-      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
 
-      {/* Quick Actions */}
-      <div className="p-4 border-t border-border space-y-2">
-        <h3 className="font-medium text-sm">Quick Actions</h3>
-        <div className="grid grid-cols-2 gap-2">
-          <Button size="sm" variant="outline" className="text-xs">
-            Gather All
-          </Button>
-          <Button size="sm" variant="outline" className="text-xs">
-            Rest All
-          </Button>
-          <Button size="sm" variant="outline" className="text-xs">
-            Feed All
-          </Button>
-          <Button size="sm" variant="outline" className="text-xs">
-            Check Status
-          </Button>
-        </div>
-      </div>
+            {/* Chat Input */}
+            <div className="p-4 border-t border-border">
+              <div className="flex gap-2">
+                <Input
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Ask me anything about your house or characters..."
+                  disabled={isTyping}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={sendMessage}
+                  disabled={!inputMessage.trim() || isTyping}
+                  size="sm"
+                  className="flex-shrink-0"
+                >
+                  <PaperPlaneRight size={16} />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
