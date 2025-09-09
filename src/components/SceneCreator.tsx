@@ -168,7 +168,7 @@ export const SceneCreator: React.FC<SceneCreatorProps> = ({ onSceneCreated }) =>
             </Label>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          <div className="space-y-2">
             {(house.characters || []).map(character => (
               <div
                 key={character.id}
@@ -181,14 +181,17 @@ export const SceneCreator: React.FC<SceneCreatorProps> = ({ onSceneCreated }) =>
                 `}
                 onClick={() => handleCharacterToggle(character.id)}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-start gap-3">
                   <Checkbox 
                     checked={selectedCharacters.includes(character.id)}
                     onChange={() => {}} // Handled by parent onClick
+                    className="mt-0.5 flex-shrink-0"
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{character.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">
+                    <p className="font-medium text-sm leading-tight break-words">
+                      {character.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground break-words">
                       {character.role}
                     </p>
                   </div>
