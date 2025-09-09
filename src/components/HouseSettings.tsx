@@ -44,6 +44,9 @@ interface APISettings {
 
 const OPENROUTER_MODELS = [
   { id: 'deepseek/deepseek-chat', name: 'DeepSeek V3' },
+  { id: 'deepseek/deepseek-chat-v3.1', name: 'DeepSeek Chat V3.1' },
+  { id: 'deepseek/deepseek-r1-0528', name: 'DeepSeek R1 0528' },
+  { id: 'deepseek/deepseek-chat-v3-0324', name: 'DeepSeek Chat V3 0324' },
   { id: 'openai/gpt-4o', name: 'GPT-4o' },
   { id: 'anthropic/claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
   { id: 'openai/o1-preview', name: 'OpenAI o1-preview' },
