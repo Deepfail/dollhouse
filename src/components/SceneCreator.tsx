@@ -76,7 +76,13 @@ Format as JSON object with character names as keys and objectives as values.
 Each objective should be 1-2 sentences describing what the character wants to achieve.`;
 
     try {
-      const response = await (window as any).spark?.llm?.(objectivePrompt, 'gpt-4o');
+      // Check if Spark AI service is available
+      if (!window.spark || !window.spark.llm || !window.spark.llmPrompt) {
+        throw new Error('AI service not available');
+      }
+
+      const formattedPrompt = window.spark.llmPrompt`${objectivePrompt}`;
+      const response = await window.spark.llm(formattedPrompt, 'gpt-4o');
       
       if (!response) {
         throw new Error('No response from AI service');
@@ -109,7 +115,7 @@ Each objective should be 1-2 sentences describing what the character wants to ac
       toast.success('Random objectives generated!');
     } catch (error) {
       console.error('Failed to generate objectives:', error);
-      toast.error('Failed to generate objectives');
+      toast.error('Failed to generate objectives. Try entering them manually.');
     }
   };
 

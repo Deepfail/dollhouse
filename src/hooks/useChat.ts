@@ -128,12 +128,12 @@ export function useChat() {
         const fallbackMessage: ChatMessage = {
           id: `msg-${Date.now()}-${characterId}`,
           characterId,
-          content: `*${character.name} appears to be having connectivity issues and cannot respond right now. Please check your AI service configuration in House Settings.*`,
+          content: `*${character.name} looks puzzled* I'm sorry, but I seem to be having trouble connecting right now. This app requires the Spark AI environment to function properly.`,
           timestamp: new Date(),
           type: 'text'
         };
         
-        toast.error('AI service is not available. Please configure your API settings in House Settings.');
+        toast.error('This app requires Spark AI environment. Please make sure you\'re running in a proper Spark environment.');
         return fallbackMessage;
       }
 

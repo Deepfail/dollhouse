@@ -157,8 +157,10 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="bg-muted/50 p-3 rounded-lg border border-border">
                     <div className="flex items-start gap-2">
                       <div className="text-accent mt-0.5">ℹ️</div>
-                      <div className="text-sm text-muted-foreground">
-                        This app uses Spark's built-in AI service. No additional API configuration required.
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <p><strong>Spark Environment:</strong> This app uses Spark's built-in AI service. No additional API configuration required.</p>
+                        <p><strong>Available Models:</strong> GPT-4o (default), GPT-4o Mini</p>
+                        <p>Characters will respond automatically using the selected AI model.</p>
                       </div>
                     </div>
                   </div>

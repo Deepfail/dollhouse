@@ -123,7 +123,7 @@ export interface House {
   
   // AI Configuration  
   aiSettings: {
-    provider: 'openrouter' | 'local';
+    provider: 'openrouter' | 'local' | 'spark';
     model: string;
     apiKey?: string;
     imageProvider: 'venice' | 'none';

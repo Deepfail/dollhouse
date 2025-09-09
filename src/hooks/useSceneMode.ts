@@ -15,66 +15,57 @@ export const useSceneMode = () => {
     objectives: SceneObjective[],
     context?: string
   ): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const sessionId = `scene_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const sceneObjectives: Record<string, string> = {};
-      objectives.forEach(obj => {
-        sceneObjectives[obj.characterId] = obj.objective;
-      });
-      
-      const newSession: ChatSession = {
-        id: sessionId,
-        type: 'scene',
-        participantIds: characterIds,
-        messages: [],
-        context,
-        active: true,
-        sceneObjectives,
-        sceneSettings: {
-          autoPlay: true,
-          turnDuration: 5000, // 5 seconds per turn
-          maxTurns: 50
-        },
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      
-      // Add system message explaining the scene
-      const systemMessage: ChatMessage = {
-        id: `msg_${Date.now()}_sys`,
-        content: `Scene started with ${characterIds.length} characters. Each character has been given secret objectives they will try to fulfill through their interactions.`,
-        timestamp: new Date(),
-        type: 'system'
-      };
-      
-      newSession.messages.push(systemMessage);
-      
-      console.log('Creating scene session:', sessionId);
-      
-      // Update sessions immediately and synchronously
-      setActiveSessions(sessions => {
-        const updatedSessions = [...sessions, newSession];
-        console.log('Sessions updated, new count:', updatedSessions.length);
-        console.log('New session added:', newSession.id);
-        console.log('All session IDs:', updatedSessions.map(s => s.id));
-        
-        // Resolve immediately after state update
-        setTimeout(() => {
-          resolve(sessionId);
-          
-          // Start auto-play after resolving
-          setTimeout(() => {
-            console.log('Starting auto-play for session:', sessionId);
-            startAutoPlayForNewSession(sessionId);
-          }, 500);
-        }, 100);
-        
-        return updatedSessions;
-      });
-      
-      toast.success('Scene session created! Characters will begin interacting automatically.');
+    const sessionId = `scene_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    const sceneObjectives: Record<string, string> = {};
+    objectives.forEach(obj => {
+      sceneObjectives[obj.characterId] = obj.objective;
     });
+    
+    const newSession: ChatSession = {
+      id: sessionId,
+      type: 'scene',
+      participantIds: characterIds,
+      messages: [],
+      context,
+      active: true,
+      sceneObjectives,
+      sceneSettings: {
+        autoPlay: true,
+        turnDuration: 5000, // 5 seconds per turn
+        maxTurns: 50
+      },
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    // Add system message explaining the scene
+    const systemMessage: ChatMessage = {
+      id: `msg_${Date.now()}_sys`,
+      content: `Scene started with ${characterIds.length} characters. Each character has been given secret objectives they will try to fulfill through their interactions.`,
+      timestamp: new Date(),
+      type: 'system'
+    };
+    
+    newSession.messages.push(systemMessage);
+    
+    console.log('Creating scene session:', sessionId);
+    
+    // Update sessions synchronously
+    setActiveSessions(sessions => {
+      const updatedSessions = [...sessions, newSession];
+      console.log('Sessions updated, new count:', updatedSessions.length);
+      return updatedSessions;
+    });
+    
+    toast.success('Scene session created! Characters will begin interacting automatically.');
+    
+    // Start auto-play after a brief delay
+    setTimeout(() => {
+      startAutoPlayForNewSession(sessionId);
+    }, 1000);
+    
+    return sessionId;
   };
   
   const startAutoPlayForNewSession = async (sessionId: string) => {

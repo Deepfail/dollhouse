@@ -176,20 +176,20 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
                           <div className="space-y-1">
                             <div className="flex items-center gap-2 text-xs">
                               <Heart size={12} className="text-red-500" />
-                              <Progress value={character.stats.relationship} className="h-1 flex-1" />
-                              <span className="text-muted-foreground">{character.stats.relationship}%</span>
+                              <Progress value={character.stats.relationship || 0} className="h-1 flex-1" />
+                              <span className="text-muted-foreground">{character.stats.relationship || 0}%</span>
                             </div>
                             
                             <div className="flex items-center gap-2 text-xs">
                               <Smile size={12} className="text-yellow-500" />
-                              <Progress value={character.stats.happiness} className="h-1 flex-1" />
-                              <span className="text-muted-foreground">{character.stats.happiness}%</span>
+                              <Progress value={character.stats.happiness || 0} className="h-1 flex-1" />
+                              <span className="text-muted-foreground">{character.stats.happiness || 0}%</span>
                             </div>
                             
                             <div className="flex items-center gap-2 text-xs">
                               <Battery size={12} className="text-blue-500" />
-                              <Progress value={character.stats.energy} className="h-1 flex-1" />
-                              <span className="text-muted-foreground">{character.stats.energy}%</span>
+                              <Progress value={character.stats.energy || 0} className="h-1 flex-1" />
+                              <span className="text-muted-foreground">{character.stats.energy || 0}%</span>
                             </div>
                           </div>
 

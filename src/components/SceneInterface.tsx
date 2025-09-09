@@ -49,21 +49,29 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
   }, [session?.messages]);
 
   if (!session) {
+    console.log('Scene session not found:', sessionId);
+    console.log('Available sessions:', activeSessions.map(s => s.id));
+    
     return (
-      <Card>
-        <CardContent className="p-6 text-center space-y-4">
-          <Warning className="mx-auto h-12 w-12 text-muted-foreground" />
-          <div>
-            <p className="text-lg font-medium">Scene not found</p>
-            <p className="text-sm text-muted-foreground">
-              The requested scene session could not be found or may have expired.
-            </p>
-          </div>
-          <Button onClick={onClose} className="mt-4">
-            Back to House
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="flex-1 flex items-center justify-center bg-background">
+        <Card className="max-w-md">
+          <CardContent className="p-8 text-center space-y-4">
+            <Warning className="mx-auto h-12 w-12 text-muted-foreground" />
+            <div>
+              <p className="text-lg font-medium">Scene not found</p>
+              <p className="text-sm text-muted-foreground">
+                The requested scene session could not be found. It may still be loading or may have been removed.
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Session ID: {sessionId}
+              </p>
+            </div>
+            <Button onClick={onClose} className="mt-4">
+              Back to House
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 

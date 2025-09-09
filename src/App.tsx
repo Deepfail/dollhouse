@@ -22,25 +22,8 @@ function App() {
 
   const handleStartScene = (sessionId: string) => {
     console.log('handleStartScene called with sessionId:', sessionId);
-    
-    // Use a timeout to allow state updates to propagate
-    setTimeout(() => {
-      // Verify the scene session exists
-      const sceneExists = activeSessions.some(session => session.id === sessionId);
-      console.log('Scene exists (delayed check):', sceneExists);
-      console.log('Available sessions:', activeSessions.map(s => s.id));
-      
-      if (sceneExists) {
-        setActiveSessionId(sessionId);
-        setCurrentView('scene');
-        console.log('Successfully switching to scene view with sessionId:', sessionId);
-      } else {
-        console.error('Scene session not found after delay:', sessionId);
-        toast.error('Scene session not found. Please try creating a new scene.');
-        setCurrentView('house');
-        setActiveSessionId(null);
-      }
-    }, 500); // Give more time for state updates
+    setActiveSessionId(sessionId);
+    setCurrentView('scene');
   };
 
   const handleBackToHouse = () => {

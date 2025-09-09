@@ -31,10 +31,11 @@ const DEFAULT_HOUSE: House = {
       classes: ['Friendly', 'Energetic'],
       roomId: 'common-room',
       stats: {
+        relationship: 70,
         happiness: 80,
         energy: 75,
-        affection: 70,
-        experience: 50
+        experience: 50,
+        level: 5
       },
       prompts: {
         system: 'You are Alex, a friendly AI companion. Be helpful, engaging, and maintain a positive attitude. Show genuine interest in conversations and offer thoughtful responses.',
@@ -48,6 +49,11 @@ const DEFAULT_HOUSE: House = {
         unlockedFeatures: ['basic-chat', 'group-chat'],
         achievements: ['First Conversation']
       },
+      unlocks: ['basic-chat', 'group-chat'],
+      lastInteraction: new Date(),
+      conversationHistory: [],
+      memories: [],
+      preferences: {},
       createdAt: new Date(),
       updatedAt: new Date()
     },
@@ -62,10 +68,11 @@ const DEFAULT_HOUSE: House = {
       classes: ['Intellectual', 'Calm'],
       roomId: 'common-room',
       stats: {
+        relationship: 65,
         happiness: 75,
         energy: 70,
-        affection: 65,
-        experience: 75
+        experience: 75,
+        level: 7
       },
       prompts: {
         system: 'You are Morgan, a wise and thoughtful AI advisor. Provide insightful perspectives and engage in meaningful conversations. Be patient and considerate in your responses.',
@@ -79,6 +86,11 @@ const DEFAULT_HOUSE: House = {
         unlockedFeatures: ['basic-chat', 'group-chat', 'advice-mode'],
         achievements: ['Deep Thinker', 'Trusted Advisor']
       },
+      unlocks: ['basic-chat', 'group-chat', 'advice-mode'],
+      lastInteraction: new Date(),
+      conversationHistory: [],
+      memories: [],
+      preferences: {},
       createdAt: new Date(),
       updatedAt: new Date()
     }
@@ -93,8 +105,8 @@ const DEFAULT_HOUSE: House = {
     themes: ['fantasy', 'sci-fi', 'modern']
   },
   aiSettings: {
-    provider: 'openrouter',
-    model: 'deepseek/deepseek-chat',
+    provider: 'spark',
+    model: 'gpt-4o',
     imageProvider: 'none'
   },
   createdAt: new Date(),
