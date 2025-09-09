@@ -19,7 +19,7 @@ interface ChatInterfaceProps {
 }
 
 export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat }: ChatInterfaceProps) {
-  const { sessions, sendMessage } = useChat();
+  const { sessions, sendMessage, switchToSession } = useChat();
   const { house } = useHouse();
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState<string[]>([]);
@@ -28,11 +28,46 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
   // Find the active session directly from sessions array using sessionId
   const activeSession = sessionId ? sessions.find(s => s.id === sessionId) : null;
 
+  // Create a temporary session if we have sessionId but no session found yet
+  // This handles the case where the KV hasn't synced yet but we have a valid sessionId
+  const tempSession = sessionId && !activeSession ? {
+    id: sessionId,
+    type: 'individual' as const,
+    participantIds: house.characters ? [house.characters[0]?.id].filter(Boolean) : [],
+    messages: [],
+    active: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  } : null;
+
+  // Find the most recently created session if no sessionId is provided but we're in chat view
+  // This helps when there's a timing issue with session creation
+  const fallbackSession = !activeSession && sessionId && sessions.length > 0 
+    ? sessions
+        .filter(s => s.active)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+    : null;
+
+  const displaySession = activeSession || fallbackSession;
+
+  // Switch to session when it becomes available
+  useEffect(() => {
+    if (sessionId && !activeSession && sessions.length > 0) {
+      const foundSession = sessions.find(s => s.id === sessionId);
+      if (foundSession) {
+        console.log('Session found after delay, switching to it:', foundSession.id);
+        switchToSession(sessionId);
+      }
+    }
+  }, [sessionId, sessions, activeSession, switchToSession]);
+
   // Debug logging
   console.log('ChatInterface render:', {
     sessionId,
     availableSessions: sessions.map(s => ({ id: s.id, type: s.type, participants: s.participantIds.length })),
     activeSession: activeSession ? { id: activeSession.id, type: activeSession.type, messageCount: activeSession.messages.length } : null,
+    fallbackSession: fallbackSession ? { id: fallbackSession.id, type: fallbackSession.type, messageCount: fallbackSession.messages.length } : null,
+    displaySession: displaySession ? { id: displaySession.id, type: displaySession.type, messageCount: displaySession.messages?.length || 0 } : null,
     charactersCount: house.characters?.length || 0,
     aiProvider: house.aiSettings?.provider,
     hasApiKey: !!house.aiSettings?.apiKey
@@ -41,18 +76,18 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeSession?.messages]);
+  }, [displaySession?.messages]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || !activeSession) return;
+    if (!message.trim() || !displaySession) return;
 
     await sendMessage(message);
     setMessage('');
 
     // Simulate typing indicators
-    if (activeSession.participantIds.length > 0) {
-      const typingCharacters = activeSession.participantIds.slice(0, Math.min(2, activeSession.participantIds.length));
+    if (displaySession.participantIds.length > 0) {
+      const typingCharacters = displaySession.participantIds.slice(0, Math.min(2, displaySession.participantIds.length));
       setIsTyping(typingCharacters);
       
       setTimeout(() => {
@@ -65,7 +100,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
     return house.characters?.find(c => c.id === characterId);
   };
 
-  if (!activeSession) {
+  if (!displaySession) {
     const provider = house.aiSettings?.provider || 'spark';
     const needsApiKey = provider === 'openrouter' && !house.aiSettings?.apiKey;
     const sparkUnavailable = provider === 'spark' && (!window.spark || !window.spark.llm);
@@ -198,7 +233,11 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                     onClick={() => {
                       console.log('=== Manual Session Creation Test ===');
                       console.log('House characters:', house.characters?.map(c => ({ id: c.id, name: c.name })));
-                      console.log('Current sessions:', sessions);
+                      console.log('Current sessions:', sessions.map(s => ({ id: s.id, type: s.type, active: s.active })));
+                      console.log('Session ID provided to ChatInterface:', sessionId);
+                      console.log('Active session found in ChatInterface:', activeSession ? 'YES' : 'NO');
+                      console.log('Fallback session found:', fallbackSession ? 'YES' : 'NO');
+                      console.log('Display session:', displaySession ? { id: displaySession.id, type: displaySession.type } : 'NONE');
                       if (house.characters && house.characters.length > 0) {
                         console.log('Attempting to start chat with first character...');
                         onStartChat?.(house.characters[0].id);
@@ -243,7 +282,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
     );
   }
 
-  const participants = activeSession.participantIds
+  const participants = displaySession.participantIds
     .map(id => getCharacter(id))
     .filter(Boolean);
 
@@ -264,13 +303,13 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
           
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              {activeSession.type === 'group' ? (
+              {displaySession.type === 'group' ? (
                 <Users size={20} className="text-muted-foreground" />
               ) : (
                 <MessageCircle size={20} className="text-muted-foreground" />
               )}
               <h2 className="font-semibold">
-                {activeSession.type === 'group' 
+                {displaySession.type === 'group' 
                   ? `Group Chat (${participants.length})`
                   : participants[0]?.name || 'Chat'
                 }
@@ -297,13 +336,21 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
       {/* Messages Area */}
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
+          {!activeSession && fallbackSession && (
+            <div className="text-center text-muted-foreground py-8">
+              <MessageCircle size={32} className="mx-auto mb-2 opacity-50" />
+              <p>Using most recent chat session...</p>
+              <p className="text-xs">Session: {fallbackSession.id.slice(0, 8)}...</p>
+            </div>
+          )}
+          
           <AnimatePresence initial={false}>
-            {activeSession.messages.map((msg, index) => {
+            {(displaySession.messages || []).map((msg, index) => {
               const character = msg.characterId ? getCharacter(msg.characterId) : null;
               const isUser = !msg.characterId;
               const showAvatar = !isUser && (
                 index === 0 || 
-                activeSession.messages[index - 1].characterId !== msg.characterId
+                (displaySession.messages && displaySession.messages[index - 1].characterId !== msg.characterId)
               );
 
               return (
@@ -406,7 +453,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
           <Input
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder={`Message ${activeSession.type === 'group' ? 'the group' : participants[0]?.name || '...'}`}
+            placeholder={`Message ${displaySession.type === 'group' ? 'the group' : participants[0]?.name || '...'}`}
             className="flex-1"
             autoFocus
           />

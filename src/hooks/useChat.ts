@@ -23,6 +23,19 @@ export function useChat() {
     console.log('Current sessions before creation:', (sessions || []).length);
     console.log('Current sessions details:', (sessions || []).map(s => ({ id: s.id.slice(0, 8), type: s.type, participants: s.participantIds.length })));
     
+    // Basic validation
+    if (!participantIds || participantIds.length === 0) {
+      console.error('No participant IDs provided');
+      toast.error('Cannot create chat session without participants');
+      return '';
+    }
+    
+    if (!house.characters || house.characters.length === 0) {
+      console.error('No characters available in house');
+      toast.error('No characters available. Create some characters first.');
+      return '';
+    }
+    
     // Verify participants exist first
     const validParticipants = participantIds.filter(id => 
       house.characters?.some(c => c.id === id)
@@ -36,6 +49,19 @@ export function useChat() {
       console.log('Requested participants:', participantIds);
       console.log('Available character IDs:', house.characters?.map(c => c.id) || []);
       toast.error('No valid characters found for chat session');
+      return '';
+    }
+
+    // For individual chats, we should only have 1 participant
+    if (type === 'individual' && validParticipants.length > 1) {
+      console.warn('Individual chat requested with multiple participants, taking first one');
+      validParticipants.splice(1);
+    }
+
+    // For group chats, we should have 2+ participants  
+    if (type === 'group' && validParticipants.length < 2) {
+      console.error('Group chat requested with less than 2 participants');
+      toast.error('Group chat requires at least 2 characters');
       return '';
     }
     
@@ -74,21 +100,29 @@ export function useChat() {
   };
 
   const sendMessage = async (content: string, characterId?: string) => {
+    console.log('=== sendMessage Debug ===');
+    console.log('Content:', content);
+    console.log('Character ID:', characterId);
+    console.log('Active session ID:', activeSessionId);
+    console.log('Active session:', activeSession);
+    
     if (!activeSession) {
       console.error('No active session for sending message');
+      toast.error('No active chat session found. Please start a new chat.');
       return;
     }
 
     console.log('Sending message:', content, 'in session:', activeSession.id);
 
     const message: ChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       characterId,
       content,
       timestamp: new Date(),
       type: 'text'
     };
 
+    // Update the session with the new message
     setSessions(current => {
       const currentSessions = current || [];
       const updated = currentSessions.map(session =>
@@ -100,7 +134,7 @@ export function useChat() {
             }
           : session
       );
-      console.log('Sessions after message add:', updated.length);
+      console.log('Sessions after message add:', updated.map(s => ({ id: s.id.slice(0, 8), messageCount: s.messages.length })));
       return updated;
     });
 

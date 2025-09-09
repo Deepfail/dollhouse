@@ -33,13 +33,10 @@ function App() {
     console.log('=== End Debug ===');
   }, [house, sessions, activeSessions, currentView, activeSessionId]);
 
-  const handleStartChat = (characterId: string) => {
+  const handleStartChat = async (characterId: string) => {
     console.log('=== handleStartChat called ===');
     console.log('Character ID:', characterId);
     console.log('Available characters:', house.characters?.map(c => ({ id: c.id, name: c.name })) || []);
-    console.log('Character exists:', house.characters?.some(c => c.id === characterId));
-    console.log('AI provider:', house.aiSettings?.provider);
-    console.log('Spark available:', !!window.spark?.llm);
     
     if (!house.characters || house.characters.length === 0) {
       toast.error('No characters available');
@@ -52,6 +49,17 @@ function App() {
       return;
     }
     
+    // Check AI configuration first
+    const provider = house.aiSettings?.provider || 'spark';
+    if (provider === 'spark' && (!window.spark || !window.spark.llm)) {
+      toast.error('Spark AI environment not available');
+      return;
+    }
+    if (provider === 'openrouter' && !house.aiSettings?.apiKey) {
+      toast.error('Please configure your OpenRouter API key in House Settings');
+      return;
+    }
+    
     // Create the session
     const sessionId = createSession('individual', [characterId]);
     console.log('createSession returned:', sessionId);
@@ -59,30 +67,32 @@ function App() {
     if (sessionId) {
       console.log('Setting active session ID to:', sessionId);
       
-      // Set both local and chat hook state immediately
+      // Set active session immediately, don't wait for KV sync
       setActiveSessionId(sessionId);
       setChatActiveSessionId(sessionId);
       setCurrentView('chat');
       toast.success(`Started chat with ${character.name}`);
-      
-      // Verify session is available
-      setTimeout(() => {
-        const foundSession = sessions.find(s => s.id === sessionId);
-        console.log('Session verification after creation:', foundSession ? 'FOUND' : 'NOT FOUND');
-        if (foundSession) {
-          console.log('Session details:', { id: foundSession.id, type: foundSession.type, participants: foundSession.participantIds });
-        }
-      }, 100);
     } else {
       console.error('Failed to create session for character:', characterId);
       toast.error('Failed to create chat session');
     }
   };
 
-  const handleStartGroupChat = (sessionId?: string) => {
+  const handleStartGroupChat = async (sessionId?: string) => {
     console.log('=== handleStartGroupChat called ===');
     console.log('Session ID provided:', sessionId);
     console.log('Available characters:', house.characters?.length || 0);
+    
+    // Check AI configuration first
+    const provider = house.aiSettings?.provider || 'spark';
+    if (provider === 'spark' && (!window.spark || !window.spark.llm)) {
+      toast.error('Spark AI environment not available');
+      return;
+    }
+    if (provider === 'openrouter' && !house.aiSettings?.apiKey) {
+      toast.error('Please configure your OpenRouter API key in House Settings');
+      return;
+    }
     
     if (sessionId) {
       // Use existing session
@@ -100,6 +110,7 @@ function App() {
         console.log('Group session created:', newSessionId);
         
         if (newSessionId) {
+          // Set active session immediately
           setActiveSessionId(newSessionId);
           setChatActiveSessionId(newSessionId);
           setCurrentView('chat');
@@ -119,28 +130,30 @@ function App() {
     console.log('handleStartScene called with sessionId:', sessionId);
     console.log('Available scene sessions:', activeSessions.map(s => ({ id: s.id, type: s.type, active: s.active })));
     
-    // Function to check and start scene
-    const attemptStartScene = (attempt: number = 1) => {
+    // Set active session immediately
+    setActiveSessionId(sessionId);
+    setCurrentView('scene');
+    
+    // Check if session exists, otherwise retry a few times
+    const checkSession = (attempt: number = 1) => {
       const session = activeSessions.find(s => s.id === sessionId);
       
       if (session) {
         console.log('Scene session found on attempt', attempt, ':', { id: session.id, type: session.type, active: session.active });
-        setActiveSessionId(sessionId);
-        setCurrentView('scene');
         return;
       }
       
       if (attempt <= 3) {
         console.log(`Scene session not found on attempt ${attempt}, retrying...`);
-        setTimeout(() => attemptStartScene(attempt + 1), 100);
+        setTimeout(() => checkSession(attempt + 1), 200);
       } else {
         console.error('Scene session not found after 3 attempts:', sessionId);
         console.log('Available sessions:', activeSessions.map(s => s.id));
-        toast.error('Scene session not found. Please try creating the scene again.');
+        toast.error('Scene session not found. The scene may not have been created properly.');
       }
     };
     
-    attemptStartScene();
+    checkSession();
   };
 
   const handleBackToHouse = () => {
