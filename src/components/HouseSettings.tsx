@@ -6,21 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { useHouse } from '@/hooks/useHouse';
 import { toast } from 'sonner';
 import { 
-  Key, 
-  Globe, 
-  Palette, 
   Brain, 
-  Image as ImageIcon,
   House as Home,
-  Users,
   Gear
 } from '@phosphor-icons/react';
 
@@ -29,16 +21,9 @@ interface HouseSettingsProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const OPENROUTER_MODELS = [
-  { id: 'deepseek/deepseek-chat', name: 'DeepSeek V3' },
-  { id: 'deepseek/deepseek-chat-v3.1', name: 'DeepSeek Chat V3.1' },
-  { id: 'deepseek/deepseek-r1-0528', name: 'DeepSeek R1 0528' },
-  { id: 'deepseek/deepseek-chat-v3-0324', name: 'DeepSeek Chat V3 0324' },
-  { id: 'openai/gpt-4o', name: 'GPT-4o' },
-  { id: 'anthropic/claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
-  { id: 'openai/o1-preview', name: 'OpenAI o1-preview' },
-  { id: 'google/gemini-pro-1.5', name: 'Gemini Pro 1.5' },
-  { id: 'meta-llama/llama-3.1-405b-instruct', name: 'Llama 3.1 405B' }
+const SPARK_MODELS = [
+  { id: 'gpt-4o', name: 'GPT-4o (Default)' },
+  { id: 'gpt-4o-mini', name: 'GPT-4o Mini' }
 ];
 
 export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
@@ -52,23 +37,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   const [currency, setCurrency] = useState(house.currency);
   
   // AI Settings state  
-  const [openrouterApiKey, setOpenrouterApiKey] = useState(house.aiSettings?.apiKey || '');
-  const [selectedModel, setSelectedModel] = useState(house.aiSettings?.model || 'deepseek/deepseek-chat-v3.1');
-  const [veniceApiKey, setVeniceApiKey] = useState(house.aiSettings?.imageApiKey || '');
-  const [imageProvider, setImageProvider] = useState(house.aiSettings?.imageProvider || 'none');
-
-  const handleSaveAPISettings = () => {
-    updateHouse({
-      aiSettings: {
-        provider: 'openrouter',
-        model: selectedModel,
-        apiKey: openrouterApiKey,
-        imageProvider: veniceApiKey ? 'venice' : 'none',
-        imageApiKey: veniceApiKey
-      }
-    });
-    toast.success('API settings saved successfully');
-  };
+  const [selectedModel, setSelectedModel] = useState(house.aiSettings?.model || 'gpt-4o');
 
   const handleSaveHouseSettings = () => {
     updateHouse({
@@ -76,79 +45,26 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       description: houseDescription,
       worldPrompt,
       copilotPrompt,
-      currency
+      currency,
+      aiSettings: {
+        provider: 'spark',
+        model: selectedModel
+      }
     });
-    toast.success('House settings updated successfully');
+    toast.success('Settings updated successfully');
   };
 
-  const handleTestOpenRouter = async () => {
-    if (!openrouterApiKey) {
-      toast.error('Please enter your OpenRouter API key first');
-      return;
-    }
-
-    try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openrouterApiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': window.location.origin,
-          'X-Title': 'Character Creator House'
-        },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: [{ role: 'user', content: 'Hello, this is a test message.' }],
-          max_tokens: 10
-        })
-      });
-
-      if (response.ok) {
-        toast.success('OpenRouter connection successful!');
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        toast.error(`OpenRouter connection failed: ${errorData.error?.message || 'Check your API key'}`);
-      }
-    } catch (error) {
-      toast.error('Failed to connect to OpenRouter');
-    }
-  };
-
-  const handleTestVeniceAI = async () => {
-    if (!veniceApiKey) {
-      toast.error('Please enter your Venice AI API key first');
-      return;
-    }
-
-    try {
-      const response = await fetch('https://api.venice.ai/v1/images/generations', {
-        method: 'POST', 
-        headers: {
-          'Authorization': `Bearer ${veniceApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          prompt: 'A simple test image',
-          model: 'venice-1',
-          n: 1,
-          size: '512x512'
-        })
-      });
-
-      if (response.ok) {
-        toast.success('Venice AI connection successful!');
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        toast.error(`Venice AI connection failed: ${errorData.error?.message || 'Check your API key'}`);
-      }
-    } catch (error) {
-      toast.error('Failed to connect to Venice AI');
-    }
+  const handleSavePromptSettings = () => {
+    updateHouse({
+      worldPrompt,
+      copilotPrompt
+    });
+    toast.success('Prompt settings updated successfully');
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh]">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Gear size={20} className="text-primary" />
@@ -157,14 +73,10 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
         </DialogHeader>
 
         <Tabs defaultValue="house" className="flex-1">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="house" className="flex items-center gap-2">
               <Home size={16} />
               House
-            </TabsTrigger>
-            <TabsTrigger value="apis" className="flex items-center gap-2">
-              <Key size={16} />
-              APIs
             </TabsTrigger>
             <TabsTrigger value="prompts" className="flex items-center gap-2">
               <Brain size={16} />
@@ -223,64 +135,17 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                     />
                   </div>
 
-                  <Button onClick={handleSaveHouseSettings} className="w-full">
-                    Save House Settings
-                  </Button>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* API Settings Tab */}
-            <TabsContent value="apis" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Globe size={18} />
-                    OpenRouter Configuration
-                  </CardTitle>
-                  <CardDescription>
-                    Configure OpenRouter for LLM conversations
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="openrouter-enabled"
-                      checked={!!openrouterApiKey}
-                      onCheckedChange={(checked) => {
-                        if (!checked) {
-                          setOpenrouterApiKey('');
-                        }
-                      }}
-                    />
-                    <Label htmlFor="openrouter-enabled">Enable OpenRouter</Label>
-                    <Badge variant={openrouterApiKey ? "default" : "secondary"}>
-                      {openrouterApiKey ? "Enabled" : "Disabled"}
-                    </Badge>
-                  </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="openrouter-key">API Key</Label>
-                    <Input
-                      id="openrouter-key"
-                      type="password"
-                      value={openrouterApiKey}
-                      onChange={(e) => setOpenrouterApiKey(e.target.value)}
-                      placeholder="sk-or-v1-..."
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="default-model">Default Model</Label>
+                    <Label htmlFor="ai-model">AI Model</Label>
                     <Select
                       value={selectedModel}
                       onValueChange={setSelectedModel}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a model" />
+                        <SelectValue placeholder="Select AI model" />
                       </SelectTrigger>
                       <SelectContent>
-                        {OPENROUTER_MODELS.map(model => (
+                        {SPARK_MODELS.map(model => (
                           <SelectItem key={model.id} value={model.id}>
                             {model.name}
                           </SelectItem>
@@ -289,63 +154,18 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                     </Select>
                   </div>
 
-                  <div className="flex gap-2">
-                    <Button onClick={handleTestOpenRouter} variant="outline" className="flex-1">
-                      Test Connection
-                    </Button>
-                    <Button onClick={handleSaveAPISettings} className="flex-1">
-                      Save Settings
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <ImageIcon size={18} />
-                    Venice AI Configuration
-                  </CardTitle>
-                  <CardDescription>
-                    Configure Venice AI for image generation
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="venice-enabled"
-                      checked={!!veniceApiKey}
-                      onCheckedChange={(checked) => {
-                        if (!checked) {
-                          setVeniceApiKey('');
-                        }
-                      }}
-                    />
-                    <Label htmlFor="venice-enabled">Enable Venice AI</Label>
-                    <Badge variant={veniceApiKey ? "default" : "secondary"}>
-                      {veniceApiKey ? "Enabled" : "Disabled"}
-                    </Badge>
+                  <div className="bg-muted/50 p-3 rounded-lg border border-border">
+                    <div className="flex items-start gap-2">
+                      <div className="text-accent mt-0.5">ℹ️</div>
+                      <div className="text-sm text-muted-foreground">
+                        This app uses Spark's built-in AI service. No additional API configuration required.
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="venice-key">API Key</Label>
-                    <Input
-                      id="venice-key"
-                      type="password"
-                      value={veniceApiKey}
-                      onChange={(e) => setVeniceApiKey(e.target.value)}
-                      placeholder="Enter Venice AI API key"
-                    />
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button onClick={handleTestVeniceAI} variant="outline" className="flex-1">
-                      Test Connection
-                    </Button>
-                    <Button onClick={handleSaveAPISettings} className="flex-1">
-                      Save Settings
-                    </Button>
-                  </div>
+                  <Button onClick={handleSaveHouseSettings} className="w-full">
+                    Save Settings
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -385,7 +205,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                     />
                   </div>
 
-                  <Button onClick={handleSaveHouseSettings} className="w-full">
+                  <Button onClick={handleSavePromptSettings} className="w-full">
                     Save Prompt Settings
                   </Button>
                 </CardContent>
@@ -398,16 +218,23 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Gear size={18} />
-                    Advanced Configuration
+                    Advanced Settings
                   </CardTitle>
                   <CardDescription>
-                    Advanced settings and experimental features
+                    Advanced configuration options
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p>Advanced settings will be available in future updates</p>
-                    <p className="text-sm">Export/import configurations, backup data, etc.</p>
+                <CardContent>
+                  <div className="bg-muted/50 p-4 rounded-lg border border-border">
+                    <div className="flex items-start gap-3">
+                      <div className="text-accent">⚙️</div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Advanced Features</p>
+                        <p className="text-sm text-muted-foreground">
+                          Additional configuration options and features will be available here in future updates.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

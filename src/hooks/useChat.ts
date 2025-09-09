@@ -16,7 +16,7 @@ export function useChat() {
 
   const createSession = (type: 'individual' | 'group' | 'scene', participantIds: string[], context?: string) => {
     const newSession: ChatSession = {
-      id: `session-${Date.now()}`,
+      id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type,
       participantIds,
       messages: [],
@@ -26,8 +26,28 @@ export function useChat() {
       updatedAt: new Date()
     };
 
-    setSessions(current => [...(current || []), newSession]);
+    console.log('Creating chat session:', newSession.id, 'for participants:', participantIds);
+
+    setSessions(current => {
+      const updatedSessions = [...(current || []), newSession];
+      console.log('Chat sessions updated, new count:', updatedSessions.length);
+      return updatedSessions;
+    });
+    
     setActiveSessionId(newSession.id);
+    
+    // Verify participants exist
+    const validParticipants = participantIds.filter(id => 
+      house.characters?.some(c => c.id === id)
+    );
+    
+    if (validParticipants.length === 0) {
+      console.warn('No valid participants found for session');
+      toast.error('No valid characters found for chat session');
+      return newSession.id;
+    }
+    
+    console.log('Valid participants:', validParticipants.length);
     return newSession.id;
   };
 
@@ -100,6 +120,23 @@ export function useChat() {
         return null;
       }
 
+      // Check if AI service is available
+      if (!window.spark || !window.spark.llm || !window.spark.llmPrompt) {
+        console.error('Spark AI service not available');
+        
+        // Return a fallback message when AI service isn't available
+        const fallbackMessage: ChatMessage = {
+          id: `msg-${Date.now()}-${characterId}`,
+          characterId,
+          content: `*${character.name} appears to be having connectivity issues and cannot respond right now. Please check your AI service configuration in House Settings.*`,
+          timestamp: new Date(),
+          type: 'text'
+        };
+        
+        toast.error('AI service is not available. Please configure your API settings in House Settings.');
+        return fallbackMessage;
+      }
+
       // Get conversation history for context
       const recentMessages = session.messages.slice(-10);
       const conversationContext = recentMessages.map(msg => {
@@ -130,6 +167,7 @@ User just said: ${userMessage.content}
 
 Respond as ${character.name} would, staying true to their personality and background. Keep responses conversational and engaging, typically 1-2 sentences unless the situation calls for more detail.`;
 
+      console.log(`Generating AI response for ${character.name}...`);
       const response = await aiService.generateResponse(characterPrompt);
 
       const message: ChatMessage = {
@@ -143,7 +181,22 @@ Respond as ${character.name} would, staying true to their personality and backgr
       return message;
     } catch (error) {
       console.error('Error generating AI response:', error);
-      toast.error(`Failed to generate response for character: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      let errorMessage = 'Unknown error occurred';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      if (errorMessage.includes('AI service not available') || errorMessage.includes('Spark AI service')) {
+        toast.error('This app requires Spark AI environment to function properly.');
+      } else if (errorMessage.includes('rate limit')) {
+        toast.error('Please wait a moment before sending another message.');
+      } else if (errorMessage.includes('temporarily unavailable')) {
+        toast.error('AI service is temporarily down. Please try again in a few moments.');
+      } else {
+        toast.error(`Failed to generate response for ${house.characters?.find(c => c.id === characterId)?.name}: ${errorMessage}`);
+      }
+      
       return null;
     }
   };

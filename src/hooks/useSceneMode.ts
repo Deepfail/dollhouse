@@ -213,6 +213,12 @@ Keep your response to 1-2 sentences maximum.
 System prompt for character behavior: ${character.prompts.system}`;
     
     try {
+      // Check if AI service is available
+      if (!window.spark || !window.spark.llm || !window.spark.llmPrompt) {
+        console.error('Spark AI service not available');
+        throw new Error('AI service is not configured. Please configure your API settings in House Settings.');
+      }
+
       console.log('Calling AI service for character response...');
       
       // Create AI service instance with current house settings
