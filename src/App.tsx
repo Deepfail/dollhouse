@@ -21,18 +21,22 @@ function App() {
 
   const handleStartScene = (sessionId: string) => {
     console.log('handleStartScene called with sessionId:', sessionId);
-    console.log('Active sessions:', activeSessions);
+    console.log('Active sessions before check:', activeSessions);
+    console.log('Number of active sessions:', activeSessions.length);
     
     // Verify the scene session exists
     const sceneExists = activeSessions.some(session => session.id === sessionId);
     console.log('Scene exists:', sceneExists);
+    console.log('Looking for session with ID:', sessionId);
+    console.log('Available session IDs:', activeSessions.map(s => s.id));
     
     if (sceneExists) {
       setActiveSessionId(sessionId);
       setCurrentView('scene');
-      console.log('Switching to scene view');
+      console.log('Switching to scene view with sessionId:', sessionId);
     } else {
       console.error('Scene session not found:', sessionId);
+      console.log('Available sessions:', activeSessions);
       // Fallback to house view if scene doesn't exist
       setCurrentView('house');
       setActiveSessionId(null);

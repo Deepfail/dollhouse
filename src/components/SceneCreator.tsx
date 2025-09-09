@@ -123,6 +123,7 @@ export const SceneCreator: React.FC<SceneCreatorProps> = ({ onSceneCreated }) =>
         sceneContext || 'A spontaneous gathering where characters interact based on their secret objectives.'
       );
 
+      console.log('Scene created with ID:', sessionId);
       onSceneCreated(sessionId);
       
       // Reset form

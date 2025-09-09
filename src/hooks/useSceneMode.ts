@@ -49,24 +49,43 @@ export const useSceneMode = () => {
     
     newSession.messages.push(systemMessage);
     
-    // Update state and wait for it to complete
-    setActiveSessions(sessions => {
-      const updatedSessions = [...sessions, newSession];
-      return updatedSessions;
+    // Update state using functional update to get current state
+    return new Promise<string>((resolve) => {
+      setActiveSessions(sessions => {
+        const updatedSessions = [...sessions, newSession];
+        console.log('Sessions updated, new count:', updatedSessions.length);
+        console.log('New session added:', newSession.id);
+        
+        // Resolve after state update
+        setTimeout(() => {
+          console.log('Scene session created:', sessionId);
+          
+          // Start auto-play after state is confirmed updated
+          setTimeout(() => {
+            console.log('Attempting to start auto-play for session:', sessionId);
+            startAutoPlayForNewSession(sessionId);
+          }, 100);
+          
+          resolve(sessionId);
+        }, 50);
+        
+        return updatedSessions;
+      });
     });
     
-    // Start auto-play after a short delay to allow state to update
-    setTimeout(() => {
-      startAutoPlayForNewSession(sessionId);
-    }, 500);
-    
     toast.success('Scene session created! Characters will begin interacting automatically.');
-    
-    return sessionId;
   };
   
   const startAutoPlayForNewSession = async (sessionId: string) => {
     console.log('Starting auto-play for session:', sessionId);
+    
+    // Check if API key is configured first
+    if (!house.aiSettings?.apiKey) {
+      console.log('No API key configured, scene will wait for configuration');
+      toast.warning('Scene created but waiting for API configuration. Please set up your OpenRouter API key in House Settings.');
+      return;
+    }
+    
     setIsProcessing(true);
     
     const processNextTurn = async () => {
@@ -204,6 +223,12 @@ System prompt for character behavior: ${character.prompts.system}`;
       
       // Create AI service instance with current house settings
       const aiService = new AIService(house);
+      
+      // Check if API key is configured
+      if (!house.aiSettings?.apiKey) {
+        throw new Error('API key not configured. Please set up your AI settings in House Settings.');
+      }
+      
       const response = await aiService.generateResponse(characterPrompt);
       
       console.log(`Generated response for ${character.name}:`, response);
@@ -233,12 +258,54 @@ System prompt for character behavior: ${character.prompts.system}`;
       
     } catch (error) {
       console.error('Error processing character turn:', error);
-      toast.error(`Error generating response for ${character.name}: ${error}`);
+      
+      let errorMessage = 'Unknown error occurred';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      // Add error message to scene
+      const errorMsgContent = `⚠️ Error generating response for ${character.name}: ${errorMessage}`;
+      const errorMessage_: ChatMessage = {
+        id: `msg_${Date.now()}_error`,
+        content: errorMsgContent,
+        timestamp: new Date(),
+        type: 'system'
+      };
+      
+      // Update session with error message
+      setActiveSessions(sessions => 
+        sessions.map(s => 
+          s.id === sessionId 
+            ? { 
+                ...s, 
+                messages: [...s.messages, errorMessage_],
+                updatedAt: new Date()
+              }
+            : s
+        )
+      );
+      
+      toast.error(`Error generating response for ${character.name}: ${errorMessage}`);
+      
+      // If this is an API configuration error, pause the scene
+      if (errorMessage.includes('API key not configured')) {
+        await pauseScene(sessionId);
+        toast.error('Scene paused due to API configuration error. Please check House Settings.');
+      }
     }
   };
   
   const startAutoPlay = async (sessionId: string) => {
     console.log('Starting auto-play for session:', sessionId);
+    
+    // Check if API key is configured first
+    if (!house.aiSettings?.apiKey) {
+      console.log('No API key configured, cannot start auto-play');
+      toast.error('Cannot start auto-play: No API key configured. Please set up your OpenRouter API key in House Settings.');
+      return;
+    }
+    
     setIsProcessing(true);
     
     const processNextTurn = async () => {
