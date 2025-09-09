@@ -1,10 +1,14 @@
 import { useKV } from '@github/spark/hooks';
 import { ChatSession, ChatMessage, Character } from '@/types';
 import { useState } from 'react';
+import { useHouse } from './useHouse';
+import { AIService } from '@/lib/aiService';
+import { toast } from 'sonner';
 
 export function useChat() {
   const [sessions, setSessions] = useKV<ChatSession[]>('chat-sessions', []);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const { house } = useHouse();
   
   // Ensure sessions is never undefined
   const safeSessions = sessions || [];
@@ -90,27 +94,56 @@ export function useChat() {
     session: ChatSession
   ): Promise<ChatMessage | null> => {
     try {
-      // This would use the actual AI integration
-      // For now, return a placeholder
-      const responses = [
-        "That's interesting! Tell me more.",
-        "I see what you mean.",
-        "How does that make you feel?",
-        "I've been thinking about that too.",
-        "*nods thoughtfully*"
-      ];
+      const character = house.characters?.find(c => c.id === characterId);
+      if (!character) {
+        console.error('Character not found:', characterId);
+        return null;
+      }
 
-      const response: ChatMessage = {
+      // Get conversation history for context
+      const recentMessages = session.messages.slice(-10);
+      const conversationContext = recentMessages.map(msg => {
+        if (msg.characterId) {
+          const char = house.characters?.find(c => c.id === msg.characterId);
+          return `${char?.name || 'Unknown'}: ${msg.content}`;
+        }
+        return `User: ${msg.content}`;
+      }).join('\n');
+
+      // Create AI service instance with current house settings
+      const aiService = new AIService(house);
+
+      // Build character prompt
+      const characterPrompt = `You are ${character.name}, a ${character.role} character.
+
+Character Description: ${character.description}
+Personality: ${character.personality}
+Background: ${character.prompts.background}
+
+System Instructions: ${character.prompts.system}
+Personality Prompt: ${character.prompts.personality}
+
+Current conversation:
+${conversationContext}
+
+User just said: ${userMessage.content}
+
+Respond as ${character.name} would, staying true to their personality and background. Keep responses conversational and engaging, typically 1-2 sentences unless the situation calls for more detail.`;
+
+      const response = await aiService.generateResponse(characterPrompt);
+
+      const message: ChatMessage = {
         id: `msg-${Date.now()}-${characterId}`,
         characterId,
-        content: responses[Math.floor(Math.random() * responses.length)],
+        content: response,
         timestamp: new Date(),
         type: 'text'
       };
 
-      return response;
+      return message;
     } catch (error) {
       console.error('Error generating AI response:', error);
+      toast.error(`Failed to generate response for character: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return null;
     }
   };

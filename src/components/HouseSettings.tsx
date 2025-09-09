@@ -11,7 +11,6 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { useKV } from '@github/spark/hooks';
 import { useHouse } from '@/hooks/useHouse';
 import { toast } from 'sonner';
 import { 
@@ -30,18 +29,6 @@ interface HouseSettingsProps {
   onOpenChange: (open: boolean) => void;
 }
 
-interface APISettings {
-  openrouter: {
-    apiKey: string;
-    defaultModel: string;
-    enabled: boolean;
-  };
-  veniceAI: {
-    apiKey: string;
-    enabled: boolean;
-  };
-}
-
 const OPENROUTER_MODELS = [
   { id: 'deepseek/deepseek-chat', name: 'DeepSeek V3' },
   { id: 'deepseek/deepseek-chat-v3.1', name: 'DeepSeek Chat V3.1' },
@@ -56,30 +43,30 @@ const OPENROUTER_MODELS = [
 
 export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   const { house, updateHouse } = useHouse();
-  const [apiSettings, setAPISettings] = useKV<APISettings>('api-settings', {
-    openrouter: {
-      apiKey: '',
-      defaultModel: 'deepseek/deepseek-chat',
-      enabled: false
-    },
-    veniceAI: {
-      apiKey: '',
-      enabled: false
-    }
-  });
-
+  
   // House configuration state
   const [houseName, setHouseName] = useState(house.name);
   const [houseDescription, setHouseDescription] = useState(house.description || '');
   const [worldPrompt, setWorldPrompt] = useState(house.worldPrompt || '');
   const [copilotPrompt, setCopilotPrompt] = useState(house.copilotPrompt || '');
   const [currency, setCurrency] = useState(house.currency);
+  
+  // AI Settings state  
+  const [openrouterApiKey, setOpenrouterApiKey] = useState(house.aiSettings?.apiKey || '');
+  const [selectedModel, setSelectedModel] = useState(house.aiSettings?.model || 'deepseek/deepseek-chat-v3.1');
+  const [veniceApiKey, setVeniceApiKey] = useState(house.aiSettings?.imageApiKey || '');
+  const [imageProvider, setImageProvider] = useState(house.aiSettings?.imageProvider || 'none');
 
   const handleSaveAPISettings = () => {
-    setAPISettings(prev => ({
-      ...prev,
-      ...apiSettings
-    }));
+    updateHouse({
+      aiSettings: {
+        provider: 'openrouter',
+        model: selectedModel,
+        apiKey: openrouterApiKey,
+        imageProvider: veniceApiKey ? 'venice' : 'none',
+        imageApiKey: veniceApiKey
+      }
+    });
     toast.success('API settings saved successfully');
   };
 
@@ -95,7 +82,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   };
 
   const handleTestOpenRouter = async () => {
-    if (!apiSettings.openrouter.apiKey) {
+    if (!openrouterApiKey) {
       toast.error('Please enter your OpenRouter API key first');
       return;
     }
@@ -104,11 +91,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiSettings.openrouter.apiKey}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${openrouterApiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': window.location.origin,
+          'X-Title': 'Character Creator House'
         },
         body: JSON.stringify({
-          model: apiSettings.openrouter.defaultModel,
+          model: selectedModel,
           messages: [{ role: 'user', content: 'Hello, this is a test message.' }],
           max_tokens: 10
         })
@@ -117,7 +106,8 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       if (response.ok) {
         toast.success('OpenRouter connection successful!');
       } else {
-        toast.error('OpenRouter connection failed. Check your API key.');
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(`OpenRouter connection failed: ${errorData.error?.message || 'Check your API key'}`);
       }
     } catch (error) {
       toast.error('Failed to connect to OpenRouter');
@@ -125,14 +115,32 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   };
 
   const handleTestVeniceAI = async () => {
-    if (!apiSettings.veniceAI.apiKey) {
+    if (!veniceApiKey) {
       toast.error('Please enter your Venice AI API key first');
       return;
     }
 
     try {
-      // Venice AI test - this would need the actual endpoint
-      toast.success('Venice AI connection test initiated');
+      const response = await fetch('https://api.venice.ai/v1/images/generations', {
+        method: 'POST', 
+        headers: {
+          'Authorization': `Bearer ${veniceApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          prompt: 'A simple test image',
+          model: 'venice-1',
+          n: 1,
+          size: '512x512'
+        })
+      });
+
+      if (response.ok) {
+        toast.success('Venice AI connection successful!');
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(`Venice AI connection failed: ${errorData.error?.message || 'Check your API key'}`);
+      }
     } catch (error) {
       toast.error('Failed to connect to Venice AI');
     }
@@ -238,17 +246,16 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="openrouter-enabled"
-                      checked={apiSettings.openrouter.enabled}
-                      onCheckedChange={(checked) => 
-                        setAPISettings(prev => ({
-                          ...prev,
-                          openrouter: { ...prev.openrouter, enabled: checked }
-                        }))
-                      }
+                      checked={!!openrouterApiKey}
+                      onCheckedChange={(checked) => {
+                        if (!checked) {
+                          setOpenrouterApiKey('');
+                        }
+                      }}
                     />
                     <Label htmlFor="openrouter-enabled">Enable OpenRouter</Label>
-                    <Badge variant={apiSettings.openrouter.enabled ? "default" : "secondary"}>
-                      {apiSettings.openrouter.enabled ? "Enabled" : "Disabled"}
+                    <Badge variant={openrouterApiKey ? "default" : "secondary"}>
+                      {openrouterApiKey ? "Enabled" : "Disabled"}
                     </Badge>
                   </div>
 
@@ -257,13 +264,8 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                     <Input
                       id="openrouter-key"
                       type="password"
-                      value={apiSettings.openrouter.apiKey}
-                      onChange={(e) => 
-                        setAPISettings(prev => ({
-                          ...prev,
-                          openrouter: { ...prev.openrouter, apiKey: e.target.value }
-                        }))
-                      }
+                      value={openrouterApiKey}
+                      onChange={(e) => setOpenrouterApiKey(e.target.value)}
                       placeholder="sk-or-v1-..."
                     />
                   </div>
@@ -271,13 +273,8 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label htmlFor="default-model">Default Model</Label>
                     <Select
-                      value={apiSettings.openrouter.defaultModel}
-                      onValueChange={(value) =>
-                        setAPISettings(prev => ({
-                          ...prev,
-                          openrouter: { ...prev.openrouter, defaultModel: value }
-                        }))
-                      }
+                      value={selectedModel}
+                      onValueChange={setSelectedModel}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select a model" />
@@ -317,17 +314,16 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="venice-enabled"
-                      checked={apiSettings.veniceAI.enabled}
-                      onCheckedChange={(checked) => 
-                        setAPISettings(prev => ({
-                          ...prev,
-                          veniceAI: { ...prev.veniceAI, enabled: checked }
-                        }))
-                      }
+                      checked={!!veniceApiKey}
+                      onCheckedChange={(checked) => {
+                        if (!checked) {
+                          setVeniceApiKey('');
+                        }
+                      }}
                     />
                     <Label htmlFor="venice-enabled">Enable Venice AI</Label>
-                    <Badge variant={apiSettings.veniceAI.enabled ? "default" : "secondary"}>
-                      {apiSettings.veniceAI.enabled ? "Enabled" : "Disabled"}
+                    <Badge variant={veniceApiKey ? "default" : "secondary"}>
+                      {veniceApiKey ? "Enabled" : "Disabled"}
                     </Badge>
                   </div>
 
@@ -336,13 +332,8 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                     <Input
                       id="venice-key"
                       type="password"
-                      value={apiSettings.veniceAI.apiKey}
-                      onChange={(e) => 
-                        setAPISettings(prev => ({
-                          ...prev,
-                          veniceAI: { ...prev.veniceAI, apiKey: e.target.value }
-                        }))
-                      }
+                      value={veniceApiKey}
+                      onChange={(e) => setVeniceApiKey(e.target.value)}
                       placeholder="Enter Venice AI API key"
                     />
                   </div>

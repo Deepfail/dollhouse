@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useKV } from '@github/spark/hooks';
 import { ChatSession, Character, ChatMessage, SceneObjective } from '@/types';
 import { useHouse } from '@/hooks/useHouse';
+import { AIService } from '@/lib/aiService';
 import { toast } from 'sonner';
 
 export const useSceneMode = () => {
@@ -177,32 +178,34 @@ export const useSceneMode = () => {
     }).join('\n');
     
     // Generate character response based on their objective
-    const characterPrompt = spark.llmPrompt`
-      You are ${character.name}, a ${character.role} with the personality: ${character.personality}
+    const characterPrompt = `You are ${character.name}, a ${character.role} with the personality: ${character.personality}
       
-      Your secret objective in this scene is: ${objective}
+Your secret objective in this scene is: ${objective}
       
-      Scene context: ${currentSession.context || 'A social gathering'}
+Scene context: ${currentSession.context || 'A social gathering'}
       
-      Recent conversation:
-      ${conversationContext}
+Recent conversation:
+${conversationContext}
       
-      Other characters present: ${currentSession.participantIds
-        .filter(id => id !== characterId)
-        .map(id => house.characters?.find(c => c.id === id)?.name)
-        .filter(Boolean)
-        .join(', ')}
+Other characters present: ${currentSession.participantIds
+      .filter(id => id !== characterId)
+      .map(id => house.characters?.find(c => c.id === id)?.name)
+      .filter(Boolean)
+      .join(', ')}
       
-      Respond as ${character.name} would, keeping your objective in mind but being subtle about it. 
-      Make your response natural and conversational, advancing toward your goal without being obvious.
-      Keep your response to 1-2 sentences maximum.
+Respond as ${character.name} would, keeping your objective in mind but being subtle about it. 
+Make your response natural and conversational, advancing toward your goal without being obvious.
+Keep your response to 1-2 sentences maximum.
       
-      System prompt for character behavior: ${character.prompts.system}
-    `;
+System prompt for character behavior: ${character.prompts.system}`;
     
     try {
-      console.log('Calling LLM for character response...');
-      const response = await spark.llm(characterPrompt);
+      console.log('Calling AI service for character response...');
+      
+      // Create AI service instance with current house settings
+      const aiService = new AIService(house);
+      const response = await aiService.generateResponse(characterPrompt);
+      
       console.log(`Generated response for ${character.name}:`, response);
       
       const message: ChatMessage = {
