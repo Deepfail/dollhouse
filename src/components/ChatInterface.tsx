@@ -17,11 +17,21 @@ interface ChatInterfaceProps {
 }
 
 export function ChatInterface({ sessionId, onBack }: ChatInterfaceProps) {
-  const { activeSession, sendMessage } = useChat();
+  const { sessions, sendMessage, switchToSession } = useChat();
   const { house } = useHouse();
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Find the active session from sessions array using sessionId
+  const activeSession = sessionId ? sessions.find(s => s.id === sessionId) : null;
+
+  // Switch to the session when sessionId changes
+  useEffect(() => {
+    if (sessionId) {
+      switchToSession(sessionId);
+    }
+  }, [sessionId, switchToSession]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -51,6 +61,7 @@ export function ChatInterface({ sessionId, onBack }: ChatInterfaceProps) {
 
   if (!activeSession) {
     const needsApiKey = house.aiSettings?.provider === 'openrouter' && !house.aiSettings?.apiKey;
+    const hasCharacters = house.characters && house.characters.length > 0;
     
     return (
       <div className="flex-1 flex items-center justify-center bg-background">
@@ -66,6 +77,14 @@ export function ChatInterface({ sessionId, onBack }: ChatInterfaceProps) {
                 Open House Settings
               </Button>
             </>
+          ) : !hasCharacters ? (
+            <>
+              <Warning size={48} className="mx-auto text-yellow-500 mb-4" />
+              <h3 className="text-xl font-semibold mb-2">No Characters Found</h3>
+              <p className="text-muted-foreground mb-4">
+                Create some characters first before starting a chat.
+              </p>
+            </>
           ) : (
             <>
               <MessageCircle size={48} className="mx-auto text-muted-foreground mb-4" />
@@ -73,6 +92,12 @@ export function ChatInterface({ sessionId, onBack }: ChatInterfaceProps) {
               <p className="text-muted-foreground mb-4">
                 Select a character or start a group chat to begin conversation.
               </p>
+              <div className="text-xs text-muted-foreground mt-2">
+                Available characters: {house.characters?.length || 0}<br/>
+                Session ID: {sessionId || 'None'}<br/>
+                Provider: {house.aiSettings?.provider || 'Not set'}<br/>
+                Has API Key: {house.aiSettings?.apiKey ? 'Yes' : 'No'}
+              </div>
             </>
           )}
         </Card>

@@ -15,28 +15,7 @@ export function useChat() {
   const activeSession = safeSessions.find(s => s.id === activeSessionId);
 
   const createSession = (type: 'individual' | 'group' | 'scene', participantIds: string[], context?: string) => {
-    const newSession: ChatSession = {
-      id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      type,
-      participantIds,
-      messages: [],
-      context,
-      active: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-
-    console.log('Creating chat session:', newSession.id, 'for participants:', participantIds);
-
-    setSessions(current => {
-      const updatedSessions = [...(current || []), newSession];
-      console.log('Chat sessions updated, new count:', updatedSessions.length);
-      return updatedSessions;
-    });
-    
-    setActiveSessionId(newSession.id);
-    
-    // Verify participants exist
+    // Verify participants exist first
     const validParticipants = participantIds.filter(id => 
       house.characters?.some(c => c.id === id)
     );
@@ -44,15 +23,39 @@ export function useChat() {
     if (validParticipants.length === 0) {
       console.warn('No valid participants found for session');
       toast.error('No valid characters found for chat session');
-      return newSession.id;
+      return '';
     }
+    
+    const newSession: ChatSession = {
+      id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type,
+      participantIds: validParticipants,
+      messages: [],
+      context,
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    console.log('Creating chat session:', newSession.id, 'for participants:', validParticipants);
+
+    setSessions(current => {
+      const updatedSessions = [...(current || []), newSession];
+      console.log('Chat sessions updated, new count:', updatedSessions.length);
+      return updatedSessions;
+    });
     
     console.log('Valid participants:', validParticipants.length);
     return newSession.id;
   };
 
   const sendMessage = async (content: string, characterId?: string) => {
-    if (!activeSession) return;
+    if (!activeSession) {
+      console.error('No active session for sending message');
+      return;
+    }
+
+    console.log('Sending message:', content, 'in session:', activeSession.id);
 
     const message: ChatMessage = {
       id: `msg-${Date.now()}`,
@@ -64,7 +67,7 @@ export function useChat() {
 
     setSessions(current => {
       const currentSessions = current || [];
-      return currentSessions.map(session =>
+      const updated = currentSessions.map(session =>
         session.id === activeSessionId
           ? {
               ...session,
@@ -73,10 +76,13 @@ export function useChat() {
             }
           : session
       );
+      console.log('Sessions after message add:', updated.length);
+      return updated;
     });
 
     // If this is a user message, trigger AI responses
     if (!characterId && activeSession.participantIds.length > 0) {
+      console.log('Triggering AI responses for participants:', activeSession.participantIds);
       await generateAIResponses(activeSession.id, message);
     }
   };
@@ -207,6 +213,9 @@ Respond as ${character.name} would, staying true to their personality and backgr
   };
 
   const switchToSession = (sessionId: string) => {
+    console.log('Switching to session:', sessionId, 'available sessions:', safeSessions.length);
+    const session = safeSessions.find(s => s.id === sessionId);
+    console.log('Found session:', session ? 'YES' : 'NO');
     setActiveSessionId(sessionId);
   };
 

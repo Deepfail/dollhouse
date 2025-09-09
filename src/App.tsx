@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
 import { HouseView } from '@/components/HouseView';
 import { ChatInterface } from '@/components/ChatInterface';
 import { SceneInterface } from '@/components/SceneInterface';
 import { useChat } from '@/hooks/useChat';
 import { useSceneMode } from '@/hooks/useSceneMode';
+import { useHouse } from '@/hooks/useHouse';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 
@@ -13,11 +14,27 @@ function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const { createSession } = useChat();
   const { activeSessions } = useSceneMode();
+  const { house } = useHouse();
+
+  // Debug logging
+  useEffect(() => {
+    console.log('App mounted');
+    console.log('Available characters:', house.characters?.length || 0);
+    console.log('AI Settings:', house.aiSettings);
+    console.log('Spark available:', !!window.spark);
+  }, [house]);
 
   const handleStartChat = (characterId: string) => {
+    console.log('Starting chat with character:', characterId);
     const sessionId = createSession('individual', [characterId]);
-    setActiveSessionId(sessionId);
-    setCurrentView('chat');
+    console.log('Created session:', sessionId);
+    if (sessionId) {
+      setActiveSessionId(sessionId);
+      setCurrentView('chat');
+      toast.success(`Started chat with ${house.characters?.find(c => c.id === characterId)?.name || 'character'}`);
+    } else {
+      toast.error('Failed to create chat session');
+    }
   };
 
   const handleStartScene = (sessionId: string) => {
