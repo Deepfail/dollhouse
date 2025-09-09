@@ -12,7 +12,7 @@ export function Layout({ children, onStartChat, onStartScene }: LayoutProps) {
   return (
     <div className="flex h-screen bg-background">
       {/* Main Sidebar */}
-      <div className="w-96 border-r border-border flex-shrink-0 overflow-hidden">
+      <div className="w-80 border-r border-border flex-shrink-0 overflow-hidden">
         <Sidebar 
           onStartChat={onStartChat}
           onStartScene={onStartScene}
