@@ -108,7 +108,8 @@ const DEFAULT_HOUSE: House = {
     provider: 'openrouter',
     model: 'deepseek/deepseek-chat-v3.1',
     apiKey: '', // User needs to configure this
-    imageProvider: 'none'
+    imageProvider: 'venice',
+    imageApiKey: '' // User needs to configure this
   },
   createdAt: new Date(),
   updatedAt: new Date()
@@ -256,13 +257,16 @@ export function useHouse() {
   };
 
   const updateHouse = (updates: Partial<House>) => {
+    console.log('Updating house with:', updates);
     setHouse(current => {
       const currentHouse = current || DEFAULT_HOUSE;
-      return {
+      const updated = {
         ...currentHouse,
         ...updates,
         updatedAt: new Date()
       };
+      console.log('House updated from:', currentHouse, 'to:', updated);
+      return updated;
     });
   };
 

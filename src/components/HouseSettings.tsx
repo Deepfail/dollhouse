@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +47,23 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   const [autoInterval, setAutoInterval] = useState(house.autoCreator?.interval || 60);
   const [autoMaxChars, setAutoMaxChars] = useState(house.autoCreator?.maxCharacters || 10);
 
+  // Sync state with house data when it changes
+  useEffect(() => {
+    setHouseName(house.name);
+    setHouseDescription(house.description || '');
+    setWorldPrompt(house.worldPrompt || '');
+    setCopilotPrompt(house.copilotPrompt || '');
+    setCurrency(house.currency);
+    setProvider(house.aiSettings?.provider || 'openrouter');
+    setSelectedModel(house.aiSettings?.model || 'deepseek/deepseek-chat-v3.1');
+    setApiKey(house.aiSettings?.apiKey || '');
+    setImageProvider(house.aiSettings?.imageProvider || 'venice');
+    setImageApiKey(house.aiSettings?.imageApiKey || '');
+    setAutoEnabled(house.autoCreator?.enabled || false);
+    setAutoInterval(house.autoCreator?.interval || 60);
+    setAutoMaxChars(house.autoCreator?.maxCharacters || 10);
+  }, [house]);
+
   const handleSaveHouseSettings = () => {
     updateHouse({
       name: houseName,
@@ -55,6 +72,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       copilotPrompt,
       currency,
       aiSettings: {
+        ...house.aiSettings,
         provider: provider as 'openrouter' | 'local' | 'spark',
         model: selectedModel,
         apiKey,
@@ -62,6 +80,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
         imageApiKey
       },
       autoCreator: {
+        ...house.autoCreator,
         enabled: autoEnabled,
         interval: autoInterval,
         maxCharacters: autoMaxChars,
@@ -69,6 +88,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       }
     });
     toast.success('Settings updated successfully');
+    onOpenChange(false); // Close dialog after saving
   };
 
   const handleSavePromptSettings = () => {
@@ -77,6 +97,28 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       copilotPrompt
     });
     toast.success('Prompt settings updated successfully');
+  };
+
+  const handleSaveApiSettings = () => {
+    console.log('Saving API settings:', {
+      provider,
+      model: selectedModel,
+      apiKey: apiKey ? 'SET' : 'NOT SET',
+      imageProvider,
+      imageApiKey: imageApiKey ? 'SET' : 'NOT SET'
+    });
+    
+    updateHouse({
+      aiSettings: {
+        ...house.aiSettings,
+        provider: provider as 'openrouter' | 'local' | 'spark',
+        model: selectedModel,
+        apiKey,
+        imageProvider: imageProvider as 'venice' | 'none',
+        imageApiKey
+      }
+    });
+    toast.success('API settings saved successfully');
   };
 
   return (
@@ -289,7 +331,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                     </CardContent>
                   </Card>
 
-                  <Button onClick={handleSaveHouseSettings} className="w-full">
+                  <Button onClick={handleSaveApiSettings} className="w-full">
                     Save API Settings
                   </Button>
                 </CardContent>
