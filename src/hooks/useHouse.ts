@@ -23,6 +23,12 @@ const DEFAULT_HOUSE: House = {
   currency: 1000,
   worldPrompt: `This is a magical character house where AI companions live and interact. The atmosphere is warm, welcoming, and full of personality. Characters have their own rooms, can socialize together, and form meaningful relationships with their human companion.`,
   copilotPrompt: `You are the House Manager, a helpful AI assistant who monitors the characters in this house. You track their needs, behaviors, and wellbeing. Provide helpful updates about character status, suggest activities, and alert when characters need attention. Be warm but professional, like a caring butler.`,
+  autoCreator: {
+    enabled: false,
+    interval: 30,
+    maxCharacters: 20,
+    themes: ['fantasy', 'sci-fi', 'modern']
+  },
   aiSettings: {
     provider: 'openrouter',
     model: 'deepseek/deepseek-chat',
@@ -173,6 +179,10 @@ export function useHouse() {
     });
   };
 
+  const updateHouse = (updatedHouse: House) => {
+    setHouse(updatedHouse);
+  };
+
   return {
     house: safeHouse,
     addCharacter,
@@ -183,6 +193,7 @@ export function useHouse() {
     moveCharacterToRoom,
     spendCurrency,
     earnCurrency,
-    updateSettings
+    updateSettings,
+    updateHouse
   };
 }

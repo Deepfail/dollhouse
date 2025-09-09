@@ -26,9 +26,10 @@ import { motion } from 'framer-motion';
 
 interface HouseViewProps {
   onStartChat: (characterId: string) => void;
+  onStartScene: (sessionId: string) => void;
 }
 
-export function HouseView({ onStartChat }: HouseViewProps) {
+export function HouseView({ onStartChat, onStartScene }: HouseViewProps) {
   const { house, moveCharacterToRoom } = useHouse();
   const { createSession } = useChat();
   const [selectedRoom, setSelectedRoom] = useState<string | null>(house.rooms[0]?.id || null);

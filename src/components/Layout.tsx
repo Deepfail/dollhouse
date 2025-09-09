@@ -4,14 +4,19 @@ import { Copilot } from './Copilot';
 
 interface LayoutProps {
   children: ReactNode;
+  onStartChat?: (characterId: string) => void;
+  onStartScene?: (sessionId: string) => void;
 }
 
-export function Layout({ children }: LayoutProps) {
+export function Layout({ children, onStartChat, onStartScene }: LayoutProps) {
   return (
     <div className="flex h-screen bg-background">
       {/* Main Sidebar */}
       <div className="w-80 border-r border-border flex-shrink-0">
-        <Sidebar />
+        <Sidebar 
+          onStartChat={onStartChat}
+          onStartScene={onStartScene}
+        />
       </div>
       
       {/* Main Content */}

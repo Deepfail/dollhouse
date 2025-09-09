@@ -13,9 +13,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface ChatInterfaceProps {
   sessionId: string | null;
+  onBack?: () => void;
 }
 
-export function ChatInterface({ sessionId }: ChatInterfaceProps) {
+export function ChatInterface({ sessionId, onBack }: ChatInterfaceProps) {
   const { activeSession, sendMessage } = useChat();
   const { house } = useHouse();
   const [message, setMessage] = useState('');

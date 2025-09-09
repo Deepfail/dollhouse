@@ -5,20 +5,49 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useHouse } from '@/hooks/useHouse';
 import { useChat } from '@/hooks/useChat';
-import { Plus, House as Home, Users, ChatCircle as MessageCircle, Gear as Settings, Heart, BatteryMedium as Battery, Smiley as Smile } from '@phosphor-icons/react';
+import { 
+  Plus, 
+  House as Home, 
+  Users, 
+  ChatCircle as MessageCircle, 
+  Gear as Settings, 
+  Heart, 
+  BatteryMedium as Battery, 
+  Smiley as Smile,
+  Sparkles,
+  Theater
+} from '@phosphor-icons/react';
 import { CharacterCreator } from './CharacterCreator';
+import { AutoCharacterCreator } from './AutoCharacterCreator';
+import { SceneCreator } from './SceneCreator';
 
-export function Sidebar() {
+interface SidebarProps {
+  onStartChat?: (characterId: string) => void;
+  onStartScene?: (sessionId: string) => void;
+}
+
+export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
   const { house } = useHouse();
   const { createSession, sessions } = useChat();
   const [showCreator, setShowCreator] = useState(false);
   const [selectedTab, setSelectedTab] = useState('characters');
 
   const startIndividualChat = (characterId: string) => {
-    const sessionId = createSession('individual', [characterId]);
-    // Navigate to chat view would happen here
+    if (onStartChat) {
+      onStartChat(characterId);
+    } else {
+      const sessionId = createSession('individual', [characterId]);
+      // Navigate to chat view would happen here
+    }
+  };
+
+  const handleSceneCreated = (sessionId: string) => {
+    if (onStartScene) {
+      onStartScene(sessionId);
+    }
   };
 
   const startGroupChat = () => {
@@ -52,18 +81,26 @@ export function Sidebar() {
 
       {/* Navigation Tabs */}
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="flex-1 flex flex-col">
-        <TabsList className="grid w-full grid-cols-3 m-4 mb-2">
-          <TabsTrigger value="characters">
-            <Users size={16} className="mr-1" />
-            Characters
+        <TabsList className="grid w-full grid-cols-5 m-4 mb-2 text-xs">
+          <TabsTrigger value="characters" className="text-xs">
+            <Users size={14} className="mr-1" />
+            Chars
           </TabsTrigger>
-          <TabsTrigger value="rooms">
-            <Home size={16} className="mr-1" />
+          <TabsTrigger value="rooms" className="text-xs">
+            <Home size={14} className="mr-1" />
             Rooms
           </TabsTrigger>
-          <TabsTrigger value="chats">
-            <MessageCircle size={16} className="mr-1" />
+          <TabsTrigger value="chats" className="text-xs">
+            <MessageCircle size={14} className="mr-1" />
             Chats
+          </TabsTrigger>
+          <TabsTrigger value="auto" className="text-xs">
+            <Sparkles size={14} className="mr-1" />
+            Auto
+          </TabsTrigger>
+          <TabsTrigger value="scenes" className="text-xs">
+            <Theater size={14} className="mr-1" />
+            Scene
           </TabsTrigger>
         </TabsList>
 
@@ -223,6 +260,20 @@ export function Sidebar() {
               ))
             )}
           </div>
+        </TabsContent>
+
+        {/* Auto Creator Tab */}
+        <TabsContent value="auto" className="flex-1 px-4 pb-4">
+          <ScrollArea className="h-full">
+            <AutoCharacterCreator />
+          </ScrollArea>
+        </TabsContent>
+
+        {/* Scene Creator Tab */}
+        <TabsContent value="scenes" className="flex-1 px-4 pb-4">
+          <ScrollArea className="h-full">
+            <SceneCreator onSceneCreated={handleSceneCreated} />
+          </ScrollArea>
         </TabsContent>
       </Tabs>
 
