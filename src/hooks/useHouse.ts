@@ -179,8 +179,15 @@ export function useHouse() {
     });
   };
 
-  const updateHouse = (updatedHouse: House) => {
-    setHouse(updatedHouse);
+  const updateHouse = (updates: Partial<House>) => {
+    setHouse(current => {
+      const currentHouse = current || DEFAULT_HOUSE;
+      return {
+        ...currentHouse,
+        ...updates,
+        updatedAt: new Date()
+      };
+    });
   };
 
   return {

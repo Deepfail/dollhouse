@@ -191,7 +191,7 @@ export const SceneCreator: React.FC<SceneCreatorProps> = ({ onSceneCreated }) =>
                     <p className="font-medium text-sm leading-tight break-words">
                       {character.name}
                     </p>
-                    <p className="text-xs text-muted-foreground break-words">
+                    <p className="text-xs text-muted-foreground break-words leading-relaxed">
                       {character.role}
                     </p>
                   </div>

@@ -104,14 +104,14 @@ export interface Gift {
 export interface House {
   id: string;
   name: string;
-  description: string;
+  description?: string;
   rooms: Room[];
   characters: Character[];
   currency: number;
   
   // Global settings
-  worldPrompt: string;
-  copilotPrompt: string;
+  worldPrompt?: string;
+  copilotPrompt?: string;
   
   // Auto character creator settings
   autoCreator: {

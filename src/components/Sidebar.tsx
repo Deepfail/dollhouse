@@ -23,6 +23,7 @@ import {
 import { CharacterCreator } from './CharacterCreator';
 import { AutoCharacterCreator } from './AutoCharacterCreator';
 import { SceneCreator } from './SceneCreator';
+import { HouseSettings } from './HouseSettings';
 
 interface SidebarProps {
   onStartChat?: (characterId: string) => void;
@@ -33,6 +34,7 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
   const { house } = useHouse();
   const { createSession, sessions } = useChat();
   const [showCreator, setShowCreator] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [selectedTab, setSelectedTab] = useState('characters');
 
   const startIndividualChat = (characterId: string) => {
@@ -58,7 +60,7 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
   };
 
   return (
-    <div className="h-full flex flex-col bg-card">
+    <div className="h-full flex flex-col bg-card overflow-hidden">
       {/* Header */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3 mb-4">
@@ -105,7 +107,7 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
         </TabsList>
 
         {/* Characters Tab */}
-        <TabsContent value="characters" className="flex-1 px-4 pb-4 space-y-3 min-h-0">
+        <TabsContent value="characters" className="flex-1 px-4 pb-4 space-y-3 min-h-0 overflow-hidden">
           <ScrollArea className="h-full">
             <div className="space-y-3 pr-3">
               <div className="flex items-center justify-between">
@@ -199,7 +201,7 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
         </TabsContent>
 
         {/* Rooms Tab */}
-        <TabsContent value="rooms" className="flex-1 px-4 pb-4 space-y-3 min-h-0">
+        <TabsContent value="rooms" className="flex-1 px-4 pb-4 space-y-3 min-h-0 overflow-hidden">
           <ScrollArea className="h-full">
             <div className="space-y-3 pr-3">
               <div className="flex items-center justify-between">
@@ -237,7 +239,7 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
         </TabsContent>
 
         {/* Chats Tab */}
-        <TabsContent value="chats" className="flex-1 px-4 pb-4 space-y-3 min-h-0">
+        <TabsContent value="chats" className="flex-1 px-4 pb-4 space-y-3 min-h-0 overflow-hidden">
           <ScrollArea className="h-full">
             <div className="space-y-3 pr-3">
               <div className="flex items-center justify-between">
@@ -275,7 +277,7 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
         </TabsContent>
 
         {/* Auto Creator Tab */}
-        <TabsContent value="auto" className="flex-1 min-h-0 px-4 pb-4">
+        <TabsContent value="auto" className="flex-1 min-h-0 px-4 pb-4 overflow-hidden">
           <ScrollArea className="h-full">
             <div className="pr-3">
               <AutoCharacterCreator />
@@ -284,7 +286,7 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
         </TabsContent>
 
         {/* Scene Creator Tab */}
-        <TabsContent value="scenes" className="flex-1 min-h-0 px-4 pb-4">
+        <TabsContent value="scenes" className="flex-1 min-h-0 px-4 pb-4 overflow-hidden">
           <ScrollArea className="h-full">
             <div className="pr-3">
               <SceneCreator onSceneCreated={handleSceneCreated} />
@@ -295,7 +297,12 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
 
       {/* Settings Footer */}
       <div className="p-4 border-t border-border">
-        <Button variant="ghost" size="sm" className="w-full justify-start">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="w-full justify-start"
+          onClick={() => setShowSettings(true)}
+        >
           <Settings size={16} className="mr-2" />
           House Settings
         </Button>
@@ -306,6 +313,14 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
         <CharacterCreator
           open={showCreator}
           onOpenChange={setShowCreator}
+        />
+      )}
+
+      {/* House Settings Modal */}
+      {showSettings && (
+        <HouseSettings
+          open={showSettings}
+          onOpenChange={setShowSettings}
         />
       )}
     </div>
