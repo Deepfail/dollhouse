@@ -76,7 +76,6 @@ export const useSceneMode = () => {
       toast.success('Scene session created! Characters will begin interacting automatically.');
     });
   };
-  };
   
   const startAutoPlayForNewSession = async (sessionId: string) => {
     console.log('Starting auto-play for session:', sessionId);
