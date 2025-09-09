@@ -48,39 +48,54 @@ export const useSceneMode = () => {
     
     newSession.messages.push(systemMessage);
     
-    setActiveSessions(sessions => [...sessions, newSession]);
+    // Update state and wait for it to complete
+    setActiveSessions(sessions => {
+      const updatedSessions = [...sessions, newSession];
+      
+      // Start auto-play after the state has been updated
+      setTimeout(() => {
+        startAutoPlayForNewSession(newSession, updatedSessions);
+      }, 100);
+      
+      return updatedSessions;
+    });
     
     toast.success('Scene session created! Characters will begin interacting automatically.');
-    
-    // Start auto-play immediately after creation
-    setTimeout(() => {
-      startAutoPlayForSession(newSession);
-    }, 1000);
     
     return sessionId;
   };
   
-  const startAutoPlayForSession = async (session: ChatSession) => {
-    if (!session.active || !session.sceneSettings?.autoPlay) return;
+  const startAutoPlayForNewSession = async (session: ChatSession, currentSessions: ChatSession[]) => {
+    if (!session.active || !session.sceneSettings?.autoPlay) {
+      console.log('Scene not active or autoPlay disabled', { 
+        active: session.active, 
+        autoPlay: session.sceneSettings?.autoPlay 
+      });
+      return;
+    }
     
+    console.log('Starting auto-play for new session:', session.id);
     setIsProcessing(true);
     
     const processNextTurn = async () => {
-      // Get current session state
-      const currentSession = activeSessions.find(s => s.id === session.id);
+      // Get current session state from the provided sessions array
+      const currentSession = currentSessions.find(s => s.id === session.id);
       if (!currentSession || !currentSession.active) {
+        console.log('Session not found or inactive:', session.id);
         setIsProcessing(false);
         return;
       }
       
       // Check if autoPlay is still enabled
       if (!currentSession.sceneSettings?.autoPlay) {
+        console.log('AutoPlay disabled for session:', session.id);
         setIsProcessing(false);
         return;
       }
       
       const maxTurns = currentSession.sceneSettings?.maxTurns || 50;
       if (currentSession.messages.filter(m => m.characterId).length >= maxTurns) {
+        console.log('Max turns reached:', maxTurns);
         await endScene(session.id);
         return;
       }
@@ -90,18 +105,23 @@ export const useSceneMode = () => {
         house.characters?.find(c => c.id === id)
       );
       
+      console.log('Available characters:', availableCharacters.length);
+      
       if (availableCharacters.length === 0) {
+        console.log('No available characters found');
         await endScene(session.id);
         return;
       }
       
       const randomCharacterId = availableCharacters[Math.floor(Math.random() * availableCharacters.length)];
+      console.log('Processing turn for character:', randomCharacterId);
       
       try {
         await processCharacterTurn(session.id, randomCharacterId);
         
         // Schedule next turn
         const turnDuration = currentSession.sceneSettings?.turnDuration || 5000;
+        console.log('Scheduling next turn in:', turnDuration + 'ms');
         setTimeout(processNextTurn, turnDuration);
       } catch (error) {
         console.error('Error in auto-play:', error);
@@ -110,18 +130,102 @@ export const useSceneMode = () => {
     };
     
     // Start the first turn
+    console.log('Starting first turn in 2 seconds...');
+    setTimeout(processNextTurn, 2000);
+  };
+  
+  const startAutoPlayForSession = async (session: ChatSession) => {
+    if (!session.active || !session.sceneSettings?.autoPlay) {
+      console.log('Scene not active or autoPlay disabled', { 
+        active: session.active, 
+        autoPlay: session.sceneSettings?.autoPlay 
+      });
+      return;
+    }
+    
+    console.log('Starting auto-play for session:', session.id);
+    setIsProcessing(true);
+    
+    const processNextTurn = async () => {
+      // Get current session state
+      const currentSessions = activeSessions;
+      const currentSession = currentSessions.find(s => s.id === session.id);
+      if (!currentSession || !currentSession.active) {
+        console.log('Session not found or inactive:', session.id);
+        setIsProcessing(false);
+        return;
+      }
+      
+      // Check if autoPlay is still enabled
+      if (!currentSession.sceneSettings?.autoPlay) {
+        console.log('AutoPlay disabled for session:', session.id);
+        setIsProcessing(false);
+        return;
+      }
+      
+      const maxTurns = currentSession.sceneSettings?.maxTurns || 50;
+      if (currentSession.messages.filter(m => m.characterId).length >= maxTurns) {
+        console.log('Max turns reached:', maxTurns);
+        await endScene(session.id);
+        return;
+      }
+      
+      // Get a random character to speak next
+      const availableCharacters = currentSession.participantIds.filter(id => 
+        house.characters?.find(c => c.id === id)
+      );
+      
+      console.log('Available characters:', availableCharacters.length);
+      
+      if (availableCharacters.length === 0) {
+        console.log('No available characters found');
+        await endScene(session.id);
+        return;
+      }
+      
+      const randomCharacterId = availableCharacters[Math.floor(Math.random() * availableCharacters.length)];
+      console.log('Processing turn for character:', randomCharacterId);
+      
+      try {
+        await processCharacterTurn(session.id, randomCharacterId);
+        
+        // Schedule next turn
+        const turnDuration = currentSession.sceneSettings?.turnDuration || 5000;
+        console.log('Scheduling next turn in:', turnDuration + 'ms');
+        setTimeout(processNextTurn, turnDuration);
+      } catch (error) {
+        console.error('Error in auto-play:', error);
+        setIsProcessing(false);
+      }
+    };
+    
+    // Start the first turn
+    console.log('Starting first turn in 2 seconds...');
     setTimeout(processNextTurn, 2000);
   };
   
   const processCharacterTurn = async (sessionId: string, characterId: string): Promise<void> => {
-    const session = activeSessions.find(s => s.id === sessionId);
-    if (!session || !session.active) return;
+    // Get fresh session state from activeSessions
+    const currentSessions = activeSessions;
+    const session = currentSessions.find(s => s.id === sessionId);
+    if (!session || !session.active) {
+      console.log('Session not found or inactive in processCharacterTurn');
+      return;
+    }
     
     const character = house.characters?.find(c => c.id === characterId);
-    if (!character) return;
+    if (!character) {
+      console.log('Character not found:', characterId);
+      return;
+    }
     
     const objective = session.sceneObjectives?.[characterId];
-    if (!objective) return;
+    if (!objective) {
+      console.log('No objective found for character:', characterId);
+      return;
+    }
+    
+    console.log(`Generating response for ${character.name} with objective: ${objective}`);
     
     // Get recent conversation history for context
     const recentMessages = session.messages.slice(-10);
@@ -158,7 +262,9 @@ export const useSceneMode = () => {
     `;
     
     try {
+      console.log('Calling LLM for character response...');
       const response = await spark.llm(characterPrompt);
+      console.log(`Generated response for ${character.name}:`, response);
       
       const message: ChatMessage = {
         id: `msg_${Date.now()}_${characterId}`,
@@ -181,9 +287,11 @@ export const useSceneMode = () => {
         )
       );
       
+      console.log(`Message added for ${character.name}`);
+      
     } catch (error) {
       console.error('Error processing character turn:', error);
-      toast.error(`Error generating response for ${character.name}`);
+      toast.error(`Error generating response for ${character.name}: ${error}`);
     }
   };
   
