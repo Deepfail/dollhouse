@@ -34,6 +34,13 @@ export interface Character {
   conversationHistory: ChatMessage[];
   memories: string[];
   preferences: Record<string, any>;
+  relationships: Record<string, number>; // characterId -> relationship level
+  progression: {
+    level: number;
+    nextLevelExp: number;
+    unlockedFeatures: string[];
+    achievements: string[];
+  };
   
   createdAt: Date;
   updatedAt: Date;

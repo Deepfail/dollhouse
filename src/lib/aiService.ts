@@ -27,17 +27,19 @@ export class AIService {
     try {
       // Check if spark is available
       if (!window.spark || !window.spark.llm || !window.spark.llmPrompt) {
-        throw new Error('Spark AI service is not available. This app requires Spark environment to function.');
+        throw new Error('Spark AI service is not available. This app requires a Spark environment to function.');
       }
 
       const model = this.house.aiSettings?.model || 'gpt-4o';
+      
+      console.log('Using Spark AI with model:', model);
       
       // Use Spark's required prompt template system
       const formattedPrompt = window.spark.llmPrompt`${prompt}`;
       const response = await window.spark.llm(formattedPrompt, model);
       
       if (!response) {
-        throw new Error('No response from AI service');
+        throw new Error('No response from Spark AI service');
       }
       
       return response;

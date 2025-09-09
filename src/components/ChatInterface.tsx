@@ -32,8 +32,10 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
   console.log('ChatInterface render:', {
     sessionId,
     availableSessions: sessions.map(s => ({ id: s.id, type: s.type, participants: s.participantIds.length })),
-    activeSession: activeSession ? { id: activeSession.id, type: activeSession.type } : null,
-    charactersCount: house.characters?.length || 0
+    activeSession: activeSession ? { id: activeSession.id, type: activeSession.type, messageCount: activeSession.messages.length } : null,
+    charactersCount: house.characters?.length || 0,
+    aiProvider: house.aiSettings?.provider,
+    hasApiKey: !!house.aiSettings?.apiKey
   });
 
   // Switch to the session when sessionId changes
@@ -70,13 +72,26 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
   };
 
   if (!activeSession) {
-    const needsApiKey = house.aiSettings?.provider === 'openrouter' && !house.aiSettings?.apiKey;
+    const provider = house.aiSettings?.provider || 'spark';
+    const needsApiKey = provider === 'openrouter' && !house.aiSettings?.apiKey;
+    const sparkUnavailable = provider === 'spark' && (!window.spark || !window.spark.llm);
     const hasCharacters = house.characters && house.characters.length > 0;
     
     return (
       <div className="flex-1 flex items-center justify-center bg-background p-8">
         <Card className="p-8 text-center max-w-md w-full">
-          {needsApiKey ? (
+          {sparkUnavailable ? (
+            <>
+              <Warning size={48} className="mx-auto text-yellow-500 mb-4" />
+              <h3 className="text-xl font-semibold mb-2">Spark AI Unavailable</h3>
+              <p className="text-muted-foreground mb-4">
+                This app requires Spark AI environment to function. Please make sure you're running in a proper Spark environment.
+              </p>
+              <Button onClick={() => window.location.reload()} variant="default">
+                Refresh Page
+              </Button>
+            </>
+          ) : needsApiKey ? (
             <>
               <Warning size={48} className="mx-auto text-yellow-500 mb-4" />
               <h3 className="text-xl font-semibold mb-2">API Key Required</h3>

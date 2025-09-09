@@ -17,6 +17,10 @@ export const useSceneMode = () => {
   ): Promise<string> => {
     const sessionId = `scene_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
+    console.log('Creating scene session with ID:', sessionId);
+    console.log('Characters:', characterIds);
+    console.log('Objectives:', objectives);
+    
     const sceneObjectives: Record<string, string> = {};
     objectives.forEach(obj => {
       sceneObjectives[obj.characterId] = obj.objective;
@@ -49,12 +53,13 @@ export const useSceneMode = () => {
     
     newSession.messages.push(systemMessage);
     
-    console.log('Creating scene session:', sessionId);
+    console.log('Scene session created:', newSession);
     
     // Update sessions synchronously
     setActiveSessions(sessions => {
       const updatedSessions = [...sessions, newSession];
-      console.log('Sessions updated, new count:', updatedSessions.length);
+      console.log('Scene sessions updated, old count:', sessions.length, 'new count:', updatedSessions.length);
+      console.log('All sessions:', updatedSessions.map(s => ({ id: s.id, type: s.type, active: s.active })));
       return updatedSessions;
     });
     
@@ -215,6 +220,8 @@ System prompt for character behavior: ${character.prompts.system}`;
         if (!house.aiSettings?.apiKey) {
           throw new Error('OpenRouter API key is required. Please configure it in House Settings.');
         }
+      } else {
+        throw new Error(`Unsupported AI provider: ${provider}`);
       }
 
       console.log(`Calling AI service for character response using ${provider}...`);

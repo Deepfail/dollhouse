@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useKV } from '@github/spark/hooks';
 import { House, Character, Room, ChatSession, CopilotUpdate } from '@/types';
 
@@ -105,9 +106,9 @@ const DEFAULT_HOUSE: House = {
     themes: ['fantasy', 'sci-fi', 'modern']
   },
   aiSettings: {
-    provider: 'openrouter',
-    model: 'deepseek/deepseek-chat-v3.1',
-    apiKey: '', // User needs to add their OpenRouter API key
+    provider: 'spark', // Default to Spark since it's built-in
+    model: 'gpt-4o',
+    apiKey: '', // User can add OpenRouter key if they want
     imageProvider: 'venice',
     imageApiKey: '' // User needs to add their Venice AI API key for image generation
   },
@@ -120,7 +121,22 @@ export function useHouse() {
 
   // Ensure house is never undefined by providing the default
   const safeHouse = house || DEFAULT_HOUSE;
-
+  
+  // Migration: Fix any houses that have openrouter without API key
+  useEffect(() => {
+    if (safeHouse.aiSettings?.provider === 'openrouter' && !safeHouse.aiSettings?.apiKey) {
+      console.log('Migrating house settings: switching from openrouter to spark due to missing API key');
+      setHouse(current => ({
+        ...current,
+        aiSettings: {
+          ...current.aiSettings,
+          provider: 'spark',
+          model: 'gpt-4o'
+        }
+      }));
+    }
+  }, [safeHouse.aiSettings]);
+  
   const addCharacter = (character: Character) => {
     setHouse(current => {
       const currentHouse = current || DEFAULT_HOUSE;

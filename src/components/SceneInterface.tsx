@@ -44,6 +44,20 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
   
   const session = activeSessions.find(s => s.id === sessionId);
   
+  // Debug logging
+  console.log('SceneInterface render:', {
+    sessionId,
+    sessionFound: !!session,
+    availableSessions: activeSessions.map(s => ({ id: s.id, type: s.type, active: s.active })),
+    sessionDetails: session ? {
+      id: session.id,
+      type: session.type,
+      active: session.active,
+      messageCount: session.messages.length,
+      participants: session.participantIds.length
+    } : null
+  });
+  
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [session?.messages]);

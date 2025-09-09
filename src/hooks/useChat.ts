@@ -15,8 +15,12 @@ export function useChat() {
   const activeSession = safeSessions.find(s => s.id === activeSessionId);
 
   const createSession = (type: 'individual' | 'group' | 'scene', participantIds: string[], context?: string) => {
-    console.log('createSession called with:', { type, participantIds, context });
+    console.log('=== createSession Debug ===');
+    console.log('Type:', type);
+    console.log('Participant IDs requested:', participantIds);
+    console.log('Context:', context);
     console.log('Available characters:', house.characters?.map(c => ({ id: c.id, name: c.name })) || []);
+    console.log('Current sessions before creation:', (sessions || []).length);
     
     // Verify participants exist first
     const validParticipants = participantIds.filter(id => 
@@ -24,6 +28,7 @@ export function useChat() {
     );
     
     console.log('Valid participants after filtering:', validParticipants);
+    console.log('Invalid participants removed:', participantIds.filter(id => !validParticipants.includes(id)));
     
     if (validParticipants.length === 0) {
       console.warn('No valid participants found for session');
@@ -33,8 +38,9 @@ export function useChat() {
       return '';
     }
     
+    const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newSession: ChatSession = {
-      id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: sessionId,
       type,
       participantIds: validParticipants,
       messages: [],
@@ -44,17 +50,24 @@ export function useChat() {
       updatedAt: new Date()
     };
 
-    console.log('Creating chat session:', newSession.id, 'for participants:', validParticipants);
+    console.log('Creating chat session:', sessionId, 'for participants:', validParticipants);
 
     setSessions(current => {
       const currentSessions = current || [];
       const updatedSessions = [...currentSessions, newSession];
       console.log('Chat sessions updated, old count:', currentSessions.length, 'new count:', updatedSessions.length);
-      console.log('New session added:', newSession);
+      console.log('New session added:', { id: newSession.id, type: newSession.type, participants: newSession.participantIds });
       return updatedSessions;
     });
     
-    return newSession.id;
+    // Give a brief moment for state to update then verify
+    setTimeout(() => {
+      console.log('Session creation verification - current sessions:', (sessions || []).length);
+      const foundSession = (sessions || []).find(s => s.id === sessionId);
+      console.log('New session found after creation:', !!foundSession);
+    }, 100);
+    
+    return sessionId;
   };
 
   const sendMessage = async (content: string, characterId?: string) => {
@@ -140,7 +153,7 @@ export function useChat() {
       if (provider === 'spark') {
         if (!window.spark || !window.spark.llm || !window.spark.llmPrompt) {
           console.error('Spark AI service not available');
-          toast.error('This app requires Spark AI environment. Please make sure you\'re running in a proper Spark environment.');
+          toast.error('This app requires a Spark AI environment. Please make sure you\'re running in a proper Spark environment.');
           return null;
         }
       } else if (provider === 'openrouter') {
@@ -149,6 +162,10 @@ export function useChat() {
           toast.error('OpenRouter API key is not configured. Please add your API key in House Settings.');
           return null;
         }
+      } else {
+        console.error('Unsupported AI provider:', provider);
+        toast.error(`Unsupported AI provider: ${provider}`);
+        return null;
       }
 
       // Get conversation history for context
@@ -223,8 +240,12 @@ Respond as ${character.name} would, staying true to their personality and backgr
   const switchToSession = (sessionId: string) => {
     console.log('Switching to session:', sessionId, 'available sessions:', safeSessions.length);
     const session = safeSessions.find(s => s.id === sessionId);
-    console.log('Found session:', session ? 'YES' : 'NO');
-    setActiveSessionId(sessionId);
+    console.log('Found session:', session ? 'YES' : 'NO', session ? { id: session.id, type: session.type, active: session.active } : null);
+    if (session) {
+      setActiveSessionId(sessionId);
+    } else {
+      console.warn('Session not found:', sessionId);
+    }
   };
 
   const closeSession = (sessionId: string) => {

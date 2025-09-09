@@ -36,8 +36,8 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   const [currency, setCurrency] = useState(house.currency);
   
   // AI Settings state  
-  const [provider, setProvider] = useState(house.aiSettings?.provider || 'openrouter');
-  const [selectedModel, setSelectedModel] = useState(house.aiSettings?.model || 'deepseek/deepseek-chat-v3.1');
+  const [provider, setProvider] = useState(house.aiSettings?.provider || 'spark');
+  const [selectedModel, setSelectedModel] = useState(house.aiSettings?.model || 'gpt-4o');
   const [apiKey, setApiKey] = useState(house.aiSettings?.apiKey || '');
   const [imageProvider, setImageProvider] = useState(house.aiSettings?.imageProvider || 'venice');
   const [imageApiKey, setImageApiKey] = useState(house.aiSettings?.imageApiKey || '');
@@ -54,8 +54,8 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     setWorldPrompt(house.worldPrompt || '');
     setCopilotPrompt(house.copilotPrompt || '');
     setCurrency(house.currency);
-    setProvider(house.aiSettings?.provider || 'openrouter');
-    setSelectedModel(house.aiSettings?.model || 'deepseek/deepseek-chat-v3.1');
+    setProvider(house.aiSettings?.provider || 'spark');
+    setSelectedModel(house.aiSettings?.model || 'gpt-4o');
     setApiKey(house.aiSettings?.apiKey || '');
     setImageProvider(house.aiSettings?.imageProvider || 'venice');
     setImageApiKey(house.aiSettings?.imageApiKey || '');
@@ -100,24 +100,33 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   };
 
   const handleSaveApiSettings = () => {
-    console.log('Saving API settings:', {
-      provider,
+    console.log('=== Saving API Settings ===');
+    console.log('Provider:', provider);
+    console.log('Model:', selectedModel);
+    console.log('API Key present:', !!apiKey);
+    console.log('Image Provider:', imageProvider);
+    console.log('Image API Key present:', !!imageApiKey);
+    
+    const newApiSettings = {
+      ...house.aiSettings,
+      provider: provider as 'openrouter' | 'local' | 'spark',
       model: selectedModel,
-      apiKey: apiKey ? 'SET' : 'NOT SET',
-      imageProvider,
-      imageApiKey: imageApiKey ? 'SET' : 'NOT SET'
-    });
+      apiKey,
+      imageProvider: imageProvider as 'venice' | 'none',
+      imageApiKey
+    };
+    
+    console.log('New AI settings:', newApiSettings);
     
     updateHouse({
-      aiSettings: {
-        ...house.aiSettings,
-        provider: provider as 'openrouter' | 'local' | 'spark',
-        model: selectedModel,
-        apiKey,
-        imageProvider: imageProvider as 'venice' | 'none',
-        imageApiKey
-      }
+      aiSettings: newApiSettings
     });
+    
+    // Verify the update
+    setTimeout(() => {
+      console.log('Updated house AI settings:', house.aiSettings);
+    }, 100);
+    
     toast.success('API settings saved successfully');
   };
 
