@@ -19,13 +19,13 @@ interface ChatInterfaceProps {
 }
 
 export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat }: ChatInterfaceProps) {
-  const { sessions, sendMessage, switchToSession } = useChat();
+  const { sessions, sendMessage } = useChat();
   const { house } = useHouse();
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Find the active session from sessions array using sessionId
+  // Find the active session directly from sessions array using sessionId
   const activeSession = sessionId ? sessions.find(s => s.id === sessionId) : null;
 
   // Debug logging
@@ -38,13 +38,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
     hasApiKey: !!house.aiSettings?.apiKey
   });
 
-  // Switch to the session when sessionId changes
-  useEffect(() => {
-    if (sessionId) {
-      switchToSession(sessionId);
-    }
-  }, [sessionId, switchToSession]);
-
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeSession?.messages]);
@@ -166,26 +160,81 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                   Provider: {house.aiSettings?.provider || 'Not set'}<br/>
                   Has API Key: {house.aiSettings?.apiKey ? 'Yes' : 'No'}<br/>
                   Available Sessions: {sessions.length}<br/>
-                  Active Session Found: {activeSession ? 'Yes' : 'No'}
+                  Active Session Found: {activeSession ? 'Yes' : 'No'}<br/>
+                  Spark Available: {!!window.spark ? 'Yes' : 'No'}<br/>
+                  Spark LLM Available: {!!(window.spark && window.spark.llm) ? 'Yes' : 'No'}<br/>
+                  Spark LLMPrompt Available: {!!(window.spark && window.spark.llmPrompt) ? 'Yes' : 'No'}
                 </div>
                 
-                {/* Debug Test Button */}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    console.log('=== Debug Test Session Creation ===');
-                    console.log('House characters:', house.characters?.map(c => ({ id: c.id, name: c.name })));
-                    console.log('Current sessions:', sessions);
-                    if (house.characters && house.characters.length > 0) {
-                      console.log('Attempting to start chat with first character...');
-                      onStartChat?.(house.characters[0].id);
-                    }
-                  }}
-                  className="w-full text-xs"
-                >
-                  🔧 Debug: Test Session Creation
-                </Button>
+                {/* Character List */}
+                {house.characters && house.characters.length > 0 && (
+                  <div className="mb-3">
+                    <strong>Available Characters:</strong><br/>
+                    {house.characters.map(char => (
+                      <div key={char.id} className="text-xs">
+                        • {char.name} ({char.id.slice(0, 8)}...)
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Session List */}
+                {sessions.length > 0 && (
+                  <div className="mb-3">
+                    <strong>Available Sessions:</strong><br/>
+                    {sessions.map(session => (
+                      <div key={session.id} className="text-xs">
+                        • {session.type} - {session.id.slice(0, 8)}... ({session.participantIds.length} participants)
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Debug Actions */}
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      console.log('=== Manual Session Creation Test ===');
+                      console.log('House characters:', house.characters?.map(c => ({ id: c.id, name: c.name })));
+                      console.log('Current sessions:', sessions);
+                      if (house.characters && house.characters.length > 0) {
+                        console.log('Attempting to start chat with first character...');
+                        onStartChat?.(house.characters[0].id);
+                      }
+                    }}
+                    className="flex-1 text-xs"
+                  >
+                    🔧 Test Chat Creation
+                  </Button>
+                  
+                  <Button
+                    size="sm" 
+                    variant="outline"
+                    onClick={async () => {
+                      console.log('=== KV Storage Test ===');
+                      try {
+                        // Test if KV is working
+                        if (window.spark && window.spark.kv) {
+                          const keys = await window.spark.kv.keys();
+                          console.log('KV keys available:', keys);
+                          const chatSessions = await window.spark.kv.get('chat-sessions');
+                          console.log('Chat sessions in KV:', chatSessions);
+                          const house = await window.spark.kv.get('character-house');
+                          console.log('House in KV:', house);
+                        } else {
+                          console.log('Spark KV not available');
+                        }
+                      } catch (error) {
+                        console.error('KV test error:', error);
+                      }
+                    }}
+                    className="flex-1 text-xs"
+                  >
+                    🔍 Test KV Storage
+                  </Button>
+                </div>
               </div>
             </>
           )}

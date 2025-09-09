@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 function App() {
   const [currentView, setCurrentView] = useState<'house' | 'chat' | 'scene'>('house');
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const { createSession } = useChat();
+  const { createSession, sessions, switchToSession, setActiveSessionId: setChatActiveSessionId } = useChat();
   const { activeSessions } = useSceneMode();
   const { house } = useHouse();
 
@@ -22,6 +22,7 @@ function App() {
     console.log('Current view:', currentView);
     console.log('Active session ID:', activeSessionId);
     console.log('Available characters:', house.characters?.length || 0);
+    console.log('Available chat sessions:', sessions.length);
     console.log('Available scene sessions:', activeSessions.length);
     console.log('AI Settings:', {
       provider: house.aiSettings?.provider,
@@ -30,7 +31,7 @@ function App() {
     });
     console.log('Spark available:', !!window.spark);
     console.log('=== End Debug ===');
-  }, [house, activeSessions, currentView, activeSessionId]);
+  }, [house, sessions, activeSessions, currentView, activeSessionId]);
 
   const handleStartChat = (characterId: string) => {
     console.log('=== handleStartChat called ===');
@@ -51,14 +52,27 @@ function App() {
       return;
     }
     
+    // Create the session
     const sessionId = createSession('individual', [characterId]);
     console.log('createSession returned:', sessionId);
     
     if (sessionId) {
       console.log('Setting active session ID to:', sessionId);
+      
+      // Set both local and chat hook state immediately
       setActiveSessionId(sessionId);
+      setChatActiveSessionId(sessionId);
       setCurrentView('chat');
       toast.success(`Started chat with ${character.name}`);
+      
+      // Verify session is available
+      setTimeout(() => {
+        const foundSession = sessions.find(s => s.id === sessionId);
+        console.log('Session verification after creation:', foundSession ? 'FOUND' : 'NOT FOUND');
+        if (foundSession) {
+          console.log('Session details:', { id: foundSession.id, type: foundSession.type, participants: foundSession.participantIds });
+        }
+      }, 100);
     } else {
       console.error('Failed to create session for character:', characterId);
       toast.error('Failed to create chat session');
@@ -73,6 +87,7 @@ function App() {
     if (sessionId) {
       // Use existing session
       setActiveSessionId(sessionId);
+      setChatActiveSessionId(sessionId);
       setCurrentView('chat');
       toast.success('Started group chat');
     } else {
@@ -86,6 +101,7 @@ function App() {
         
         if (newSessionId) {
           setActiveSessionId(newSessionId);
+          setChatActiveSessionId(newSessionId);
           setCurrentView('chat');
           toast.success(`Started group chat with ${characterIds.length} characters`);
         } else {

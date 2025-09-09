@@ -21,6 +21,7 @@ export function useChat() {
     console.log('Context:', context);
     console.log('Available characters:', house.characters?.map(c => ({ id: c.id, name: c.name })) || []);
     console.log('Current sessions before creation:', (sessions || []).length);
+    console.log('Current sessions details:', (sessions || []).map(s => ({ id: s.id.slice(0, 8), type: s.type, participants: s.participantIds.length })));
     
     // Verify participants exist first
     const validParticipants = participantIds.filter(id => 
@@ -51,23 +52,25 @@ export function useChat() {
     };
 
     console.log('Creating chat session:', sessionId, 'for participants:', validParticipants);
+    console.log('New session object:', newSession);
 
-    setSessions(current => {
-      const currentSessions = current || [];
-      const updatedSessions = [...currentSessions, newSession];
-      console.log('Chat sessions updated, old count:', currentSessions.length, 'new count:', updatedSessions.length);
-      console.log('New session added:', { id: newSession.id, type: newSession.type, participants: newSession.participantIds });
-      return updatedSessions;
-    });
-    
-    // Give a brief moment for state to update then verify
-    setTimeout(() => {
-      console.log('Session creation verification - current sessions:', (sessions || []).length);
-      const foundSession = (sessions || []).find(s => s.id === sessionId);
-      console.log('New session found after creation:', !!foundSession);
-    }, 100);
-    
-    return sessionId;
+    try {
+      setSessions(current => {
+        const currentSessions = current || [];
+        const updatedSessions = [...currentSessions, newSession];
+        console.log('Session array update - before:', currentSessions.length, 'after:', updatedSessions.length);
+        console.log('Updated sessions:', updatedSessions.map(s => ({ id: s.id.slice(0, 8), type: s.type, participants: s.participantIds.length })));
+        return updatedSessions;
+      });
+      
+      console.log('Session creation completed successfully, returning ID:', sessionId);
+      return sessionId;
+      
+    } catch (error) {
+      console.error('Error during session creation:', error);
+      toast.error('Failed to create chat session');
+      return '';
+    }
   };
 
   const sendMessage = async (content: string, characterId?: string) => {
@@ -238,13 +241,20 @@ Respond as ${character.name} would, staying true to their personality and backgr
   };
 
   const switchToSession = (sessionId: string) => {
-    console.log('Switching to session:', sessionId, 'available sessions:', safeSessions.length);
+    console.log('switchToSession called with:', sessionId);
+    console.log('Available sessions:', safeSessions.map(s => ({ id: s.id, type: s.type, active: s.active })));
+    
     const session = safeSessions.find(s => s.id === sessionId);
-    console.log('Found session:', session ? 'YES' : 'NO', session ? { id: session.id, type: session.type, active: session.active } : null);
+    console.log('Found session in switchToSession:', session ? 'YES' : 'NO', session ? { id: session.id, type: session.type, active: session.active } : null);
+    
     if (session) {
+      console.log('Setting active session ID to:', sessionId);
       setActiveSessionId(sessionId);
+      return true;
     } else {
-      console.warn('Session not found:', sessionId);
+      console.warn('Session not found in switchToSession:', sessionId);
+      console.log('Available session IDs:', safeSessions.map(s => s.id));
+      return false;
     }
   };
 
@@ -281,7 +291,7 @@ Respond as ${character.name} would, staying true to their personality and backgr
     );
   };
 
-  return {
+    return {
     sessions: safeSessions,
     activeSession,
     activeSessionId,
@@ -290,6 +300,7 @@ Respond as ${character.name} would, staying true to their personality and backgr
     switchToSession,
     closeSession,
     deleteSession,
-    getSessionsByCharacter
+    getSessionsByCharacter,
+    setActiveSessionId  // Export this for direct control
   };
 }
