@@ -83,28 +83,50 @@ export function Sidebar({ onStartChat, onStartScene }: SidebarProps) {
 
       {/* Navigation Tabs */}
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="flex-1 flex flex-col min-h-0">
-        <TabsList className="grid w-full grid-cols-5 m-4 mb-2 text-xs">
-          <TabsTrigger value="characters" className="text-xs">
-            <Users size={14} className="mr-1" />
-            Chars
-          </TabsTrigger>
-          <TabsTrigger value="rooms" className="text-xs">
-            <Home size={14} className="mr-1" />
-            Rooms
-          </TabsTrigger>
-          <TabsTrigger value="chats" className="text-xs">
-            <MessageCircle size={14} className="mr-1" />
-            Chats
-          </TabsTrigger>
-          <TabsTrigger value="auto" className="text-xs">
-            <Sparkles size={14} className="mr-1" />
-            Auto
-          </TabsTrigger>
-          <TabsTrigger value="scenes" className="text-xs">
-            <Theater size={14} className="mr-1" />
-            Scene
-          </TabsTrigger>
-        </TabsList>
+        <div className="m-4 mb-2 space-y-1">
+          {/* First Row */}
+          <div className="flex gap-1">
+            <TabsTrigger 
+              value="characters" 
+              className="flex-1 text-xs justify-start px-2 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              <Users size={14} className="mr-1" />
+              Characters
+            </TabsTrigger>
+            <TabsTrigger 
+              value="rooms" 
+              className="flex-1 text-xs justify-start px-2 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              <Home size={14} className="mr-1" />
+              Rooms
+            </TabsTrigger>
+            <TabsTrigger 
+              value="chats" 
+              className="flex-1 text-xs justify-start px-2 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              <MessageCircle size={14} className="mr-1" />
+              Chats
+            </TabsTrigger>
+          </div>
+          
+          {/* Second Row */}
+          <div className="flex gap-1">
+            <TabsTrigger 
+              value="auto" 
+              className="flex-1 text-xs justify-start px-2 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              <Sparkles size={14} className="mr-1" />
+              Auto Create
+            </TabsTrigger>
+            <TabsTrigger 
+              value="scenes" 
+              className="flex-1 text-xs justify-start px-2 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              <Theater size={14} className="mr-1" />
+              Scenes
+            </TabsTrigger>
+          </div>
+        </div>
 
         {/* Characters Tab */}
         <TabsContent value="characters" className="flex-1 px-4 pb-4 space-y-3 min-h-0 overflow-hidden">
