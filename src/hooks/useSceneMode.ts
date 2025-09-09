@@ -204,13 +204,20 @@ Keep your response to 1-2 sentences maximum.
 System prompt for character behavior: ${character.prompts.system}`;
     
     try {
-      // Check if AI service is available
-      if (!window.spark || !window.spark.llm || !window.spark.llmPrompt) {
-        console.error('Spark AI service not available');
-        throw new Error('AI service is not configured. Please configure your API settings in House Settings.');
+      const provider = house.aiSettings?.provider || 'openrouter';
+
+      // Check provider configuration
+      if (provider === 'spark') {
+        if (!window.spark || !window.spark.llm || !window.spark.llmPrompt) {
+          throw new Error('Spark AI service is not available. Please ensure you\'re running in a Spark environment.');
+        }
+      } else if (provider === 'openrouter') {
+        if (!house.aiSettings?.apiKey) {
+          throw new Error('OpenRouter API key is required. Please configure it in House Settings.');
+        }
       }
 
-      console.log('Calling AI service for character response...');
+      console.log(`Calling AI service for character response using ${provider}...`);
       
       // Create AI service instance with current house settings
       const aiService = new AIService(house);

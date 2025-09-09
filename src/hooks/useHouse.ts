@@ -105,8 +105,9 @@ const DEFAULT_HOUSE: House = {
     themes: ['fantasy', 'sci-fi', 'modern']
   },
   aiSettings: {
-    provider: 'spark',
-    model: 'gpt-4o',
+    provider: 'openrouter',
+    model: 'deepseek/deepseek-chat-v3.1',
+    apiKey: '', // User needs to configure this
     imageProvider: 'none'
   },
   createdAt: new Date(),

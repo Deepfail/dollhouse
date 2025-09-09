@@ -120,21 +120,21 @@ export function useChat() {
         return null;
       }
 
-      // Check if AI service is available
-      if (!window.spark || !window.spark.llm || !window.spark.llmPrompt) {
-        console.error('Spark AI service not available');
-        
-        // Return a fallback message when AI service isn't available
-        const fallbackMessage: ChatMessage = {
-          id: `msg-${Date.now()}-${characterId}`,
-          characterId,
-          content: `*${character.name} looks puzzled* I'm sorry, but I seem to be having trouble connecting right now. This app requires the Spark AI environment to function properly.`,
-          timestamp: new Date(),
-          type: 'text'
-        };
-        
-        toast.error('This app requires Spark AI environment. Please make sure you\'re running in a proper Spark environment.');
-        return fallbackMessage;
+      const provider = house.aiSettings?.provider || 'openrouter';
+
+      // Check provider configuration
+      if (provider === 'spark') {
+        if (!window.spark || !window.spark.llm || !window.spark.llmPrompt) {
+          console.error('Spark AI service not available');
+          toast.error('This app requires Spark AI environment. Please make sure you\'re running in a proper Spark environment.');
+          return null;
+        }
+      } else if (provider === 'openrouter') {
+        if (!house.aiSettings?.apiKey) {
+          console.error('OpenRouter API key not configured');
+          toast.error('OpenRouter API key is not configured. Please add your API key in House Settings.');
+          return null;
+        }
       }
 
       // Get conversation history for context
@@ -151,23 +151,28 @@ export function useChat() {
       const aiService = new AIService(house);
 
       // Build character prompt
-      const characterPrompt = `You are ${character.name}, a ${character.role} character.
+      let characterPrompt = `You are ${character.name}, a ${character.role} character.
 
 Character Description: ${character.description}
 Personality: ${character.personality}
 Background: ${character.prompts.background}
 
 System Instructions: ${character.prompts.system}
-Personality Prompt: ${character.prompts.personality}
+Personality Prompt: ${character.prompts.personality}`;
 
-Current conversation:
+      // Add world context if available
+      if (house.worldPrompt) {
+        characterPrompt += `\n\nWorld Context: ${house.worldPrompt}`;
+      }
+
+      characterPrompt += `\n\nCurrent conversation:
 ${conversationContext}
 
 User just said: ${userMessage.content}
 
 Respond as ${character.name} would, staying true to their personality and background. Keep responses conversational and engaging, typically 1-2 sentences unless the situation calls for more detail.`;
 
-      console.log(`Generating AI response for ${character.name}...`);
+      console.log(`Generating AI response for ${character.name} using ${provider}...`);
       const response = await aiService.generateResponse(characterPrompt);
 
       const message: ChatMessage = {
@@ -187,14 +192,14 @@ Respond as ${character.name} would, staying true to their personality and backgr
         errorMessage = error.message;
       }
       
-      if (errorMessage.includes('AI service not available') || errorMessage.includes('Spark AI service')) {
-        toast.error('This app requires Spark AI environment to function properly.');
+      if (errorMessage.includes('API key')) {
+        toast.error('Please configure your API key in House Settings.');
       } else if (errorMessage.includes('rate limit')) {
         toast.error('Please wait a moment before sending another message.');
       } else if (errorMessage.includes('temporarily unavailable')) {
         toast.error('AI service is temporarily down. Please try again in a few moments.');
       } else {
-        toast.error(`Failed to generate response for ${house.characters?.find(c => c.id === characterId)?.name}: ${errorMessage}`);
+        toast.error(`Failed to generate response: ${errorMessage}`);
       }
       
       return null;

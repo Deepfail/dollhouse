@@ -8,23 +8,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 import { useHouse } from '@/hooks/useHouse';
+import { AVAILABLE_MODELS } from '@/types';
 import { toast } from 'sonner';
 import { 
   Brain, 
   House as Home,
-  Gear
+  Gear,
+  Key,
+  Image
 } from '@phosphor-icons/react';
 
 interface HouseSettingsProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-const SPARK_MODELS = [
-  { id: 'gpt-4o', name: 'GPT-4o (Default)' },
-  { id: 'gpt-4o-mini', name: 'GPT-4o Mini' }
-];
 
 export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   const { house, updateHouse } = useHouse();
@@ -37,7 +36,16 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   const [currency, setCurrency] = useState(house.currency);
   
   // AI Settings state  
-  const [selectedModel, setSelectedModel] = useState(house.aiSettings?.model || 'gpt-4o');
+  const [provider, setProvider] = useState(house.aiSettings?.provider || 'openrouter');
+  const [selectedModel, setSelectedModel] = useState(house.aiSettings?.model || 'deepseek/deepseek-chat-v3.1');
+  const [apiKey, setApiKey] = useState(house.aiSettings?.apiKey || '');
+  const [imageProvider, setImageProvider] = useState(house.aiSettings?.imageProvider || 'venice');
+  const [imageApiKey, setImageApiKey] = useState(house.aiSettings?.imageApiKey || '');
+
+  // Auto character creator settings
+  const [autoEnabled, setAutoEnabled] = useState(house.autoCreator?.enabled || false);
+  const [autoInterval, setAutoInterval] = useState(house.autoCreator?.interval || 60);
+  const [autoMaxChars, setAutoMaxChars] = useState(house.autoCreator?.maxCharacters || 10);
 
   const handleSaveHouseSettings = () => {
     updateHouse({
@@ -47,8 +55,17 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       copilotPrompt,
       currency,
       aiSettings: {
-        provider: 'spark',
-        model: selectedModel
+        provider: provider as 'openrouter' | 'local' | 'spark',
+        model: selectedModel,
+        apiKey,
+        imageProvider: imageProvider as 'venice' | 'none',
+        imageApiKey
+      },
+      autoCreator: {
+        enabled: autoEnabled,
+        interval: autoInterval,
+        maxCharacters: autoMaxChars,
+        themes: house.autoCreator?.themes || ['fantasy', 'modern', 'sci-fi']
       }
     });
     toast.success('Settings updated successfully');
@@ -73,10 +90,14 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
         </DialogHeader>
 
         <Tabs defaultValue="house" className="flex-1">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="house" className="flex items-center gap-2">
               <Home size={16} />
               House
+            </TabsTrigger>
+            <TabsTrigger value="api" className="flex items-center gap-2">
+              <Key size={16} />
+              API
             </TabsTrigger>
             <TabsTrigger value="prompts" className="flex items-center gap-2">
               <Brain size={16} />
@@ -135,38 +156,141 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                     />
                   </div>
 
+                  <Button onClick={handleSaveHouseSettings} className="w-full">
+                    Save Settings
+                  </Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* API Settings Tab */}
+            <TabsContent value="api" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Key size={18} />
+                    AI Provider Settings
+                  </CardTitle>
+                  <CardDescription>
+                    Configure your AI provider and models for character interactions
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="ai-model">AI Model</Label>
+                    <Label htmlFor="provider">AI Provider</Label>
                     <Select
-                      value={selectedModel}
-                      onValueChange={setSelectedModel}
+                      value={provider}
+                      onValueChange={setProvider}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select AI model" />
+                        <SelectValue placeholder="Select AI provider" />
                       </SelectTrigger>
                       <SelectContent>
-                        {SPARK_MODELS.map(model => (
-                          <SelectItem key={model.id} value={model.id}>
-                            {model.name}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="openrouter">OpenRouter</SelectItem>
+                        <SelectItem value="spark">Spark (Built-in)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="bg-muted/50 p-3 rounded-lg border border-border">
-                    <div className="flex items-start gap-2">
-                      <div className="text-accent mt-0.5">ℹ️</div>
-                      <div className="text-sm text-muted-foreground space-y-1">
-                        <p><strong>Spark Environment:</strong> This app uses Spark's built-in AI service. No additional API configuration required.</p>
-                        <p><strong>Available Models:</strong> GPT-4o (default), GPT-4o Mini</p>
-                        <p>Characters will respond automatically using the selected AI model.</p>
+                  {provider === 'openrouter' && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="api-key">OpenRouter API Key</Label>
+                        <Input
+                          id="api-key"
+                          type="password"
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          placeholder="sk-or-v1-..."
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Get your API key from <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">openrouter.ai</a>
+                        </p>
                       </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="ai-model">AI Model</Label>
+                        <Select
+                          value={selectedModel}
+                          onValueChange={setSelectedModel}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select AI model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {AVAILABLE_MODELS.map(model => (
+                              <SelectItem key={model.id} value={model.id}>
+                                {model.name} - {model.provider}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
+
+                  {provider === 'spark' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="spark-model">Spark AI Model</Label>
+                      <Select
+                        value={selectedModel}
+                        onValueChange={setSelectedModel}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Spark model" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="gpt-4o">GPT-4o (Default)</SelectItem>
+                          <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  </div>
+                  )}
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Image size={16} />
+                        Image Generation
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="image-provider">Image Provider</Label>
+                        <Select
+                          value={imageProvider}
+                          onValueChange={setImageProvider}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select image provider" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="venice">Venice AI</SelectItem>
+                            <SelectItem value="none">Disabled</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {imageProvider === 'venice' && (
+                        <div className="space-y-2">
+                          <Label htmlFor="image-api-key">Venice AI API Key</Label>
+                          <Input
+                            id="image-api-key"
+                            type="password"
+                            value={imageApiKey}
+                            onChange={(e) => setImageApiKey(e.target.value)}
+                            placeholder="Your Venice AI API key..."
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Get your API key from <a href="https://venice.ai" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">venice.ai</a>
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
 
                   <Button onClick={handleSaveHouseSettings} className="w-full">
-                    Save Settings
+                    Save API Settings
                   </Button>
                 </CardContent>
               </Card>
@@ -220,24 +344,52 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Gear size={18} />
-                    Advanced Settings
+                    Auto Character Creator
                   </CardTitle>
                   <CardDescription>
-                    Advanced configuration options
+                    Configure automatic character generation
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="bg-muted/50 p-4 rounded-lg border border-border">
-                    <div className="flex items-start gap-3">
-                      <div className="text-accent">⚙️</div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium">Advanced Features</p>
-                        <p className="text-sm text-muted-foreground">
-                          Additional configuration options and features will be available here in future updates.
-                        </p>
-                      </div>
-                    </div>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="auto-enabled"
+                      checked={autoEnabled}
+                      onCheckedChange={setAutoEnabled}
+                    />
+                    <Label htmlFor="auto-enabled">Enable Auto Character Creation</Label>
                   </div>
+
+                  {autoEnabled && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="auto-interval">Creation Interval (minutes)</Label>
+                          <Input
+                            id="auto-interval"
+                            type="number"
+                            value={autoInterval}
+                            onChange={(e) => setAutoInterval(Number(e.target.value))}
+                            placeholder="60"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="auto-max">Max Characters</Label>
+                          <Input
+                            id="auto-max"
+                            type="number"
+                            value={autoMaxChars}
+                            onChange={(e) => setAutoMaxChars(Number(e.target.value))}
+                            placeholder="10"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <Button onClick={handleSaveHouseSettings} className="w-full">
+                    Save Advanced Settings
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>

@@ -22,6 +22,15 @@ function App() {
 
   const handleStartScene = (sessionId: string) => {
     console.log('handleStartScene called with sessionId:', sessionId);
+    
+    // Verify the session exists
+    const session = activeSessions.find(s => s.id === sessionId);
+    if (!session) {
+      console.error('Scene session not found:', sessionId);
+      toast.error('Scene session not found. Please create a new scene.');
+      return;
+    }
+    
     setActiveSessionId(sessionId);
     setCurrentView('scene');
   };

@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useChat } from '@/hooks/useChat';
 import { useHouse } from '@/hooks/useHouse';
 import { ChatMessage } from '@/types';
-import { PaperPlaneTilt as Send, ChatCircle as MessageCircle, Users, Camera } from '@phosphor-icons/react';
+import { PaperPlaneTilt as Send, ChatCircle as MessageCircle, Users, Camera, Warning } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ChatInterfaceProps {
@@ -50,14 +50,31 @@ export function ChatInterface({ sessionId, onBack }: ChatInterfaceProps) {
   };
 
   if (!activeSession) {
+    const needsApiKey = house.aiSettings?.provider === 'openrouter' && !house.aiSettings?.apiKey;
+    
     return (
       <div className="flex-1 flex items-center justify-center bg-background">
         <Card className="p-8 text-center max-w-md">
-          <MessageCircle size={48} className="mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-xl font-semibold mb-2">No Active Chat</h3>
-          <p className="text-muted-foreground mb-4">
-            Select a character or start a group chat to begin conversation.
-          </p>
+          {needsApiKey ? (
+            <>
+              <Warning size={48} className="mx-auto text-yellow-500 mb-4" />
+              <h3 className="text-xl font-semibold mb-2">API Key Required</h3>
+              <p className="text-muted-foreground mb-4">
+                You need to configure your OpenRouter API key in House Settings before chatting with characters.
+              </p>
+              <Button onClick={() => window.location.hash = '#settings'} variant="default">
+                Open House Settings
+              </Button>
+            </>
+          ) : (
+            <>
+              <MessageCircle size={48} className="mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-xl font-semibold mb-2">No Active Chat</h3>
+              <p className="text-muted-foreground mb-4">
+                Select a character or start a group chat to begin conversation.
+              </p>
+            </>
+          )}
         </Card>
       </div>
     );

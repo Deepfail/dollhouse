@@ -16,7 +16,10 @@ import {
   BatteryMedium as Battery,
   Smiley as Smile,
   Star,
-  Clock
+  Clock,
+  Key,
+  CheckCircle as Check,
+  XCircle as X
 } from '@phosphor-icons/react';
 
 export function Copilot() {
@@ -206,6 +209,48 @@ export function Copilot() {
               </div>
             </Card>
           </div>
+        </div>
+
+        {/* API Status */}
+        <div>
+          <h3 className="font-medium mb-3">AI Service Status</h3>
+          <Card className="p-3">
+            <div className="flex items-center gap-2">
+              {house.aiSettings?.provider === 'openrouter' ? (
+                house.aiSettings?.apiKey ? (
+                  <>
+                    <Check size={16} className="text-green-500" />
+                    <div>
+                      <p className="font-medium text-green-600">OpenRouter Connected</p>
+                      <p className="text-xs text-muted-foreground">
+                        Model: {house.aiSettings.model}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <X size={16} className="text-red-500" />
+                    <div>
+                      <p className="font-medium text-red-600">API Key Required</p>
+                      <p className="text-xs text-muted-foreground">
+                        Configure in House Settings
+                      </p>
+                    </div>
+                  </>
+                )
+              ) : (
+                <>
+                  <Check size={16} className="text-green-500" />
+                  <div>
+                    <p className="font-medium text-green-600">Spark AI Ready</p>
+                    <p className="text-xs text-muted-foreground">
+                      Model: {house.aiSettings?.model || 'gpt-4o'}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </Card>
         </div>
       </div>
 
