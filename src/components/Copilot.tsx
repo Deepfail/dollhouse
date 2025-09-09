@@ -344,7 +344,7 @@ Keep responses concise but helpful (2-3 sentences max unless more detail is spec
                       <p className="font-medium">{house.characters.filter(c => 
                         c.lastInteraction && 
                         Date.now() - new Date(c.lastInteraction).getTime() < 24 * 60 * 60 * 1000
-                      ).length}</p>
+                house.aiSettings?.apiKey ? (
                       <p className="text-xs text-muted-foreground">Active Today</p>
                     </div>
                   </div>
