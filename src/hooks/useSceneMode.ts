@@ -112,7 +112,6 @@ export const useSceneMode = () => {
     // Start the first turn
     setTimeout(processNextTurn, 2000);
   };
-  };
   
   const processCharacterTurn = async (sessionId: string, characterId: string): Promise<void> => {
     const session = activeSessions.find(s => s.id === sessionId);
