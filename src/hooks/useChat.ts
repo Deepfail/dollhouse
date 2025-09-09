@@ -100,6 +100,10 @@ export function useChat() {
         return finalSessions;
       });
       
+      // Immediately set this as the active session
+      console.log('Setting newly created session as active:', sessionId);
+      setActiveSessionId(sessionId);
+      
       console.log('Session creation completed successfully, returning ID:', sessionId);
       return sessionId;
       
@@ -360,6 +364,35 @@ Respond as ${character.name} would, staying true to your character. Keep respons
     }
   };
 
+  // Override setActiveSessionId to ensure session exists
+  const setActiveSessionIdSafe = (sessionId: string) => {
+    console.log('setActiveSessionIdSafe called with:', sessionId);
+    console.log('Current sessions available:', safeSessions.map(s => s.id));
+    
+    const session = safeSessions.find(s => s.id === sessionId);
+    if (session) {
+      console.log('Session found, setting as active:', sessionId);
+      setActiveSessionId(sessionId);
+    } else {
+      console.warn('Session not found when trying to set as active:', sessionId);
+      
+      // Force re-check sessions from KV after a short delay
+      setTimeout(() => {
+        setSessions(current => {
+          const currentSessions = current || [];
+          const retrySession = currentSessions.find(s => s.id === sessionId);
+          if (retrySession) {
+            console.log('Session found after KV sync, setting as active:', sessionId);
+            setActiveSessionId(sessionId);
+          } else {
+            console.error('Session still not found after KV sync:', sessionId);
+          }
+          return currentSessions;
+        });
+      }, 100);
+    }
+  };
+
   const closeSession = (sessionId: string) => {
     setSessions(current => {
       const currentSessions = current || [];
@@ -403,6 +436,6 @@ Respond as ${character.name} would, staying true to your character. Keep respons
     closeSession,
     deleteSession,
     getSessionsByCharacter,
-    setActiveSessionId  // Export this for direct control
+    setActiveSessionId: setActiveSessionIdSafe  // Use the safe version
   };
 }

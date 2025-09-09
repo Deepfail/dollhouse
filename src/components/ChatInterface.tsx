@@ -19,60 +19,34 @@ interface ChatInterfaceProps {
 }
 
 export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat }: ChatInterfaceProps) {
-  const { sessions, sendMessage, switchToSession, activeSession: hookActiveSession, setActiveSessionId } = useChat();
+  const { sessions, sendMessage, switchToSession, activeSession, setActiveSessionId } = useChat();
   const { house } = useHouse();
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Find the active session - prefer the one from sessionId, fallback to hook's activeSession
-  const activeSession = sessionId ? sessions.find(s => s.id === sessionId) : hookActiveSession;
+  // Use the sessionId if provided, otherwise use the hook's active session
+  const currentSession = sessionId ? sessions.find(s => s.id === sessionId) || activeSession : activeSession;
 
-  // Try to auto-switch to the session when it becomes available, with retries
+  // Ensure the hook knows about the sessionId if provided
   useEffect(() => {
-    if (sessionId && !activeSession && sessions.length > 0) {
+    if (sessionId && sessionId !== activeSession?.id) {
       const foundSession = sessions.find(s => s.id === sessionId);
       if (foundSession) {
-        console.log('Found session after delay, switching to it:', foundSession.id);
+        console.log('Setting active session in hook:', sessionId);
         setActiveSessionId(sessionId);
       }
     }
   }, [sessionId, sessions, activeSession, setActiveSessionId]);
 
-  // Enhanced retry mechanism for session finding
-  useEffect(() => {
-    if (sessionId && !activeSession) {
-      let retryCount = 0;
-      const maxRetries = 10;
-      
-      const checkForSession = () => {
-        const foundSession = sessions.find(s => s.id === sessionId);
-        
-        if (foundSession) {
-          console.log(`Session found after ${retryCount} retries:`, foundSession.id);
-          setActiveSessionId(sessionId);
-        } else if (retryCount < maxRetries) {
-          retryCount++;
-          console.log(`Session not found, retry ${retryCount}/${maxRetries} in 200ms...`);
-          setTimeout(checkForSession, 200);
-        } else {
-          console.warn(`Session ${sessionId} not found after ${maxRetries} retries`);
-        }
-      };
-      
-      // Start checking after a small delay to allow for KV sync
-      setTimeout(checkForSession, 100);
-    }
-  }, [sessionId, sessions, activeSession, setActiveSessionId]);
-
-  // If we don't have an active session but we have a sessionId, we might be waiting for KV sync
-  const isWaitingForSession = sessionId && !activeSession;
+  // If we don't have a session, we might be waiting for it to be created
+  const isWaitingForSession = sessionId && !currentSession;
 
   // Debug logging
   console.log('ChatInterface render:', {
     sessionId,
     availableSessions: sessions.map(s => ({ id: s.id.slice(0, 8) + '...', type: s.type, participants: s.participantIds.length })),
-    activeSession: activeSession ? { id: activeSession.id.slice(0, 8) + '...', type: activeSession.type, messageCount: activeSession.messages.length } : null,
+    currentSession: currentSession ? { id: currentSession.id.slice(0, 8) + '...', type: currentSession.type, messageCount: currentSession.messages.length } : null,
     isWaitingForSession,
     charactersCount: house.characters?.length || 0,
     aiProvider: house.aiSettings?.provider,
@@ -82,18 +56,18 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeSession?.messages]);
+  }, [currentSession?.messages]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || !activeSession) return;
+    if (!message.trim() || !currentSession) return;
 
     await sendMessage(message);
     setMessage('');
 
     // Simulate typing indicators
-    if (activeSession.participantIds.length > 0) {
-      const typingCharacters = activeSession.participantIds.slice(0, Math.min(2, activeSession.participantIds.length));
+    if (currentSession.participantIds.length > 0) {
+      const typingCharacters = currentSession.participantIds.slice(0, Math.min(2, currentSession.participantIds.length));
       setIsTyping(typingCharacters);
       
       setTimeout(() => {
@@ -129,7 +103,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
     );
   }
 
-  if (!activeSession) {
+  if (!currentSession) {
     const provider = house.aiSettings?.provider || 'spark';
     const needsApiKey = provider === 'openrouter' && !house.aiSettings?.apiKey;
     const sparkUnavailable = provider === 'spark' && (!window.spark || !window.spark.llm);
@@ -224,7 +198,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                   Provider: {house.aiSettings?.provider || 'Not set'}<br/>
                   Has API Key: {house.aiSettings?.apiKey ? 'Yes' : 'No'}<br/>
                   Available Sessions: {sessions.length}<br/>
-                  Active Session Found: {activeSession ? 'Yes' : 'No'}<br/>
+                  Active Session Found: {currentSession ? 'Yes' : 'No'}<br/>
                   Spark Available: {!!window.spark ? 'Yes' : 'No'}<br/>
                   Spark LLM Available: {!!(window.spark && window.spark.llm) ? 'Yes' : 'No'}<br/>
                   Spark LLMPrompt Available: {!!(window.spark && window.spark.llmPrompt) ? 'Yes' : 'No'}
@@ -250,31 +224,18 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                   </Button>
                   
                   <Button
-                    size="sm" 
+                    size="sm"
                     variant="outline"
                     onClick={() => {
-                      console.log('=== Session Debug ===');
-                      console.log('Sessions from useChat:', sessions.map(s => ({ 
-                        id: s.id.slice(0, 12) + '...', 
-                        type: s.type, 
-                        participants: s.participantIds.length,
-                        messageCount: s.messages.length
-                      })));
-                      console.log('Hook active session:', hookActiveSession ? {
-                        id: hookActiveSession.id.slice(0, 12) + '...',
-                        type: hookActiveSession.type,
-                        messageCount: hookActiveSession.messages.length
-                      } : 'None');
-                      console.log('Current sessionId:', sessionId);
-                      console.log('Found active session:', activeSession ? {
-                        id: activeSession.id.slice(0, 12) + '...',
-                        type: activeSession.type,
-                        messageCount: activeSession.messages.length
-                      } : 'None');
+                      console.log('=== Force Refresh Sessions ===');
+                      // Force trigger a re-render by calling the sessionId check again
+                      if (sessionId) {
+                        setActiveSessionId(sessionId);
+                      }
                     }}
                     className="flex-1 text-xs"
                   >
-                    🔍 Debug Sessions
+                    🔄 Refresh
                   </Button>
                 </div>
               </div>
@@ -285,7 +246,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
     );
   }
 
-  const participants = activeSession.participantIds
+  const participants = currentSession.participantIds
     .map(id => getCharacter(id))
     .filter(Boolean);
 
@@ -306,13 +267,13 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
           
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              {activeSession.type === 'group' ? (
+              {currentSession.type === 'group' ? (
                 <Users size={20} className="text-muted-foreground" />
               ) : (
                 <MessageCircle size={20} className="text-muted-foreground" />
               )}
               <h2 className="font-semibold">
-                {activeSession.type === 'group' 
+                {currentSession.type === 'group' 
                   ? `Group Chat (${participants.length})`
                   : participants[0]?.name || 'Chat'
                 }
@@ -340,12 +301,12 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
           <AnimatePresence initial={false}>
-            {(activeSession.messages || []).map((msg, index) => {
+            {(currentSession.messages || []).map((msg, index) => {
               const character = msg.characterId ? getCharacter(msg.characterId) : null;
               const isUser = !msg.characterId;
               const showAvatar = !isUser && (
                 index === 0 || 
-                (activeSession.messages && activeSession.messages[index - 1].characterId !== msg.characterId)
+                (currentSession.messages && currentSession.messages[index - 1].characterId !== msg.characterId)
               );
 
               return (
@@ -448,7 +409,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
           <Input
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder={`Message ${activeSession.type === 'group' ? 'the group' : participants[0]?.name || '...'}`}
+            placeholder={`Message ${currentSession.type === 'group' ? 'the group' : participants[0]?.name || '...'}`}
             className="flex-1"
             autoFocus
           />

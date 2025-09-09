@@ -97,15 +97,12 @@ function App() {
     if (sessionId) {
       console.log('Setting active session ID to:', sessionId);
       
-      // Always switch to chat view immediately - don't wait for KV sync
-      setCurrentView('chat');
-      setActiveSessionId(sessionId);
+      // Switch to the session in the hook immediately
       setChatActiveSessionId(sessionId);
       
-      // Give a small delay to ensure state updates are processed
-      setTimeout(() => {
-        console.log('Chat session should now be active');
-      }, 100);
+      // Switch views immediately
+      setCurrentView('chat');
+      setActiveSessionId(sessionId);
       
       toast.success(`Started chat with ${character.name}`);
     } else {
@@ -130,10 +127,10 @@ function App() {
     }
     
     if (sessionId) {
-      // Use existing session
+      // Use existing session - set it active in hook first
+      setChatActiveSessionId(sessionId);
       setCurrentView('chat');
       setActiveSessionId(sessionId);
-      setChatActiveSessionId(sessionId);
       toast.success('Started group chat');
     } else {
       // Create new group chat with all characters
@@ -145,10 +142,10 @@ function App() {
         console.log('Group session created:', newSessionId);
         
         if (newSessionId) {
-          // Always switch to chat view immediately
+          // Set active in hook first, then switch views
+          setChatActiveSessionId(newSessionId);
           setCurrentView('chat');
           setActiveSessionId(newSessionId);
-          setChatActiveSessionId(newSessionId);
           toast.success(`Started group chat with ${characterIds.length} characters`);
         } else {
           toast.error('Failed to create group chat');
