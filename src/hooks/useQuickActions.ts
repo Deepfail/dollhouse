@@ -117,13 +117,13 @@ export function useQuickActions() {
 
     let restedCount = 0;
     for (const character of house.characters) {
-      if (character.stats.energy < 90) {
+      if (character.stats.wet < 90) {
         await updateCharacter(character.id, {
           ...character,
           roomId: restRoom?.id || character.roomId,
           stats: {
             ...character.stats,
-            energy: Math.min(100, character.stats.energy + 25),
+            wet: Math.min(100, character.stats.wet + 25),
             happiness: Math.min(100, character.stats.happiness + 3)
           }
         });
@@ -132,7 +132,7 @@ export function useQuickActions() {
     }
 
     if (restedCount > 0) {
-      toast.success(`${restedCount} characters are now resting and recovering energy`);
+      toast.success(`${restedCount} characters are now more aroused and stimulated`);
     } else {
       toast.info('All characters are already well-rested');
     }
@@ -166,7 +166,7 @@ export function useQuickActions() {
 
     const statusReport = house.characters.map(char => {
       const needsAttention = [];
-      if (char.stats.energy < 30) needsAttention.push('tired');
+      if (char.stats.wet < 30) needsAttention.push('low arousal');
       if (char.stats.happiness < 40) needsAttention.push('unhappy');
       if (char.stats.relationship < 50) needsAttention.push('distant');
 

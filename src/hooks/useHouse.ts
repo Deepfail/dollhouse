@@ -28,13 +28,14 @@ const DEFAULT_HOUSE: House = {
       personality: 'Cheerful, curious, and supportive. Always eager to help and share interesting insights.',
       appearance: 'Warm and approachable with bright eyes and an enthusiastic smile.',
       role: 'Companion',
-      skills: ['Conversation', 'Empathy', 'Humor'],
+      traits: ['Conversation', 'Empathy', 'Humor'],
       classes: ['Friendly', 'Energetic'],
+      rarity: 'common',
       roomId: 'common-room',
       stats: {
         relationship: 70,
         happiness: 80,
-        energy: 75,
+        wet: 75,
         experience: 50,
         level: 5
       },
@@ -65,13 +66,14 @@ const DEFAULT_HOUSE: House = {
       personality: 'Contemplative, patient, and intellectually curious. Enjoys deep conversations and philosophical discussions.',
       appearance: 'Serene and composed with thoughtful expressions and gentle movements.',
       role: 'Advisor',
-      skills: ['Wisdom', 'Logic', 'Patience'],
+      traits: ['Wisdom', 'Logic', 'Patience'],
       classes: ['Intellectual', 'Calm'],
+      rarity: 'rare',
       roomId: 'common-room',
       stats: {
         relationship: 65,
         happiness: 75,
-        energy: 70,
+        wet: 70,
         experience: 75,
         level: 7
       },
@@ -188,6 +190,42 @@ export function useHouse() {
     });
   };
 
+  const removeRoom = (roomId: string) => {
+    setHouse(current => {
+      const currentHouse = current || DEFAULT_HOUSE;
+      
+      // Move all characters from this room to the first available room
+      const roomToRemove = currentHouse.rooms.find(r => r.id === roomId);
+      if (!roomToRemove) return currentHouse;
+      
+      const firstAvailableRoom = currentHouse.rooms.find(r => r.id !== roomId);
+      if (!firstAvailableRoom) return currentHouse; // Can't remove last room
+      
+      // Update characters to new room
+      const updatedCharacters = currentHouse.characters.map(char =>
+        roomToRemove.residents.includes(char.id)
+          ? { ...char, roomId: firstAvailableRoom.id, updatedAt: new Date() }
+          : char
+      );
+      
+      // Update room residents
+      const updatedRooms = currentHouse.rooms
+        .filter(room => room.id !== roomId)
+        .map(room => 
+          room.id === firstAvailableRoom.id
+            ? { ...room, residents: [...room.residents, ...roomToRemove.residents] }
+            : room
+        );
+      
+      return {
+        ...currentHouse,
+        rooms: updatedRooms,
+        characters: updatedCharacters,
+        updatedAt: new Date()
+      };
+    });
+  };
+
   const updateRoom = (roomId: string, updates: Partial<Room>) => {
     setHouse(current => {
       const currentHouse = current || DEFAULT_HOUSE;
@@ -293,6 +331,7 @@ export function useHouse() {
     updateCharacter,
     removeCharacter,
     addRoom,
+    removeRoom,
     updateRoom,
     moveCharacterToRoom,
     spendCurrency,

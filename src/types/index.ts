@@ -10,7 +10,7 @@ export interface Character {
   // Stats & Progression
   stats: {
     relationship: number; // 0-100
-    energy: number; // 0-100
+    wet: number; // 0-100 (arousal/sexual desire)
     happiness: number; // 0-100
     experience: number;
     level: number;
@@ -18,9 +18,10 @@ export interface Character {
   
   // Customizable traits
   role: string;
-  skills: string[];
+  traits: string[]; // renamed from skills
   classes: string[];
   unlocks: string[];
+  rarity: 'common' | 'rare' | 'legendary' | 'epic';
   
   // AI Configuration
   prompts: {
