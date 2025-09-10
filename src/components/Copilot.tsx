@@ -148,8 +148,6 @@ User message: "${userMessage.content}"
 
 Respond according to your personality and role as defined above. Be helpful and stay in character. KEEP IT BRIEF AND WITHIN THE TOKEN LIMIT.`;
 
-      try {
-
       const apiKey = house.aiSettings?.apiKey;
       if (!apiKey) {
         throw new Error('OpenRouter API key not configured');
