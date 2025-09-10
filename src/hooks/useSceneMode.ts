@@ -4,7 +4,7 @@ import { useKV } from '@github/spark/hooks'
 // adjust paths to match your repo structure (see your screenshot)
 import { ChatSession, Character, ChatMessage, SceneObjective } from '../lib/types'
 import { useHouse } from './useHouse'           // if your hook lives elsewhere, fix this path
-import { AIService } from '../lib/ai'           // you have src/lib/ai.ts, not aiService
+import { AIService } from '../lib/aiService'           
 import { toast } from 'sonner'
 
 type SessionsSetter = React.Dispatch<React.SetStateAction<ChatSession[]>>
