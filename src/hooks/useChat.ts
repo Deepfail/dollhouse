@@ -200,40 +200,18 @@ export function useChat() {
         return null;
       }
 
-      const provider = house.aiSettings?.provider || 'spark';
+      const provider = house.aiSettings?.provider || 'openrouter';
 
       // Check provider configuration
-      if (provider === 'spark') {
-        if (!window.spark || !window.spark.llm || !window.spark.llmPrompt) {
-          console.warn('Spark AI service not available, using fallback');
-          // Create a simple fallback response instead of showing error
-          const fallbackResponses = [
-            "I hear you!",
-            "That's interesting.",
-            "Tell me more about that.",
-            "I understand.",
-            "What do you think about that?"
-          ];
-          const response = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
-          
-          const message: ChatMessage = {
-            id: `msg-${Date.now()}-${characterId}`,
-            characterId,
-            content: response,
-            timestamp: new Date(),
-            type: 'text'
-          };
-          return message;
-        }
-      } else if (provider === 'openrouter') {
+      if (provider === 'openrouter') {
         if (!house.aiSettings?.apiKey) {
           console.error('OpenRouter API key not configured');
           toast.error('OpenRouter API key is not configured. Please add your API key in House Settings.');
           return null;
         }
       } else {
-        console.error('Unsupported AI provider:', provider);
-        toast.error(`Unsupported AI provider: ${provider}`);
+        console.error('Unsupported AI provider:', provider, '- Only OpenRouter is supported');
+        toast.error(`Unsupported AI provider: ${provider}. Only OpenRouter is supported.`);
         return null;
       }
 

@@ -22,7 +22,7 @@ export const useAutoCharacterCreator = () => {
   const createRandomCharacter = async (): Promise<Character> => {
     setIsCreating(true);
     try {
-      const character = await generateRandomCharacter(config);
+      const character = await generateRandomCharacter(config, house);
       
       // Add to house
       const updatedHouse = {

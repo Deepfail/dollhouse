@@ -120,9 +120,8 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
   }
 
   if (!currentSession) {
-    const provider = house.aiSettings?.provider || 'spark';
+    const provider = house.aiSettings?.provider || 'openrouter';
     const needsApiKey = provider === 'openrouter' && !house.aiSettings?.apiKey;
-    const sparkUnavailable = provider === 'spark' && (!window.spark || !window.spark.llm);
     const hasCharacters = house.characters && house.characters.length > 0;
     
     return (
@@ -214,10 +213,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                   Provider: {house.aiSettings?.provider || 'Not set'}<br/>
                   Has API Key: {house.aiSettings?.apiKey ? 'Yes' : 'No'}<br/>
                   Available Sessions: {sessions.length}<br/>
-                  Active Session Found: {currentSession ? 'Yes' : 'No'}<br/>
-                  Spark Available: {!!window.spark ? 'Yes' : 'No'}<br/>
-                  Spark LLM Available: {!!(window.spark && window.spark.llm) ? 'Yes' : 'No'}<br/>
-                  Spark LLMPrompt Available: {!!(window.spark && window.spark.llmPrompt) ? 'Yes' : 'No'}
+                  Active Session Found: {currentSession ? 'Yes' : 'No'}
                 </div>
                 
                 {/* Debug Actions */}

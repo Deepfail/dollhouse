@@ -25,10 +25,7 @@ function App() {
       chatSessionsCount: sessions.length,
       sceneSessionsCount: activeSessions.length,
       provider: house.aiSettings?.provider || 'not set',
-      hasApiKey: !!house.aiSettings?.apiKey,
-      sparkAvailable: !!window.spark,
-      sparkLLMAvailable: !!(window.spark && window.spark.llm),
-      sparkLLMPromptAvailable: !!(window.spark && window.spark.llmPrompt)
+      hasApiKey: !!house.aiSettings?.apiKey
     };
 
     console.log('=== App Debug Information ===');

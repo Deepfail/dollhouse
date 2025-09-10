@@ -92,7 +92,7 @@ export function Copilot() {
     setIsTyping(true);
 
     try {
-      // Generate copilot response using spark.llm
+      // Generate copilot response using OpenRouter
       const houseContext = {
         characterCount: house.characters.length,
         avgRelationship: house.characters.length > 0 
@@ -112,14 +112,14 @@ export function Copilot() {
       // Use the custom copilot prompt from house settings, with fallback
       const copilotPersonality = house.copilotPrompt || `You are a helpful House Manager copilot for a character creator house application. You monitor characters, provide status updates, and assist users with managing their virtual house and characters.`;
 
-      const prompt = spark.llmPrompt`${copilotPersonality}
+      const promptContent = `${copilotPersonality}
 
 Current house status:
 - ${houseContext.characterCount} characters
 - Average relationship: ${houseContext.avgRelationship}%
 - Average happiness: ${houseContext.avgHappiness}%  
 - Average energy: ${houseContext.avgEnergy}%
-- AI Provider: ${houseContext.aiProvider || 'spark'}
+- AI Provider: ${houseContext.aiProvider || 'openrouter'}
 - API Key configured: ${houseContext.hasApiKey ? 'Yes' : 'No'}
 - World Setting: ${house.worldPrompt || 'Default character house setting'}
 
@@ -131,12 +131,47 @@ User message: "${userMessage.content}"
 
 Respond according to your personality and role as defined above. Be helpful and stay in character. Keep responses conversational and engaging.`;
 
-      const response = await spark.llm(prompt);
+      const apiKey = house.aiSettings?.apiKey;
+      if (!apiKey) {
+        throw new Error('OpenRouter API key not configured');
+      }
+
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': window.location.origin,
+          'X-Title': 'Character Creator House'
+        },
+        body: JSON.stringify({
+          model: house.aiSettings.model || 'deepseek/deepseek-chat-v3.1',
+          messages: [
+            {
+              role: 'user',
+              content: promptContent
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 500
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenRouter API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const responseContent = data.choices[0]?.message?.content;
+
+      if (!responseContent) {
+        throw new Error('Empty response from OpenRouter');
+      }
 
       const copilotMessage: CopilotMessage = {
         id: `copilot-${Date.now()}`,
         sender: 'copilot',
-        content: response,
+        content: responseContent,
         timestamp: new Date()
       };
 

@@ -59,7 +59,7 @@ function determineRarity(weights: { common: number; rare: number; legendary: num
   return 'legendary';
 }
 
-export async function generateRandomCharacter(config: AutoCharacterConfig): Promise<Character> {
+export async function generateRandomCharacter(config: AutoCharacterConfig, house?: any): Promise<Character> {
   // Choose theme
   const theme = getRandomElement(config.themes);
   const themeData = CHARACTER_THEMES[theme as keyof typeof CHARACTER_THEMES] || CHARACTER_THEMES.modern;
@@ -106,10 +106,36 @@ Generate:
 Format as JSON with keys: personality, background, systemPrompt`;
 
   try {
-    // Check if spark is available for character generation
-    if (window.spark?.llm && window.spark?.llmPrompt) {
-      const formattedPrompt = window.spark.llmPrompt`${characterPrompt}`;
-      const characterData = await window.spark.llm(formattedPrompt, 'gpt-4o', true); // Use JSON mode
+    // Use OpenRouter for character generation
+    const apiKey = house?.aiSettings?.apiKey;
+    if (!apiKey) {
+      throw new Error('OpenRouter API key not configured');
+    }
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'Character Creator House'
+      },
+      body: JSON.stringify({
+        model: house?.aiSettings?.model || 'deepseek/deepseek-chat-v3.1',
+        messages: [
+          {
+            role: 'user',
+            content: characterPrompt
+          }
+        ],
+        temperature: 0.8,
+        max_tokens: 1000
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const characterData = data.choices[0]?.message?.content;
       
       if (characterData) {
         let parsedData: any;
@@ -152,7 +178,7 @@ Format as JSON with keys: personality, background, systemPrompt`;
       }
     }
     
-    throw new Error('AI service not available');
+    throw new Error('OpenRouter API call failed');
   } catch (error) {
     console.error('Failed to generate character with AI, using fallback:', error);
     
@@ -185,7 +211,7 @@ Format as JSON with keys: personality, background, systemPrompt`;
   }
 }
 
-export async function generateCharactersByTheme(theme: string, count: number): Promise<Character[]> {
+export async function generateCharactersByTheme(theme: string, count: number, house?: any): Promise<Character[]> {
   const characters: Character[] = [];
   const config: AutoCharacterConfig = {
     themes: [theme],
@@ -195,7 +221,7 @@ export async function generateCharactersByTheme(theme: string, count: number): P
   };
   
   for (let i = 0; i < count; i++) {
-    const character = await generateRandomCharacter(config);
+    const character = await generateRandomCharacter(config, house);
     characters.push(character);
   }
   

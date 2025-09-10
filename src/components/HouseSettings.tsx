@@ -36,8 +36,8 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   const [currency, setCurrency] = useState(house.currency);
   
   // AI Settings state  
-  const [provider, setProvider] = useState(house.aiSettings?.provider || 'spark');
-  const [selectedModel, setSelectedModel] = useState(house.aiSettings?.model || 'gpt-4o');
+  const [provider, setProvider] = useState(house.aiSettings?.provider || 'openrouter');
+  const [selectedModel, setSelectedModel] = useState(house.aiSettings?.model || 'deepseek/deepseek-chat-v3.1');
   const [apiKey, setApiKey] = useState(house.aiSettings?.apiKey || '');
   const [imageProvider, setImageProvider] = useState(house.aiSettings?.imageProvider || 'venice');
   const [imageApiKey, setImageApiKey] = useState(house.aiSettings?.imageApiKey || '');
@@ -54,7 +54,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     setWorldPrompt(house.worldPrompt || '');
     setCopilotPrompt(house.copilotPrompt || '');
     setCurrency(house.currency);
-    setProvider(house.aiSettings?.provider || 'spark');
+    setProvider(house.aiSettings?.provider || 'openrouter');
     setSelectedModel(house.aiSettings?.model || 'gpt-4o');
     setApiKey(house.aiSettings?.apiKey || '');
     setImageProvider(house.aiSettings?.imageProvider || 'venice');
@@ -73,7 +73,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       currency,
       aiSettings: {
         ...house.aiSettings,
-        provider: provider as 'openrouter' | 'local' | 'spark',
+        provider: provider as 'openrouter',
         model: selectedModel,
         apiKey,
         imageProvider: imageProvider as 'venice' | 'none',
@@ -109,7 +109,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     
     const newApiSettings = {
       ...house.aiSettings,
-      provider: provider as 'openrouter' | 'local' | 'spark',
+      provider: provider as 'openrouter',
       model: selectedModel,
       apiKey,
       imageProvider: imageProvider as 'venice' | 'none',
@@ -238,7 +238,6 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="openrouter">OpenRouter</SelectItem>
-                        <SelectItem value="spark">Spark (Built-in)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -278,24 +277,6 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                         </Select>
                       </div>
                     </>
-                  )}
-
-                  {provider === 'spark' && (
-                    <div className="space-y-2">
-                      <Label htmlFor="spark-model">Spark AI Model</Label>
-                      <Select
-                        value={selectedModel}
-                        onValueChange={setSelectedModel}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select Spark model" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="gpt-4o">GPT-4o (Default)</SelectItem>
-                          <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
                   )}
 
                   <Card>

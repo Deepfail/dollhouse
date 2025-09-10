@@ -212,16 +212,12 @@ System prompt for character behavior: ${character.prompts.system}`;
       const provider = house.aiSettings?.provider || 'openrouter';
 
       // Check provider configuration
-      if (provider === 'spark') {
-        if (!window.spark || !window.spark.llm || !window.spark.llmPrompt) {
-          throw new Error('Spark AI service is not available. Please ensure you\'re running in a Spark environment.');
-        }
-      } else if (provider === 'openrouter') {
+      if (provider === 'openrouter') {
         if (!house.aiSettings?.apiKey) {
           throw new Error('OpenRouter API key is required. Please configure it in House Settings.');
         }
       } else {
-        throw new Error(`Unsupported AI provider: ${provider}`);
+        throw new Error(`Unsupported AI provider: ${provider}. Only OpenRouter is supported.`);
       }
 
       console.log(`Calling AI service for character response using ${provider}...`);

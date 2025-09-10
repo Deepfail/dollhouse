@@ -76,15 +76,41 @@ Format as JSON object with character names as keys and objectives as values.
 Each objective should be 1-2 sentences describing what the character wants to achieve.`;
 
     try {
-      // Check if Spark AI service is available
-      if (!window.spark || !window.spark.llm || !window.spark.llmPrompt) {
-        throw new Error('AI service not available');
+      // Use OpenRouter for objective generation
+      const apiKey = house.aiSettings?.apiKey;
+      if (!apiKey) {
+        throw new Error('OpenRouter API key not configured');
       }
 
-      const formattedPrompt = window.spark.llmPrompt`${objectivePrompt}`;
-      const response = await window.spark.llm(formattedPrompt, 'gpt-4o');
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': window.location.origin,
+          'X-Title': 'Character Creator House'
+        },
+        body: JSON.stringify({
+          model: house.aiSettings.model || 'deepseek/deepseek-chat-v3.1',
+          messages: [
+            {
+              role: 'user',
+              content: objectivePrompt
+            }
+          ],
+          temperature: 0.8,
+          max_tokens: 800
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenRouter API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const responseContent = data.choices[0]?.message?.content;
       
-      if (!response) {
+      if (!responseContent) {
         throw new Error('No response from AI service');
       }
       
@@ -92,7 +118,7 @@ Each objective should be 1-2 sentences describing what the character wants to ac
       let generatedObjectives: Record<string, string> = {};
       
       try {
-        generatedObjectives = JSON.parse(response);
+        generatedObjectives = JSON.parse(responseContent);
       } catch {
         // If JSON parsing fails, create simple objectives
         selectedCharacters.forEach((characterId, index) => {

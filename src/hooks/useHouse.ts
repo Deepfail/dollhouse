@@ -106,9 +106,9 @@ const DEFAULT_HOUSE: House = {
     themes: ['fantasy', 'sci-fi', 'modern']
   },
   aiSettings: {
-    provider: 'spark', // Default to Spark since it's built-in
-    model: 'gpt-4o',
-    apiKey: '', // User can add OpenRouter key if they want
+    provider: 'openrouter', // Default to OpenRouter
+    model: 'deepseek/deepseek-chat-v3.1',
+    apiKey: '', // User needs to add OpenRouter key
     imageProvider: 'venice',
     imageApiKey: '' // User needs to add their Venice AI API key for image generation
   },
@@ -122,16 +122,16 @@ export function useHouse() {
   // Ensure house is never undefined by providing the default
   const safeHouse = house || DEFAULT_HOUSE;
   
-  // Migration: Fix any houses that have openrouter without API key
+  // Migration: Update old Spark settings to OpenRouter
   useEffect(() => {
-    if (safeHouse.aiSettings?.provider === 'openrouter' && !safeHouse.aiSettings?.apiKey) {
-      console.log('Migrating house settings: switching from openrouter to spark due to missing API key');
+    if (safeHouse.aiSettings?.provider === 'spark') {
+      console.log('Migrating house settings: switching from spark to openrouter');
       setHouse(current => ({
         ...current,
         aiSettings: {
           ...current.aiSettings,
-          provider: 'spark',
-          model: 'gpt-4o'
+          provider: 'openrouter',
+          model: 'deepseek/deepseek-chat-v3.1'
         }
       }));
     }
