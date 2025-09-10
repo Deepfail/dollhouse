@@ -155,19 +155,24 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       model: selectedModel,
       apiKey: apiKey.trim(), // Ensure no whitespace issues
       imageProvider: imageProvider as 'venice' | 'none',
-      imageApiKey: imageApiKey.trim()
+      imageApiKey: imageApiKey.trim(),
+      // Preserve existing AI settings that we don't show in the form
+      temperature: house.aiSettings?.temperature || 0.7,
+      maxTokens: house.aiSettings?.maxTokens || 512
     };
     
     console.log('New AI settings being saved:', newApiSettings);
     
     try {
-      // Update the house with new AI settings
-      updateHouse({
-        aiSettings: newApiSettings
-      });
+      // Use functional update to ensure we get the latest house state
+      updateHouse(currentHouse => ({
+        ...currentHouse,
+        aiSettings: newApiSettings,
+        updatedAt: new Date()
+      }));
       
       // Wait a bit to ensure the KV store is updated
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 200));
       
       // Trigger a force update to ensure other components re-render
       setForceUpdate(current => (current || 0) + 1);
@@ -175,10 +180,10 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       console.log('API settings save completed successfully');
       toast.success('API settings saved successfully');
       
-      // Verify the save worked
+      // Verify the save worked after a short delay
       setTimeout(() => {
         console.log('Verification check - House AI settings after save:', house.aiSettings);
-      }, 200);
+      }, 500);
       
     } catch (error) {
       console.error('Failed to save API settings:', error);

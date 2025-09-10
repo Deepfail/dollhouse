@@ -123,91 +123,112 @@ export function useChat() {
       return;
     }
 
+    // Check API configuration before sending message
+    if (!house?.aiSettings?.apiKey?.trim()) {
+      console.error('No API key configured');
+      toast.error('Please configure your OpenRouter API key in House Settings.');
+      return;
+    }
+
     console.log('Sending message:', content, 'in session:', activeSession.id);
 
-    const message: ChatMessage = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      characterId,
-      content,
-      timestamp: new Date(),
-      type: 'text'
-    };
+    try {
+      const message: ChatMessage = {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        characterId,
+        content,
+        timestamp: new Date(),
+        type: 'text'
+      };
 
-    // Update the session with the new message first
-    setSessions(current => {
-      const currentSessions = current || [];
-      const updated = currentSessions.map(session =>
-        session.id === activeSessionId
-          ? {
-              ...session,
-              messages: [...session.messages, message],
-              updatedAt: new Date()
-            }
-          : session
-      );
-      console.log('Sessions after message add:', updated.map(s => ({ id: s.id.slice(0, 8), messageCount: s.messages.length })));
-      return updated;
-    });
-
-    // If this is a user message, trigger AI responses and process interactions
-    if (!characterId && activeSession.participantIds.length > 0) {
-      console.log('Triggering AI responses for participants:', activeSession.participantIds);
-      
-      // Process relationship interactions for each character in the session
-      activeSession.participantIds.forEach(participantId => {
-        const character = house.characters?.find(c => c.id === participantId);
-        if (character) {
-          processUserMessage(participantId, content, character);
-          // Randomly trigger milestone events
-          if (Math.random() < 0.1) {
-            triggerMilestoneEvents(participantId, character);
-          }
-        }
+      // Update the session with the new message first
+      setSessions(current => {
+        const currentSessions = current || [];
+        const updated = currentSessions.map(session =>
+          session.id === activeSessionId
+            ? {
+                ...session,
+                messages: [...(session.messages || []), message],
+                updatedAt: new Date()
+              }
+            : session
+        );
+        console.log('Sessions after message add:', updated.map(s => ({ id: s.id.slice(0, 8), messageCount: s.messages?.length || 0 })));
+        return updated;
       });
-      
-      // Don't await this - let it run in background
-      setTimeout(() => {
-        generateAIResponses(activeSession.id, message);
-      }, 500);
+
+      // If this is a user message, trigger AI responses and process interactions
+      if (!characterId && activeSession.participantIds && activeSession.participantIds.length > 0) {
+        console.log('Triggering AI responses for participants:', activeSession.participantIds);
+        
+        // Process relationship interactions for each character in the session
+        activeSession.participantIds.forEach(participantId => {
+          const character = house?.characters?.find(c => c.id === participantId);
+          if (character) {
+            processUserMessage(participantId, content, character);
+            // Randomly trigger milestone events
+            if (Math.random() < 0.1) {
+              triggerMilestoneEvents(participantId, character);
+            }
+          }
+        });
+        
+        // Don't await this - let it run in background
+        setTimeout(() => {
+          generateAIResponses(activeSession.id, message);
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Error in sendMessage:', error);
+      toast.error('Failed to send message');
     }
   };
 
   const generateAIResponses = async (sessionId: string, userMessage: ChatMessage) => {
-    // Get fresh session state
-    const session = safeSessions.find(s => s.id === sessionId);
-    if (!session) {
-      console.error('Session not found for AI response generation:', sessionId);
-      return;
-    }
+    try {
+      // Get fresh session state
+      const session = safeSessions.find(s => s.id === sessionId);
+      if (!session) {
+        console.error('Session not found for AI response generation:', sessionId);
+        return;
+      }
 
-    console.log('Generating AI responses for session:', sessionId, 'participants:', session.participantIds);
+      console.log('Generating AI responses for session:', sessionId, 'participants:', session.participantIds);
 
-    // Generate responses for each character, with staggered timing
-    for (let i = 0; i < session.participantIds.length; i++) {
-      const characterId = session.participantIds[i];
-      const delay = Math.random() * 1500 + 500 + (i * 1000); // Stagger responses
-      
-      setTimeout(async () => {
-        try {
-          const response = await generateCharacterResponse(characterId, userMessage, session);
-          if (response) {
-            setSessions(current => {
-              const currentSessions = current || [];
-              return currentSessions.map(s =>
-                s.id === sessionId
-                  ? {
-                      ...s,
-                      messages: [...s.messages, response],
-                      updatedAt: new Date()
-                    }
-                  : s
-              );
-            });
+      if (!session.participantIds || session.participantIds.length === 0) {
+        console.warn('No participants in session for AI response');
+        return;
+      }
+
+      // Generate responses for each character, with staggered timing
+      for (let i = 0; i < session.participantIds.length; i++) {
+        const characterId = session.participantIds[i];
+        const delay = Math.random() * 1500 + 500 + (i * 1000); // Stagger responses
+        
+        setTimeout(async () => {
+          try {
+            const response = await generateCharacterResponse(characterId, userMessage, session);
+            if (response) {
+              setSessions(current => {
+                const currentSessions = current || [];
+                return currentSessions.map(s =>
+                  s.id === sessionId
+                    ? {
+                        ...s,
+                        messages: [...(s.messages || []), response],
+                        updatedAt: new Date()
+                      }
+                    : s
+                );
+              });
+            }
+          } catch (error) {
+            console.error(`Error generating response for character ${characterId}:`, error);
           }
-        } catch (error) {
-          console.error(`Error generating response for character ${characterId}:`, error);
-        }
-      }, delay);
+        }, delay);
+      }
+    } catch (error) {
+      console.error('Error in generateAIResponses:', error);
     }
   };
 
@@ -217,17 +238,17 @@ export function useChat() {
     session: ChatSession
   ): Promise<ChatMessage | null> => {
     try {
-      const character = house.characters?.find(c => c.id === characterId);
+      const character = house?.characters?.find(c => c.id === characterId);
       if (!character) {
         console.error('Character not found:', characterId);
         return null;
       }
 
-      const provider = house.aiSettings?.provider || 'openrouter';
+      const provider = house?.aiSettings?.provider || 'openrouter';
 
       // Check provider configuration
       if (provider === 'openrouter') {
-        if (!house.aiSettings?.apiKey?.trim()) {
+        if (!house?.aiSettings?.apiKey?.trim()) {
           console.error('OpenRouter API key not configured');
           toast.error('OpenRouter API key is not configured. Please add your API key in House Settings.');
           return null;
@@ -239,10 +260,10 @@ export function useChat() {
       }
 
       // Get conversation history for context
-      const recentMessages = session.messages.slice(-10);
+      const recentMessages = (session.messages || []).slice(-10);
       const conversationContext = recentMessages.map(msg => {
         if (msg.characterId) {
-          const char = house.characters?.find(c => c.id === msg.characterId);
+          const char = house?.characters?.find(c => c.id === msg.characterId);
           return `${char?.name || 'Unknown'}: ${msg.content}`;
         }
         return `User: ${msg.content}`;
@@ -283,7 +304,7 @@ Character Details:`;
       }
 
       // Add world context if available
-      if (house.worldPrompt) {
+      if (house?.worldPrompt) {
         characterPrompt += `\n\nWorld Context: ${house.worldPrompt}`;
       }
 
@@ -329,33 +350,32 @@ Respond as ${character.name} would, staying true to your character. Keep respons
         console.warn(`AI response failed: ${errorMessage}, using fallback`);
       }
       
-// Always provide a fallback response instead of failing completely
-const charRef = house.characters?.find(c => c.id === characterId);
+      // Always provide a fallback response instead of failing completely
+      const charRef = house?.characters?.find(c => c.id === characterId);
 
-const fallbackResponses = [
-  `*${charRef?.name || 'Character'} nods thoughtfully*`,
-  `I see what you mean.`,
-  `That's fascinating!`,
-  `*${charRef?.name || 'Character'} considers your words*`,
-  `Tell me more about that.`
-];
-const response = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
+      const fallbackResponses = [
+        `*${charRef?.name || 'Character'} nods thoughtfully*`,
+        `I see what you mean.`,
+        `That's fascinating!`,
+        `*${charRef?.name || 'Character'} considers your words*`,
+        `Tell me more about that.`
+      ];
+      const response = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
 
-const message: ChatMessage = {
-  id: `msg-${Date.now()}-${characterId}`,
-  characterId,
-  content: response,
-  timestamp: new Date(),
-  type: 'text'
-};
+      const message: ChatMessage = {
+        id: `msg-${Date.now()}-${characterId}`,
+        characterId,
+        content: response,
+        timestamp: new Date(),
+        type: 'text'
+      };
 
-// Process character response for relationship building
-if (charRef) {
-  processCharacterResponse(characterId, response, charRef);
-}
+      // Process character response for relationship building
+      if (charRef) {
+        processCharacterResponse(characterId, response, charRef);
+      }
 
-return message;
-
+      return message;
     }
   };
 

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useKV } from '@github/spark/hooks'
 
-import { ChatSession, Character, ChatMessage, SceneObjective } from '../lib/types'
+import { ChatSession, Character, ChatMessage, SceneObjective } from '@/types'
 import { useHouse } from './useHouse'           // if your hook lives elsewhere, fix this path
-import { AIService } from '../lib/aiService'           
+import { AIService } from '@/lib/aiService'           
 import { toast } from 'sonner'
 
 export const useSceneMode = () => {

@@ -13,70 +13,74 @@ function App() {
   const [currentView, setCurrentView] = useState<'house' | 'chat' | 'scene'>('house');
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const { createSession, sessions, switchToSession, setActiveSessionId: setChatActiveSessionId } = useChat();
-  const { activeSessions } = useSceneMode();
+  const { activeSessions, getSession } = useSceneMode();
   const { house } = useHouse();
 
-  // Debug logging
+  // Debug logging with error handling
   useEffect(() => {
-    const debugInfo = {
-      currentView,
-      activeSessionId,
-      charactersCount: house.characters?.length || 0,
-      chatSessionsCount: sessions.length,
-      sceneSessionsCount: activeSessions.length,
-      provider: house.aiSettings?.provider || 'not set',
-      hasApiKey: !!house.aiSettings?.apiKey
-    };
+    try {
+      const debugInfo = {
+        currentView,
+        activeSessionId,
+        charactersCount: house?.characters?.length || 0,
+        chatSessionsCount: sessions?.length || 0,
+        sceneSessionsCount: activeSessions?.length || 0,
+        provider: house?.aiSettings?.provider || 'not set',
+        hasApiKey: !!(house?.aiSettings?.apiKey?.trim())
+      };
 
-    console.log('=== App Debug Information ===');
-    console.log('Debug Info:', debugInfo);
-    
-    if (house.characters && house.characters.length > 0) {
-      console.log('Available Characters:');
-      house.characters.forEach(char => {
-        console.log(`• ${char.name} (${char.id.slice(0, 8)}...)`);
-      });
-    }
-    
-    if (sessions.length > 0) {
-      console.log('Available Sessions:');
-      sessions.forEach(session => {
-        console.log(`• ${session.type} - ${session.id.slice(0, 8)}... (${session.participantIds.length} participants)`);
-      });
-    }
-    
-    if (activeSessionId) {
-      const activeSession = sessions.find(s => s.id === activeSessionId);
-      console.log('Active Session Found:', activeSession ? 'YES' : 'NO');
-      if (activeSession) {
-        console.log('Active Session Details:', {
-          id: activeSession.id.slice(0, 8) + '...',
-          type: activeSession.type,
-          messageCount: activeSession.messages.length,
-          participants: activeSession.participantIds.length
+      console.log('=== App Debug Information ===');
+      console.log('Debug Info:', debugInfo);
+      
+      if (house?.characters && house.characters.length > 0) {
+        console.log('Available Characters:');
+        house.characters.forEach(char => {
+          console.log(`• ${char.name} (${char.id.slice(0, 8)}...)`);
         });
       }
+      
+      if (sessions && sessions.length > 0) {
+        console.log('Available Sessions:');
+        sessions.forEach(session => {
+          console.log(`• ${session.type} - ${session.id.slice(0, 8)}... (${session.participantIds?.length || 0} participants)`);
+        });
+      }
+      
+      if (activeSessionId) {
+        const activeSession = sessions?.find(s => s.id === activeSessionId);
+        console.log('Active Session Found:', activeSession ? 'YES' : 'NO');
+        if (activeSession) {
+          console.log('Active Session Details:', {
+            id: activeSession.id.slice(0, 8) + '...',
+            type: activeSession.type,
+            messageCount: activeSession.messages?.length || 0,
+            participants: activeSession.participantIds?.length || 0
+          });
+        }
+      }
+      
+      console.log('=== End App Debug ===');
+    } catch (error) {
+      console.error('Error in debug logging:', error);
     }
-    
-    console.log('=== End App Debug ===');
   }, [house, sessions, activeSessions, currentView, activeSessionId]);
 
   const handleStartChat = async (characterId: string) => {
     console.log('=== handleStartChat called ===');
     console.log('Character ID:', characterId);
     
-    if (!house.characters || house.characters.length === 0) {
-      toast.error('No characters available');
-      return;
-    }
-    
-    const character = house.characters.find(c => c.id === characterId);
-    if (!character) {
-      toast.error('Character not found');
-      return;
-    }
-    
     try {
+      if (!house?.characters || house.characters.length === 0) {
+        toast.error('No characters available');
+        return;
+      }
+      
+      const character = house.characters.find(c => c.id === characterId);
+      if (!character) {
+        toast.error('Character not found');
+        return;
+      }
+      
       // Clear any existing active session to avoid conflicts
       setActiveSessionId(null);
       
@@ -112,7 +116,7 @@ function App() {
         toast.success('Started group chat');
       } else {
         // Create new group chat with all characters
-        const characterIds = (house.characters || []).map(c => c.id);
+        const characterIds = (house?.characters || []).map(c => c.id);
         console.log('Character IDs for group chat:', characterIds);
         
         if (characterIds.length > 1) {
@@ -142,16 +146,34 @@ function App() {
   const handleStartScene = (sessionId: string) => {
     console.log('handleStartScene called with sessionId:', sessionId);
     
-    // Simply set the active session and switch view
-    setActiveSessionId(sessionId);
-    setCurrentView('scene');
-    
-    toast.success('Scene started! Session ID: ' + sessionId.slice(0, 12));
+    try {
+      // Check if the scene session exists
+      const sceneSession = getSession ? getSession(sessionId) : activeSessions?.find(s => s.id === sessionId);
+      
+      if (!sceneSession) {
+        console.error('Scene session not found:', sessionId);
+        toast.error('Scene session not found: ' + sessionId.slice(0, 12));
+        return;
+      }
+      
+      // Simply set the active session and switch view
+      setActiveSessionId(sessionId);
+      setCurrentView('scene');
+      
+      toast.success('Scene started! Session ID: ' + sessionId.slice(0, 12));
+    } catch (error) {
+      console.error('Error in handleStartScene:', error);
+      toast.error('Failed to start scene');
+    }
   };
 
   const handleBackToHouse = () => {
-    setCurrentView('house');
-    setActiveSessionId(null);
+    try {
+      setCurrentView('house');
+      setActiveSessionId(null);
+    } catch (error) {
+      console.error('Error in handleBackToHouse:', error);
+    }
   };
 
   return (

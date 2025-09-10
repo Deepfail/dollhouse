@@ -433,19 +433,29 @@ export function useHouse() {
     });
   };
 
-  const updateHouse = (updates: Partial<House>) => {
+  const updateHouse = (updates: Partial<House> | ((current: House) => House)) => {
     console.log('=== useHouse.updateHouse called ===');
-    console.log('Updates being applied:', updates);
+    console.log('Updates type:', typeof updates);
     
     setHouse(current => {
       const currentHouse = current || DEFAULT_HOUSE;
       console.log('Current house before update:', currentHouse);
       
-      const updated = {
-        ...currentHouse,
-        ...updates,
-        updatedAt: new Date()
-      };
+      let updated: House;
+      
+      if (typeof updates === 'function') {
+        // Functional update - call the function with current house
+        updated = updates(currentHouse);
+        console.log('Functional update applied');
+      } else {
+        // Object update - merge with current house
+        updated = {
+          ...currentHouse,
+          ...updates,
+          updatedAt: new Date()
+        };
+        console.log('Object update applied:', updates);
+      }
       
       console.log('House after update applied:', updated);
       console.log('New AI settings:', updated.aiSettings);
