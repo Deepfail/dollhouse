@@ -109,7 +109,10 @@ export function Copilot() {
         hasApiKey: !!house.aiSettings?.apiKey
       };
 
-      const prompt = spark.llmPrompt`You are a helpful House Manager copilot for a character creator house application. You monitor characters, provide status updates, and assist users with managing their virtual house and characters.
+      // Use the custom copilot prompt from house settings, with fallback
+      const copilotPersonality = house.copilotPrompt || `You are a helpful House Manager copilot for a character creator house application. You monitor characters, provide status updates, and assist users with managing their virtual house and characters.`;
+
+      const prompt = spark.llmPrompt`${copilotPersonality}
 
 Current house status:
 - ${houseContext.characterCount} characters
@@ -118,6 +121,7 @@ Current house status:
 - Average energy: ${houseContext.avgEnergy}%
 - AI Provider: ${houseContext.aiProvider || 'spark'}
 - API Key configured: ${houseContext.hasApiKey ? 'Yes' : 'No'}
+- World Setting: ${house.worldPrompt || 'Default character house setting'}
 
 Characters: ${JSON.stringify(houseContext.characters)}
 
@@ -125,14 +129,7 @@ Recent updates: ${JSON.stringify(safeUpdates.slice(-3))}
 
 User message: "${userMessage.content}"
 
-Respond as a knowledgeable, friendly house manager who can:
-- Provide insights about character stats and needs
-- Suggest activities or improvements
-- Help troubleshoot issues
-- Offer advice on character management
-- Explain house features
-
-Keep responses concise but helpful (2-3 sentences max unless more detail is specifically requested).`;
+Respond according to your personality and role as defined above. Be helpful and stay in character. Keep responses conversational and engaging.`;
 
       const response = await spark.llm(prompt);
 
