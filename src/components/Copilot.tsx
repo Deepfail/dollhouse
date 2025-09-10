@@ -160,7 +160,7 @@ Respond according to your personality and role as defined above. Be helpful and 
           'HTTP-Referer': window.location.origin,
           'X-Title': 'Character Creator House'
         },
-          messages: [
+        body: JSON.stringify({
           model: house.aiSettings.model || 'deepseek/deepseek-chat-v3.1',
           messages: [
             {
