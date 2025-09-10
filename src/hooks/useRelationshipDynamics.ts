@@ -8,16 +8,16 @@ export function useRelationshipDynamics() {
   const [unlockableContent, setUnlockableContent] = useKV<UnlockableContent[]>('unlockable-content', []);
 
   // Update relationship stats
-  const updateRelationshipStats = useCallback((characterId: string, updates: {
-    affection?: number;
-    trust?: number;
-    intimacy?: number;
-    dominance?: number;
-    arousal?: number;
-    wet?: number;
-    relationship?: number;
-    happiness?: number;
-  }) => {
+    setCharacters(currentCharacters => 
+        if (char.id !==
+        const updat
+        // Update rela
+          updatedChar.r
+        if (updates.t
+        }
+          updatedChar.rela
+        if (updates.dom
+        }
     setCharacters(currentCharacters => 
       currentCharacters.map(char => {
         if (char.id !== characterId) return char;
@@ -27,7 +27,7 @@ export function useRelationshipDynamics() {
         // Update relationship dynamics
         if (updates.affection !== undefined) {
           updatedChar.relationshipDynamics.affection = Math.max(0, Math.min(100, updates.affection));
-        }
+         
         if (updates.trust !== undefined) {
           updatedChar.relationshipDynamics.trust = Math.max(0, Math.min(100, updates.trust));
         }
@@ -37,11 +37,11 @@ export function useRelationshipDynamics() {
         if (updates.dominance !== undefined) {
           updatedChar.relationshipDynamics.dominance = Math.max(0, Math.min(100, updates.dominance));
         }
-        
+    setC
         // Update sexual progression
         if (updates.arousal !== undefined) {
           updatedChar.sexualProgression.arousal = Math.max(0, Math.min(100, updates.arousal));
-        }
+         
         
         // Update main stats
         if (updates.wet !== undefined) {
@@ -54,25 +54,25 @@ export function useRelationshipDynamics() {
           updatedChar.stats.happiness = Math.max(0, Math.min(100, updates.happiness));
         }
         
-        updatedChar.updatedAt = new Date();
+            updatedChar.relationshipDynamic
         return updatedChar;
-      })
+        
     );
-  }, [setCharacters]);
+          }
 
-  // Add relationship event
+              updatedChar.r
   const addRelationshipEvent = useCallback((characterId: string, event: Omit<RelationshipEvent, 'id' | 'timestamp'>) => {
     setCharacters(currentCharacters =>
       currentCharacters.map(char => {
         if (char.id !== characterId) return char;
         
-        const newEvent: RelationshipEvent = {
+    toast.success(`Relationship event: ${even
           ...event,
           id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           timestamp: new Date()
-        };
+      curr
         
-        const updatedChar = { ...char };
+        const newEvent: SexualEvent = {
         updatedChar.relationshipDynamics.significantEvents.push(newEvent);
         
         // Apply stat impacts
@@ -80,15 +80,15 @@ export function useRelationshipDynamics() {
           if (event.impact.affection) {
             updatedChar.relationshipDynamics.affection = Math.max(0, Math.min(100, 
               updatedChar.relationshipDynamics.affection + event.impact.affection));
-          }
+           
           if (event.impact.trust) {
-            updatedChar.relationshipDynamics.trust = Math.max(0, Math.min(100,
+          });
               updatedChar.relationshipDynamics.trust + event.impact.trust));
-          }
+      })
           if (event.impact.intimacy) {
             updatedChar.relationshipDynamics.intimacy = Math.max(0, Math.min(100,
               updatedChar.relationshipDynamics.intimacy + event.impact.intimacy));
-          }
+  // Check 
           if (event.impact.dominance) {
             updatedChar.relationshipDynamics.dominance = Math.max(0, Math.min(100,
               updatedChar.relationshipDynamics.dominance + event.impact.dominance));
@@ -96,9 +96,9 @@ export function useRelationshipDynamics() {
         }
         
         updatedChar.updatedAt = new Date();
-        return updatedChar;
+          if (milestone.ach
       })
-    );
+      
     
     toast.success(`Relationship event: ${event.description}`);
   }, [setCharacters]);
@@ -110,7 +110,7 @@ export function useRelationshipDynamics() {
         if (char.id !== characterId) return char;
         
         const newEvent: SexualEvent = {
-          ...event,
+            hasNewU
           id: `sexual_event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           timestamp: new Date()
         };
@@ -124,13 +124,13 @@ export function useRelationshipDynamics() {
             if (!updatedChar.sexualProgression.unlockedPositions.includes(unlock)) {
               updatedChar.sexualProgression.unlockedPositions.push(unlock);
             }
-          });
+            }
         }
         
         updatedChar.updatedAt = new Date();
-        return updatedChar;
+        if (hasNewUnlocks) 
       })
-    );
+      
     
     toast.success(`Sexual milestone: ${event.description}`);
   }, [setCharacters]);
@@ -138,7 +138,7 @@ export function useRelationshipDynamics() {
   // Check and unlock sexual milestones
   const checkSexualMilestones = useCallback((characterId: string) => {
     setCharacters(currentCharacters =>
-      currentCharacters.map(char => {
+        const { affection, trust, int
         if (char.id !== characterId) return char;
         
         const updatedChar = { ...char };
@@ -148,35 +148,35 @@ export function useRelationshipDynamics() {
           if (milestone.achieved) return;
           
           // Check if requirements are met
-          let requirementsMet = true;
+        } else if (avgRelationship >=
           
           if (milestone.requiredStats.relationship && char.stats.relationship < milestone.requiredStats.relationship) {
             requirementsMet = false;
-          }
+          u
           if (milestone.requiredStats.wet && char.stats.wet < milestone.requiredStats.wet) {
             requirementsMet = false;
-          }
+      })
           if (milestone.requiredStats.trust && char.relationshipDynamics.trust < milestone.requiredStats.trust) {
-            requirementsMet = false;
+
           }
           if (milestone.requiredStats.intimacy && char.relationshipDynamics.intimacy < milestone.requiredStats.intimacy) {
             requirementsMet = false;
           }
-          
+    return
           if (requirementsMet) {
             milestone.achieved = true;
             milestone.achievedAt = new Date();
-            hasNewUnlocks = true;
+      if (content.requirements.we
             
-            // Apply rewards
+      
             if (milestone.rewards.unlocks) {
               milestone.rewards.unlocks.forEach(unlock => {
                 if (!updatedChar.sexualProgression.unlockedPositions.includes(unlock)) {
                   updatedChar.sexualProgression.unlockedPositions.push(unlock);
                 }
-              });
+        affection
             }
-            
+        domi
             if (milestone.rewards.statBoosts) {
               Object.entries(milestone.rewards.statBoosts).forEach(([stat, boost]) => {
                 if (stat === 'wet') {
@@ -202,7 +202,7 @@ export function useRelationshipDynamics() {
     );
   }, [setCharacters]);
 
-  // Update relationship status based on stats
+            id: 'first_intimate_touch',
   const updateRelationshipStatus = useCallback((characterId: string) => {
     setCharacters(currentCharacters =>
       currentCharacters.map(char => {
@@ -214,46 +214,46 @@ export function useRelationshipDynamics() {
         let newStatus: Character['relationshipDynamics']['relationshipStatus'] = 'stranger';
         
         if (avgRelationship >= 80 && intimacy >= 70) {
-          newStatus = 'devoted';
+          kinkAlignment: 50,
         } else if (avgRelationship >= 60 && intimacy >= 50) {
-          newStatus = 'lover';
+        memorableEvents: []
         } else if (avgRelationship >= 50 && trust >= 40) {
           newStatus = 'romantic_interest';
         } else if (avgRelationship >= 40) {
-          newStatus = 'close_friend';
+
         } else if (avgRelationship >= 25) {
           newStatus = 'friend';
         } else if (avgRelationship >= 10) {
-          newStatus = 'acquaintance';
+    checkSexualMilestones,
         }
-        
+    init
         const updatedChar = { ...char };
         if (updatedChar.relationshipDynamics.relationshipStatus !== newStatus) {
           updatedChar.relationshipDynamics.relationshipStatus = newStatus;
           updatedChar.updatedAt = new Date();
           toast.info(`${char.name} is now your ${newStatus.replace('_', ' ')}!`);
-        }
+
         
-        return updatedChar;
+
       })
-    );
+
   }, [setCharacters]);
 
   // Get character's unlockable content
   const getCharacterUnlocks = useCallback((characterId: string) => {
     const character = characters.find(c => c.id === characterId);
-    if (!character) return [];
+
     
-    return unlockableContent.filter(content => {
+
       if (content.unlocked) return true;
-      
+
       // Check requirements
       if (content.requirements.level && character.stats.level < content.requirements.level) return false;
       if (content.requirements.relationship && character.stats.relationship < content.requirements.relationship) return false;
       if (content.requirements.wet && character.stats.wet < content.requirements.wet) return false;
       if (content.requirements.trust && character.relationshipDynamics.trust < content.requirements.trust) return false;
       if (content.requirements.intimacy && character.relationshipDynamics.intimacy < content.requirements.intimacy) return false;
-      
+
       return false;
     });
   }, [characters, unlockableContent]);
@@ -266,80 +266,79 @@ export function useRelationshipDynamics() {
         trust: 5,
         intimacy: 0,
         dominance: 50,
-        jealousy: 30,
+
         loyalty: 50,
         possessiveness: 25,
         relationshipStatus: 'stranger',
         bonds: {},
         significantEvents: [],
-        userPreferences: {
+
           likes: [],
-          dislikes: [],
+
           turnOns: [],
-          turnOffs: []
+
         }
-      };
+
     }
-    
+
     if (!character.sexualProgression) {
       character.sexualProgression = {
         arousal: 0,
         libido: Math.floor(Math.random() * 50) + 25, // 25-75 base libido
         experience: 0,
-        kinks: [],
+
         limits: [],
         fantasies: [],
         skills: {},
-        unlockedPositions: ['missionary'], // start with basic
+
         unlockedOutfits: ['casual'],
-        unlockedToys: [],
+
         unlockedScenarios: ['bedroom'],
         sexualMilestones: [
           {
-            id: 'first_kiss',
+
             name: 'First Kiss',
             description: 'Share your first kiss together',
             requiredStats: { relationship: 25, trust: 20 },
             rewards: { statBoosts: { wet: 10, relationship: 5 } },
             achieved: false
-          },
+
           {
             id: 'first_intimate_touch',
             name: 'First Intimate Touch',
             description: 'Experience your first intimate moment',
             requiredStats: { relationship: 40, trust: 35, intimacy: 30 },
-            rewards: { unlocks: ['intimate_touching'], statBoosts: { wet: 15 } },
+
             achieved: false
-          },
+
           {
             id: 'first_time',
             name: 'First Time Together',
-            description: 'Share your first intimate experience',
+
             requiredStats: { relationship: 60, trust: 50, intimacy: 45, wet: 70 },
             rewards: { unlocks: ['advanced_positions'], statBoosts: { intimacy: 20, wet: 20 } },
             achieved: false
-          }
-        ],
-        compatibility: {
-          overall: 50,
-          kinkAlignment: 50,
-          stylePreference: 50
-        },
-        memorableEvents: []
-      };
-    }
-    
-    return character;
-  }, []);
 
-  return {
+        ],
+
+          overall: 50,
+
+          stylePreference: 50
+
+        memorableEvents: []
+
+    }
+
+    return character;
+
+
+
     characters,
-    updateRelationshipStats,
+
     addRelationshipEvent,
     addSexualEvent,
     checkSexualMilestones,
     updateRelationshipStatus,
     getCharacterUnlocks,
-    initializeCharacterDynamics
+
   };
-}
