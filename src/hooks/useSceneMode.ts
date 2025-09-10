@@ -182,26 +182,26 @@ export const useSceneMode = () => {
     }
     
     const character = house.characters?.find(c => c.id === characterId);
-    if (!character) {
-      console.log('Character not found:', characterId);
+    
+    // Generate character response based on their objective
       return;
     }
     
     const objective = currentSession.sceneObjectives?.[characterId];
     if (!objective) {
-      console.log('No objective found for character:', characterId);
-      return;
-    }
-    
+g('No objective found for character:', characterId);
+Recent conversation:
+${conversationContext}
+
     console.log(`Generating response for ${character.name} with objective: ${objective}`);
-    
+      .filter(id => id !== characterId)
     // Get recent conversation history for context
     const recentMessages = currentSession.messages.slice(-8).filter(msg => msg.type !== 'system');
     const conversationContext = recentMessages.length > 0 
-      ? recentMessages.map(msg => {
-          if (msg.characterId) {
-            const char = house.characters?.find(c => c.id === msg.characterId);
-            return `${char?.name || 'Unknown'}: ${msg.content}`;
+? recentMessages.map(msg => {
+Respond as ${character.name}. Work toward your objective subtly. Keep response to 1-2 sentences maximum.`;
+    
+    try {
           }
           return `User: ${msg.content}`;
         }).join('\n')
@@ -214,10 +214,10 @@ Your secret objective: ${objective}
 
 Scene: ${currentSession.context || 'A social gathering'}
 
-Recent conversation:
+      console.log('Prompt being sent:', characterPrompt);
 ${conversationContext}
 
-Other characters present: ${currentSession.participantIds
+      const aiService = new AIService(house);
       .filter(id => id !== characterId)
       .map(id => house.characters?.find(c => c.id === id)?.name)
       .filter(Boolean)
@@ -279,12 +279,12 @@ Respond as ${character.name}. Work toward your objective subtly. Keep response t
       }
       
       // Add error message to scene
-      const errorMsgContent = `⚠️ Error generating response for ${character.name}: ${errorMessage}`;
+      if (errorMessage.includes('API') || errorMessage.includes('key')) {
       const errorMessage_: ChatMessage = {
-        id: `msg_${Date.now()}_error`,
-        content: errorMsgContent,
+        toast.error('Scene paused due to API error. Please configure your API settings.');
+      }
         timestamp: new Date(),
-        type: 'system'
+  };
       };
       
       // Update session with error message
