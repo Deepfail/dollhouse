@@ -127,11 +127,9 @@ export function Copilot() {
         } else if (promptLower.includes('paragraph')) {
           maxTokens = 150;
         }
-      }
-
       const promptContent = `${copilotPersonality}
 
-IMPORTANT: Keep your response within ${maxTokens} tokens or less. Be concise and follow the response length specified in your personality description.
+      const promptContent = `${copilotPersonality}
 
 Current house status:
 - ${houseContext.characterCount} characters
@@ -148,6 +146,8 @@ Recent updates: ${JSON.stringify(safeUpdates.slice(-3))}
 
 User message: "${userMessage.content}"
 
+Respond according to your personality and role as defined above. Be helpful and stay in character. REMEMBER: Follow the length requirements specified in your personality prompt.`;
+
 Respond according to your personality and role as defined above. Be helpful and stay in character. KEEP IT BRIEF AND WITHIN THE TOKEN LIMIT.`;
 
       const apiKey = house.aiSettings?.apiKey;
@@ -163,7 +163,7 @@ Respond according to your personality and role as defined above. Be helpful and 
           'HTTP-Referer': window.location.origin,
           'X-Title': 'Character Creator House'
         },
-        body: JSON.stringify({
+          messages: [
           model: house.aiSettings.model || 'deepseek/deepseek-chat-v3.1',
           messages: [
             {
