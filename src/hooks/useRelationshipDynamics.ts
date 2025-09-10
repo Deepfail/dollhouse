@@ -23,10 +23,20 @@ function ensureDynamics(input: Character['relationshipDynamics']): Dyn {
   return {
     affection: d.affection ?? 0,
     trust: d.trust ?? 0,
-    dominance: d.dominance ?? 0,
-    submissiveness: d.submissiveness ?? 0,
+    intimacy: d.intimacy ?? 0,
+    dominance: d.dominance ?? 50,
+    jealousy: d.jealousy ?? 0,
+    loyalty: d.loyalty ?? 0,
+    possessiveness: d.possessiveness ?? 0,
     relationshipStatus: d.relationshipStatus ?? ('stranger' as Dyn['relationshipStatus']),
-    events: Array.isArray(d.events) ? d.events : [],
+    bonds: d.bonds ?? {},
+    significantEvents: Array.isArray(d.significantEvents) ? d.significantEvents : [],
+    userPreferences: d.userPreferences ?? {
+      likes: [],
+      dislikes: [],
+      turnOns: [],
+      turnOffs: []
+    }
   }
 }
 
@@ -34,10 +44,10 @@ function ensureStats(input: Character['stats']): Stats {
   const s: any = input ?? {}
   return {
     relationship: clamp(s.relationship ?? 0),
-    happiness: clamp(s.happiness ?? 0),
+    happiness: clamp(s.happiness ?? 50),
     wet: clamp(s.wet ?? 0),
     experience: s.experience ?? 0,
-    intimacy: clamp(s.intimacy ?? 0),
+    level: s.level ?? 1
   }
 }
 
@@ -218,50 +228,64 @@ export function useRelationshipDynamics() {
 
   /** Initialize dynamics/sexualProgression safely for a character (id or all) */
   const initializeCharacterDynamics = useCallback(
-    (characterId?: string) => {
-      setCharacters((current) =>
-        current.map((c) => {
-          if (characterId && c.id !== characterId) return c
-          const updated: any = { ...c }
-          updated.relationshipDynamics = ensureDynamics(updated.relationshipDynamics)
-          updated.stats = ensureStats(updated.stats)
+    (character: Character): Character => {
+      const updated: any = { ...character }
+      updated.relationshipDynamics = ensureDynamics(updated.relationshipDynamics)
+      updated.stats = ensureStats(updated.stats)
 
-          updated.sexualProgression = updated.sexualProgression ?? {
-            events: [] as SexualEvent[],
-            sexualMilestones: [
-              {
-                id: 'first_kiss',
-                description: 'Share your first kiss.',
-                achieved: false,
-                rewards: { statBoosts: { intimacy: 10 } },
-              },
-              {
-                id: 'first_intimate_touch',
-                description: 'Experience your first intimate touch.',
-                achieved: false,
-                rewards: { statBoosts: { intimacy: 15, happiness: 10 } },
-              },
-              {
-                id: 'first_time',
-                description: 'Your first complete intimate experience.',
-                achieved: false,
-                rewards: {
-                  unlocks: ['advanced_positions'],
-                  statBoosts: { intimacy: 20, wet: 20 },
-                },
-              },
-            ] as SexualMilestone[],
-            unlockedFeatures: [],
-            achievements: [],
-          }
+      updated.sexualProgression = updated.sexualProgression ?? {
+        arousal: 0,
+        libido: 50,
+        experience: 0,
+        kinks: [],
+        limits: [],
+        fantasies: [],
+        skills: {},
+        unlockedPositions: [],
+        unlockedOutfits: [],
+        unlockedToys: [],
+        unlockedScenarios: [],
+        sexualMilestones: [
+          {
+            id: 'first_kiss',
+            name: 'First Kiss',
+            description: 'Share your first kiss.',
+            achieved: false,
+            requiredStats: { relationship: 30, trust: 20 },
+            rewards: { statBoosts: { intimacy: 10 } },
+          },
+          {
+            id: 'first_intimate_touch',
+            name: 'First Intimate Touch',
+            description: 'Experience your first intimate touch.',
+            achieved: false,
+            requiredStats: { relationship: 50, wet: 30, intimacy: 25 },
+            rewards: { statBoosts: { intimacy: 15, wet: 10 } },
+          },
+          {
+            id: 'first_time',
+            name: 'First Time',
+            description: 'Your first complete intimate experience.',
+            achieved: false,
+            requiredStats: { relationship: 70, wet: 60, intimacy: 50 },
+            rewards: {
+              unlocks: ['advanced_positions'],
+              statBoosts: { intimacy: 20, wet: 20 },
+            },
+          },
+        ] as SexualMilestone[],
+        compatibility: {
+          overall: 0,
+          kinkAlignment: 0,
+          stylePreference: 0
+        },
+        memorableEvents: []
+      }
 
-          updated.updatedAt = new Date()
-          return updated as Character
-        })
-      )
-      toast.success('Relationship dynamics initialized')
+      updated.updatedAt = new Date()
+      return updated as Character
     },
-    [setCharacters]
+    []
   )
 
   return {

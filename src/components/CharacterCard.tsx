@@ -83,6 +83,62 @@ export function CharacterCard({
   const { sessions } = useChat();
   const { updateRelationshipStats, checkSexualMilestones } = useRelationshipDynamics();
 
+  // Safely access character properties with defaults
+  const stats = character.stats || {
+    relationship: 0,
+    wet: 0,
+    happiness: 0,
+    experience: 0,
+    level: 1
+  };
+
+  const relationshipDynamics = character.relationshipDynamics || {
+    affection: 0,
+    trust: 0,
+    intimacy: 0,
+    dominance: 50,
+    jealousy: 0,
+    loyalty: 0,
+    possessiveness: 0,
+    relationshipStatus: 'stranger' as const,
+    bonds: {},
+    significantEvents: [],
+    userPreferences: {
+      likes: [],
+      dislikes: [],
+      turnOns: [],
+      turnOffs: []
+    }
+  };
+
+  const sexualProgression = character.sexualProgression || {
+    arousal: 0,
+    libido: 50,
+    experience: 0,
+    kinks: [],
+    limits: [],
+    fantasies: [],
+    skills: {},
+    unlockedPositions: [],
+    unlockedOutfits: [],
+    unlockedToys: [],
+    unlockedScenarios: [],
+    sexualMilestones: [],
+    compatibility: {
+      overall: 0,
+      kinkAlignment: 0,
+      stylePreference: 0
+    },
+    memorableEvents: []
+  };
+
+  const progression = character.progression || {
+    level: stats.level,
+    nextLevelExp: 1000,
+    unlockedFeatures: [],
+    achievements: []
+  };
+
   const characterSessions = useMemo(
     () => sessions.filter(s => s.participantIds?.includes(character.id) && s.messages.length > 0),
     [sessions, character.id]
@@ -97,9 +153,9 @@ export function CharacterCard({
     ? new Date(character.lastInteraction).toLocaleDateString()
     : 'Never';
 
-  const relationshipStatus = character.relationshipDynamics?.relationshipStatus || 'stranger';
-  const achievedMilestones = character.sexualProgression?.sexualMilestones.filter(m => m.achieved).length || 0;
-  const totalMilestones = character.sexualProgression?.sexualMilestones.length || 0;
+  const relationshipStatus = relationshipDynamics.relationshipStatus;
+  const achievedMilestones = sexualProgression.sexualMilestones.filter(m => m.achieved).length;
+  const totalMilestones = sexualProgression.sexualMilestones.length;
 
   // Compact card variant for sidebar
   if (compact) {
@@ -134,13 +190,13 @@ export function CharacterCard({
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <Heart size={10} className="text-red-500" />
-                  <Progress value={character.stats.relationship} className="h-1 flex-1" />
-                  <span className="text-[9px] text-muted-foreground w-6">{character.stats.relationship}</span>
+                  <Progress value={stats.relationship} className="h-1 flex-1" />
+                  <span className="text-[9px] text-muted-foreground w-6">{stats.relationship}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Droplets size={10} className="text-pink-500" />
-                  <Progress value={character.stats.wet} className="h-1 flex-1" />
-                  <span className="text-[9px] text-muted-foreground w-6">{character.stats.wet}</span>
+                  <Progress value={stats.wet} className="h-1 flex-1" />
+                  <span className="text-[9px] text-muted-foreground w-6">{stats.wet}</span>
                 </div>
               </div>
             </div>
@@ -148,7 +204,7 @@ export function CharacterCard({
           
           <div className="mt-3 pt-2 border-t border-border/50">
             <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-              <span>Level {character.stats.level}</span>
+              <span>Level {stats.level}</span>
               <span>{achievedMilestones}/{totalMilestones} milestones</span>
             </div>
           </div>
@@ -169,7 +225,7 @@ export function CharacterCard({
                     {getRarityIcon(character.rarity)}
                   </div>
                   <div className="text-sm text-muted-foreground font-normal">
-                    {relationshipStatus.replace('_', ' ')} • Level {character.stats.level}
+                    {relationshipStatus.replace('_', ' ')} • Level {stats.level}
                   </div>
                 </div>
               </DialogTitle>
@@ -225,9 +281,9 @@ export function CharacterCard({
                               <Heart size={12} className="text-red-500" />
                               Relationship
                             </span>
-                            <span className="font-medium">{character.stats.relationship}%</span>
+                            <span className="font-medium">{stats.relationship}%</span>
                           </div>
-                          <Progress value={character.stats.relationship} className="h-2" />
+                          <Progress value={stats.relationship} className="h-2" />
                         </div>
                         
                         <div className="space-y-2">
@@ -236,9 +292,9 @@ export function CharacterCard({
                               <Droplets size={12} className="text-pink-500" />
                               Arousal
                             </span>
-                            <span className="font-medium">{character.stats.wet}%</span>
+                            <span className="font-medium">{stats.wet}%</span>
                           </div>
-                          <Progress value={character.stats.wet} className="h-2" />
+                          <Progress value={stats.wet} className="h-2" />
                         </div>
 
                         <div className="space-y-2">
@@ -247,9 +303,9 @@ export function CharacterCard({
                               <Smile size={12} className="text-yellow-500" />
                               Happiness
                             </span>
-                            <span className="font-medium">{character.stats.happiness}%</span>
+                            <span className="font-medium">{stats.happiness}%</span>
                           </div>
-                          <Progress value={character.stats.happiness} className="h-2" />
+                          <Progress value={stats.happiness} className="h-2" />
                         </div>
                       </div>
                     </Card>
@@ -292,33 +348,33 @@ export function CharacterCard({
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span>Affection</span>
-                            <span className="font-medium">{character.relationshipDynamics?.affection || 0}%</span>
+                            <span className="font-medium">{relationshipDynamics.affection || 0}%</span>
                           </div>
-                          <Progress value={character.relationshipDynamics?.affection || 0} className="h-2" />
+                          <Progress value={relationshipDynamics.affection || 0} className="h-2" />
                         </div>
                         
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span>Trust</span>
-                            <span className="font-medium">{character.relationshipDynamics?.trust || 0}%</span>
+                            <span className="font-medium">{relationshipDynamics.trust || 0}%</span>
                           </div>
-                          <Progress value={character.relationshipDynamics?.trust || 0} className="h-2" />
+                          <Progress value={relationshipDynamics.trust || 0} className="h-2" />
                         </div>
 
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span>Intimacy</span>
-                            <span className="font-medium">{character.relationshipDynamics?.intimacy || 0}%</span>
+                            <span className="font-medium">{relationshipDynamics.intimacy || 0}%</span>
                           </div>
-                          <Progress value={character.relationshipDynamics?.intimacy || 0} className="h-2" />
+                          <Progress value={relationshipDynamics.intimacy || 0} className="h-2" />
                         </div>
 
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span>Loyalty</span>
-                            <span className="font-medium">{character.relationshipDynamics?.loyalty || 0}%</span>
+                            <span className="font-medium">{relationshipDynamics.loyalty || 0}%</span>
                           </div>
-                          <Progress value={character.relationshipDynamics?.loyalty || 0} className="h-2" />
+                          <Progress value={relationshipDynamics.loyalty || 0} className="h-2" />
                         </div>
                       </div>
                     </Card>
@@ -343,11 +399,11 @@ export function CharacterCard({
                           <div className="space-y-2">
                             <div>
                               <span className="text-sm text-green-600">Likes: </span>
-                              <span className="text-sm">{character.relationshipDynamics?.userPreferences.likes.join(', ') || 'None yet'}</span>
+                              <span className="text-sm">{relationshipDynamics.userPreferences.likes.join(', ') || 'None yet'}</span>
                             </div>
                             <div>
                               <span className="text-sm text-red-600">Dislikes: </span>
-                              <span className="text-sm">{character.relationshipDynamics?.userPreferences.dislikes.join(', ') || 'None yet'}</span>
+                              <span className="text-sm">{relationshipDynamics.userPreferences.dislikes.join(', ') || 'None yet'}</span>
                             </div>
                           </div>
                         </div>
@@ -361,7 +417,7 @@ export function CharacterCard({
                       Recent Events
                     </h4>
                     <div className="space-y-2">
-                      {character.relationshipDynamics?.significantEvents?.slice(0, 5).map((event) => (
+                      {relationshipDynamics.significantEvents?.slice(0, 5).map((event) => (
                         <div key={event.id} className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
                           <div className="w-2 h-2 bg-primary rounded-full mt-2" />
                           <div className="flex-1">
@@ -391,25 +447,25 @@ export function CharacterCard({
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span>Arousal</span>
-                            <span className="font-medium">{character.sexualProgression?.arousal || 0}%</span>
+                            <span className="font-medium">{sexualProgression.arousal || 0}%</span>
                           </div>
-                          <Progress value={character.sexualProgression?.arousal || 0} className="h-2" />
+                          <Progress value={sexualProgression.arousal || 0} className="h-2" />
                         </div>
                         
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span>Libido</span>
-                            <span className="font-medium">{character.sexualProgression?.libido || 0}%</span>
+                            <span className="font-medium">{sexualProgression.libido || 0}%</span>
                           </div>
-                          <Progress value={character.sexualProgression?.libido || 0} className="h-2" />
+                          <Progress value={sexualProgression.libido || 0} className="h-2" />
                         </div>
 
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span>Experience</span>
-                            <span className="font-medium">{character.sexualProgression?.experience || 0}%</span>
+                            <span className="font-medium">{sexualProgression.experience || 0}%</span>
                           </div>
-                          <Progress value={character.sexualProgression?.experience || 0} className="h-2" />
+                          <Progress value={sexualProgression.experience || 0} className="h-2" />
                         </div>
                       </div>
                     </Card>
@@ -420,7 +476,7 @@ export function CharacterCard({
                         Milestones
                       </h4>
                       <div className="space-y-2">
-                        {character.sexualProgression?.sexualMilestones?.map((milestone) => (
+                        {sexualProgression.sexualMilestones?.map((milestone) => (
                           <div key={milestone.id} className="flex items-center gap-3 p-2 bg-muted/30 rounded">
                             {milestone.achieved ? (
                               <Check size={16} className="text-green-500" />
@@ -450,7 +506,7 @@ export function CharacterCard({
                       <div>
                         <h5 className="font-medium mb-2">Positions</h5>
                         <div className="flex flex-wrap gap-1">
-                          {character.sexualProgression?.unlockedPositions?.map((position) => (
+                          {sexualProgression.unlockedPositions?.map((position) => (
                             <Badge key={position} variant="secondary" className="text-xs">{position}</Badge>
                           )) || <span className="text-sm text-muted-foreground">None</span>}
                         </div>
@@ -458,7 +514,7 @@ export function CharacterCard({
                       <div>
                         <h5 className="font-medium mb-2">Scenarios</h5>
                         <div className="flex flex-wrap gap-1">
-                          {character.sexualProgression?.unlockedScenarios?.map((scenario) => (
+                          {sexualProgression.unlockedScenarios?.map((scenario) => (
                             <Badge key={scenario} variant="secondary" className="text-xs">{scenario}</Badge>
                           )) || <span className="text-sm text-muted-foreground">None</span>}
                         </div>
@@ -526,17 +582,17 @@ export function CharacterCard({
                       </h4>
                       <div className="space-y-3">
                         <div className="text-center p-4 bg-muted/50 rounded-lg">
-                          <div className="text-3xl font-bold text-primary">Level {character.stats.level}</div>
+                          <div className="text-3xl font-bold text-primary">Level {stats.level}</div>
                           <div className="text-sm text-muted-foreground mt-1">Current Level</div>
                         </div>
                         
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span>Experience</span>
-                            <span>{character.stats.experience}/{character.progression?.nextLevelExp || 1000}</span>
+                            <span>{stats.experience}/{progression.nextLevelExp}</span>
                           </div>
                           <Progress 
-                            value={((character.stats.experience) / (character.progression?.nextLevelExp || 1000)) * 100} 
+                            value={(stats.experience / progression.nextLevelExp) * 100} 
                             className="h-2" 
                           />
                         </div>
@@ -549,7 +605,7 @@ export function CharacterCard({
                         Achievements
                       </h4>
                       <div className="space-y-2">
-                        {character.progression?.achievements?.map((achievement) => (
+                        {progression.achievements?.map((achievement) => (
                           <div key={achievement} className="flex items-center gap-2 p-2 bg-muted/30 rounded">
                             <Award size={16} className="text-amber-500" />
                             <span className="text-sm">{achievement}</span>
@@ -569,7 +625,7 @@ export function CharacterCard({
                       Unlocked Features
                     </h4>
                     <div className="space-y-2">
-                      {character.progression?.unlockedFeatures?.map((feature) => (
+                      {progression.unlockedFeatures?.map((feature) => (
                         <div key={feature} className="flex items-center gap-2 p-2 bg-muted/30 rounded">
                           <Sparkles size={16} className="text-purple-500" />
                           <span className="text-sm">{feature}</span>
@@ -617,8 +673,8 @@ export function CharacterCard({
                       Character Relationships
                     </h4>
                     <div className="space-y-2">
-                      {character.relationshipDynamics?.bonds && Object.keys(character.relationshipDynamics.bonds).length > 0 ? (
-                        Object.entries(character.relationshipDynamics.bonds).map(([charId, bond]) => (
+                      {relationshipDynamics.bonds && Object.keys(relationshipDynamics.bonds).length > 0 ? (
+                        Object.entries(relationshipDynamics.bonds).map(([charId, bond]) => (
                           <div key={charId} className="flex justify-between items-center p-2 bg-muted/30 rounded">
                             <div>
                               <span className="text-sm font-medium">{charId.slice(0, 8)}...</span>
@@ -672,18 +728,18 @@ export function CharacterCard({
       <div className="space-y-2 mb-4">
         <div className="flex items-center gap-2 text-xs">
           <Heart size={12} className="text-red-500" />
-          <Progress value={character.stats.relationship} className="h-1 flex-1" />
-          <span className="text-muted-foreground w-8">{character.stats.relationship}%</span>
+          <Progress value={stats.relationship} className="h-1 flex-1" />
+          <span className="text-muted-foreground w-8">{stats.relationship}%</span>
         </div>
         <div className="flex items-center gap-2 text-xs">
           <Smile size={12} className="text-yellow-500" />
-          <Progress value={character.stats.happiness} className="h-1 flex-1" />
-          <span className="text-muted-foreground w-8">{character.stats.happiness}%</span>
+          <Progress value={stats.happiness} className="h-1 flex-1" />
+          <span className="text-muted-foreground w-8">{stats.happiness}%</span>
         </div>
         <div className="flex items-center gap-2 text-xs">
           <Droplets size={12} className="text-pink-500" />
-          <Progress value={character.stats.wet} className="h-1 flex-1" />
-          <span className="text-muted-foreground w-8">{character.stats.wet}%</span>
+          <Progress value={stats.wet} className="h-1 flex-1" />
+          <span className="text-muted-foreground w-8">{stats.wet}%</span>
         </div>
       </div>
 

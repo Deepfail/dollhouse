@@ -40,6 +40,53 @@ const DEFAULT_HOUSE: House = {
         experience: 50,
         level: 5
       },
+      relationshipDynamics: {
+        affection: 70,
+        trust: 65,
+        intimacy: 40,
+        dominance: 45,
+        jealousy: 20,
+        loyalty: 80,
+        possessiveness: 30,
+        relationshipStatus: 'close_friend',
+        bonds: {},
+        significantEvents: [],
+        userPreferences: {
+          likes: ['conversation', 'learning'],
+          dislikes: ['being ignored'],
+          turnOns: [],
+          turnOffs: []
+        }
+      },
+      sexualProgression: {
+        arousal: 25,
+        libido: 60,
+        experience: 30,
+        kinks: [],
+        limits: ['none set'],
+        fantasies: [],
+        skills: {},
+        unlockedPositions: [],
+        unlockedOutfits: [],
+        unlockedToys: [],
+        unlockedScenarios: [],
+        sexualMilestones: [
+          {
+            id: 'first_kiss',
+            name: 'First Kiss',
+            description: 'Share your first kiss.',
+            achieved: false,
+            requiredStats: { relationship: 30, trust: 20 },
+            rewards: { statBoosts: { intimacy: 10 } }
+          }
+        ],
+        compatibility: {
+          overall: 65,
+          kinkAlignment: 50,
+          stylePreference: 70
+        },
+        memorableEvents: []
+      },
       prompts: {
         system: 'You are Alex, a friendly AI companion. Be helpful, engaging, and maintain a positive attitude. Show genuine interest in conversations and offer thoughtful responses.',
         personality: 'Respond with enthusiasm and warmth. Use casual, friendly language and occasionally share interesting facts or ask engaging questions.',
@@ -77,6 +124,53 @@ const DEFAULT_HOUSE: House = {
         wet: 70,
         experience: 75,
         level: 7
+      },
+      relationshipDynamics: {
+        affection: 65,
+        trust: 80,
+        intimacy: 50,
+        dominance: 55,
+        jealousy: 10,
+        loyalty: 90,
+        possessiveness: 20,
+        relationshipStatus: 'close_friend',
+        bonds: {},
+        significantEvents: [],
+        userPreferences: {
+          likes: ['deep conversations', 'philosophy'],
+          dislikes: ['superficial talk'],
+          turnOns: [],
+          turnOffs: []
+        }
+      },
+      sexualProgression: {
+        arousal: 30,
+        libido: 55,
+        experience: 40,
+        kinks: [],
+        limits: ['none set'],
+        fantasies: [],
+        skills: {},
+        unlockedPositions: [],
+        unlockedOutfits: [],
+        unlockedToys: [],
+        unlockedScenarios: [],
+        sexualMilestones: [
+          {
+            id: 'first_kiss',
+            name: 'First Kiss',
+            description: 'Share your first kiss.',
+            achieved: false,
+            requiredStats: { relationship: 30, trust: 20 },
+            rewards: { statBoosts: { intimacy: 10 } }
+          }
+        ],
+        compatibility: {
+          overall: 70,
+          kinkAlignment: 60,
+          stylePreference: 75
+        },
+        memorableEvents: []
       },
       prompts: {
         system: 'You are Morgan, a wise and thoughtful AI advisor. Provide insightful perspectives and engage in meaningful conversations. Be patient and considerate in your responses.',

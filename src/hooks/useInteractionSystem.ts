@@ -54,6 +54,34 @@ export function useInteractionSystem() {
 
   // Process user message for relationship impacts
   const processUserMessage = useCallback((characterId: string, message: string, character: Character) => {
+    // Safely access character properties with defaults
+    const stats = character.stats || {
+      relationship: 0,
+      wet: 0,
+      happiness: 0,
+      experience: 0,
+      level: 1
+    };
+
+    const relationshipDynamics = character.relationshipDynamics || {
+      affection: 0,
+      trust: 0,
+      intimacy: 0,
+      dominance: 50,
+      jealousy: 0,
+      loyalty: 0,
+      possessiveness: 0,
+      relationshipStatus: 'stranger' as const,
+      bonds: {},
+      significantEvents: [],
+      userPreferences: {
+        likes: [],
+        dislikes: [],
+        turnOns: [],
+        turnOffs: []
+      }
+    };
+
     const analysis = analyzeMessage(message);
     
     // Base stat changes
@@ -99,7 +127,7 @@ export function useInteractionSystem() {
       wetChange += 3;
       intimacyChange += 1;
       // Only positive if relationship is high enough
-      if (character.stats.relationship > 50) {
+      if (stats.relationship > 50) {
         relationshipChange += 1;
       } else {
         relationshipChange -= 1;
@@ -109,12 +137,12 @@ export function useInteractionSystem() {
     // Apply changes if they're significant enough
     if (Math.abs(relationshipChange) + Math.abs(happinessChange) + Math.abs(wetChange) > 0) {
       updateRelationshipStats(characterId, {
-        relationship: character.stats.relationship + relationshipChange,
-        happiness: character.stats.happiness + happinessChange,
-        wet: character.stats.wet + wetChange,
-        affection: (character.relationshipDynamics?.affection || 0) + affectionChange,
-        trust: (character.relationshipDynamics?.trust || 0) + trustChange,
-        intimacy: (character.relationshipDynamics?.intimacy || 0) + intimacyChange
+        relationship: stats.relationship + relationshipChange,
+        happiness: stats.happiness + happinessChange,
+        wet: stats.wet + wetChange,
+        affection: relationshipDynamics.affection + affectionChange,
+        trust: relationshipDynamics.trust + trustChange,
+        intimacy: relationshipDynamics.intimacy + intimacyChange
       });
     }
     
@@ -127,7 +155,7 @@ export function useInteractionSystem() {
       });
     }
     
-    if (analysis.romantic && character.stats.relationship > 40 && Math.random() < 0.2) {
+    if (analysis.romantic && stats.relationship > 40 && Math.random() < 0.2) {
       addRelationshipEvent(characterId, {
         type: 'intimate_moment',
         description: 'Shared a romantic moment together',
@@ -135,7 +163,7 @@ export function useInteractionSystem() {
       });
     }
     
-    if (analysis.sexual && character.stats.relationship > 60 && Math.random() < 0.15) {
+    if (analysis.sexual && stats.relationship > 60 && Math.random() < 0.15) {
       addSexualEvent(characterId, {
         type: 'milestone_reached',
         description: 'Explored new levels of intimacy',
@@ -152,25 +180,43 @@ export function useInteractionSystem() {
 
   // Process character response for additional relationship building
   const processCharacterResponse = useCallback((characterId: string, message: string, character: Character) => {
+    // Safely access character stats with defaults
+    const stats = character.stats || {
+      relationship: 0,
+      wet: 0,
+      happiness: 0,
+      experience: 0,
+      level: 1
+    };
+
     const analysis = analyzeMessage(message);
     
     // Characters can also build relationship through their responses
     if (analysis.sentiment === 'positive') {
       // Small boost for positive character responses
       updateRelationshipStats(characterId, {
-        happiness: character.stats.happiness + 1
+        happiness: stats.happiness + 1
       });
     }
     
     if (analysis.romantic) {
       updateRelationshipStats(characterId, {
-        wet: character.stats.wet + 1
+        wet: stats.wet + 1
       });
     }
   }, [analyzeMessage, updateRelationshipStats]);
 
   // Simulate daily relationship decay/maintenance
   const processTimeDecay = useCallback((characterId: string, character: Character) => {
+    // Safely access character stats with defaults
+    const stats = character.stats || {
+      relationship: 0,
+      wet: 0,
+      happiness: 0,
+      experience: 0,
+      level: 1
+    };
+
     const daysSinceLastInteraction = character.lastInteraction 
       ? Math.floor((Date.now() - new Date(character.lastInteraction).getTime()) / (1000 * 60 * 60 * 24))
       : 1;
@@ -180,16 +226,44 @@ export function useInteractionSystem() {
       const decayAmount = Math.min(5, daysSinceLastInteraction - 3);
       
       updateRelationshipStats(characterId, {
-        happiness: Math.max(0, character.stats.happiness - decayAmount),
-        wet: Math.max(0, character.stats.wet - Math.floor(decayAmount / 2))
+        happiness: Math.max(0, stats.happiness - decayAmount),
+        wet: Math.max(0, stats.wet - Math.floor(decayAmount / 2))
       });
     }
   }, [updateRelationshipStats]);
 
   // Trigger special events based on relationship milestones
   const triggerMilestoneEvents = useCallback((characterId: string, character: Character) => {
-    const relationship = character.stats.relationship;
-    const intimacy = character.relationshipDynamics?.intimacy || 0;
+    // Safely access character properties with defaults
+    const stats = character.stats || {
+      relationship: 0,
+      wet: 0,
+      happiness: 0,
+      experience: 0,
+      level: 1
+    };
+
+    const relationshipDynamics = character.relationshipDynamics || {
+      affection: 0,
+      trust: 0,
+      intimacy: 0,
+      dominance: 50,
+      jealousy: 0,
+      loyalty: 0,
+      possessiveness: 0,
+      relationshipStatus: 'stranger' as const,
+      bonds: {},
+      significantEvents: [],
+      userPreferences: {
+        likes: [],
+        dislikes: [],
+        turnOns: [],
+        turnOffs: []
+      }
+    };
+
+    const relationship = stats.relationship;
+    const intimacy = relationshipDynamics.intimacy;
     const trust = character.relationshipDynamics?.trust || 0;
     
     // First kiss milestone
@@ -207,7 +281,7 @@ export function useInteractionSystem() {
     }
     
     // Intimate touch milestone  
-    if (relationship > 40 && trust > 35 && intimacy > 30 && character.stats.wet > 50 && Math.random() < 0.05) {
+    if (relationship > 40 && trust > 35 && intimacy > 30 && stats.wet > 50 && Math.random() < 0.05) {
       const intimateMilestone = character.sexualProgression?.sexualMilestones.find(m => m.id === 'first_intimate_touch');
       if (intimateMilestone && !intimateMilestone.achieved) {
         addSexualEvent(characterId, {

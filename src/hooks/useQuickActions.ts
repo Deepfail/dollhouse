@@ -89,12 +89,20 @@ export function useQuickActions() {
 
     // Update all characters' locations to main room
     for (const character of house.characters) {
+      const stats = character.stats || {
+        relationship: 0,
+        wet: 0,
+        happiness: 0,
+        experience: 0,
+        level: 1
+      };
+
       await updateCharacter(character.id, {
         ...character,
         roomId: mainRoom.id,
         stats: {
-          ...character.stats,
-          happiness: Math.min(100, character.stats.happiness + 5)
+          ...stats,
+          happiness: Math.min(100, stats.happiness + 5)
         }
       });
     }
@@ -117,14 +125,22 @@ export function useQuickActions() {
 
     let restedCount = 0;
     for (const character of house.characters) {
-      if (character.stats.wet < 90) {
+      const stats = character.stats || {
+        relationship: 0,
+        wet: 0,
+        happiness: 0,
+        experience: 0,
+        level: 1
+      };
+
+      if (stats.wet < 90) {
         await updateCharacter(character.id, {
           ...character,
           roomId: restRoom?.id || character.roomId,
           stats: {
-            ...character.stats,
-            wet: Math.min(100, character.stats.wet + 25),
-            happiness: Math.min(100, character.stats.happiness + 3)
+            ...stats,
+            wet: Math.min(100, stats.wet + 25),
+            happiness: Math.min(100, stats.happiness + 3)
           }
         });
         restedCount++;
@@ -145,12 +161,20 @@ export function useQuickActions() {
     }
 
     for (const character of house.characters) {
+      const stats = character.stats || {
+        relationship: 0,
+        wet: 0,
+        happiness: 0,
+        experience: 0,
+        level: 1
+      };
+
       await updateCharacter(character.id, {
         ...character,
         stats: {
-          ...character.stats,
-          happiness: Math.min(100, character.stats.happiness + 10),
-          relationship: Math.min(100, character.stats.relationship + 2)
+          ...stats,
+          happiness: Math.min(100, stats.happiness + 10),
+          relationship: Math.min(100, stats.relationship + 2)
         }
       });
     }

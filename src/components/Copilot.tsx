@@ -250,8 +250,17 @@ Respond according to your personality and role as defined above. Be helpful and 
     const newUpdates: CopilotUpdate[] = [];
 
     house.characters.forEach(character => {
+      // Safely access character stats with defaults
+      const stats = character.stats || {
+        relationship: 0,
+        wet: 0,
+        happiness: 0,
+        experience: 0,
+        level: 1
+      };
+
       // Check for low stats
-      if (character.stats.wet < 30) {
+      if (stats.wet < 30) {
         newUpdates.push({
           id: `arousal-${character.id}-${Date.now()}`,
           type: 'need',
@@ -263,7 +272,7 @@ Respond according to your personality and role as defined above. Be helpful and 
         });
       }
 
-      if (character.stats.happiness < 40) {
+      if (stats.happiness < 40) {
         newUpdates.push({
           id: `happiness-${character.id}-${Date.now()}`,
           type: 'need',
@@ -276,7 +285,7 @@ Respond according to your personality and role as defined above. Be helpful and 
       }
 
       // Check for high relationship milestones
-      if (character.stats.relationship >= 80 && character.stats.relationship < 85) {
+      if (stats.relationship >= 80 && stats.relationship < 85) {
         newUpdates.push({
           id: `milestone-${character.id}-${Date.now()}`,
           type: 'alert',

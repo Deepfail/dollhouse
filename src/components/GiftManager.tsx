@@ -150,16 +150,25 @@ export function GiftManager({ character, isOpen, onClose }: GiftManagerProps) {
     // Spend currency
     spendCurrency(gift.cost);
 
+    // Safely access character stats with defaults
+    const stats = character.stats || {
+      relationship: 0,
+      wet: 0,
+      happiness: 0,
+      experience: 0,
+      level: 1
+    };
+
     // Update character stats
     const statUpdates: any = {};
     if (gift.effects.relationship) {
-      statUpdates.relationship = character.stats.relationship + gift.effects.relationship;
+      statUpdates.relationship = stats.relationship + gift.effects.relationship;
     }
     if (gift.effects.happiness) {
-      statUpdates.happiness = character.stats.happiness + gift.effects.happiness;
+      statUpdates.happiness = stats.happiness + gift.effects.happiness;
     }
     if (gift.effects.energy) {
-      statUpdates.wet = character.stats.wet + gift.effects.energy;
+      statUpdates.wet = stats.wet + gift.effects.energy;
     }
 
     updateRelationshipStats(character.id, statUpdates);

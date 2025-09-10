@@ -22,14 +22,70 @@ interface ProgressTrackerProps {
 }
 
 export function ProgressTracker({ character }: ProgressTrackerProps) {
-  const relationshipStatus = character.relationshipDynamics?.relationshipStatus || 'stranger';
-  const sexualMilestones = character.sexualProgression?.sexualMilestones || [];
+  // Safely access character properties with defaults
+  const stats = character.stats || {
+    relationship: 0,
+    wet: 0,
+    happiness: 0,
+    experience: 0,
+    level: 1
+  };
+
+  const relationshipDynamics = character.relationshipDynamics || {
+    affection: 0,
+    trust: 0,
+    intimacy: 0,
+    dominance: 50,
+    jealousy: 0,
+    loyalty: 0,
+    possessiveness: 0,
+    relationshipStatus: 'stranger' as const,
+    bonds: {},
+    significantEvents: [],
+    userPreferences: {
+      likes: [],
+      dislikes: [],
+      turnOns: [],
+      turnOffs: []
+    }
+  };
+
+  const sexualProgression = character.sexualProgression || {
+    arousal: 0,
+    libido: 50,
+    experience: 0,
+    kinks: [],
+    limits: [],
+    fantasies: [],
+    skills: {},
+    unlockedPositions: [],
+    unlockedOutfits: [],
+    unlockedToys: [],
+    unlockedScenarios: [],
+    sexualMilestones: [],
+    compatibility: {
+      overall: 0,
+      kinkAlignment: 0,
+      stylePreference: 0
+    },
+    memorableEvents: []
+  };
+
+  const progression = character.progression || {
+    level: stats.level,
+    nextLevelExp: 1000,
+    unlockedFeatures: [],
+    achievements: []
+  };
+
+  const relationshipStatus = relationshipDynamics.relationshipStatus;
+  const sexualMilestones = sexualProgression.sexualMilestones;
   const achievedMilestones = sexualMilestones.filter(m => m.achieved);
   const nextMilestone = sexualMilestones.find(m => !m.achieved);
   
   const recentEvents = [
-    ...(character.relationshipDynamics?.significantEvents || []),
-    ...(character.sexualProgression?.memorableEvents || [])
+    ...relationshipDynamics.significantEvents,
+    ...sexualProgression.memorableEvents
   ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 5);
 
   const getStatusColor = (status: string) => {
@@ -45,7 +101,7 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
   };
 
   const getProgressToNextLevel = () => {
-    const current = character.stats.relationship;
+    const current = stats.relationship;
     if (current >= 80) return 100;
     if (current >= 60) return ((current - 60) / 20) * 100;
     if (current >= 40) return ((current - 40) / 20) * 100;
@@ -55,7 +111,7 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
   };
 
   const getNextLevelName = () => {
-    const current = character.stats.relationship;
+    const current = stats.relationship;
     if (current >= 80) return 'Devoted (Max)';
     if (current >= 60) return 'Devoted';
     if (current >= 40) return 'Lover';
@@ -82,22 +138,22 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
           <div>
             <div className="flex justify-between text-sm mb-1">
               <span>Progress to {getNextLevelName()}</span>
-              <span>{character.stats.relationship}%</span>
+              <span>{stats.relationship}%</span>
             </div>
             <Progress value={getProgressToNextLevel()} className="h-2" />
           </div>
           
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
-              <div className="text-lg font-bold text-red-500">{character.relationshipDynamics?.affection || 0}</div>
+              <div className="text-lg font-bold text-red-500">{relationshipDynamics.affection}</div>
               <div className="text-xs text-muted-foreground">Affection</div>
             </div>
             <div>
-              <div className="text-lg font-bold text-blue-500">{character.relationshipDynamics?.trust || 0}</div>
+              <div className="text-lg font-bold text-blue-500">{relationshipDynamics.trust}</div>
               <div className="text-xs text-muted-foreground">Trust</div>
             </div>
             <div>
-              <div className="text-lg font-bold text-purple-500">{character.relationshipDynamics?.intimacy || 0}</div>
+              <div className="text-lg font-bold text-purple-500">{relationshipDynamics.intimacy}</div>
               <div className="text-xs text-muted-foreground">Intimacy</div>
             </div>
           </div>
@@ -119,15 +175,15 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
         <div className="space-y-3">
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
-              <div className="text-lg font-bold text-pink-500">{character.stats.wet}</div>
+              <div className="text-lg font-bold text-pink-500">{stats.wet}</div>
               <div className="text-xs text-muted-foreground">Arousal</div>
             </div>
             <div>
-              <div className="text-lg font-bold text-orange-500">{character.sexualProgression?.libido || 0}</div>
+              <div className="text-lg font-bold text-orange-500">{sexualProgression.libido}</div>
               <div className="text-xs text-muted-foreground">Libido</div>
             </div>
             <div>
-              <div className="text-lg font-bold text-green-500">{character.sexualProgression?.experience || 0}</div>
+              <div className="text-lg font-bold text-green-500">{sexualProgression.experience}</div>
               <div className="text-xs text-muted-foreground">Experience</div>
             </div>
           </div>
@@ -145,10 +201,10 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
                 <div className="mt-2 space-y-1">
                   {Object.entries(nextMilestone.requiredStats).map(([stat, required]) => {
                     let current = 0;
-                    if (stat === 'relationship') current = character.stats.relationship;
-                    else if (stat === 'wet') current = character.stats.wet;
-                    else if (stat === 'trust') current = character.relationshipDynamics?.trust || 0;
-                    else if (stat === 'intimacy') current = character.relationshipDynamics?.intimacy || 0;
+                    if (stat === 'relationship') current = stats.relationship;
+                    else if (stat === 'wet') current = stats.wet;
+                    else if (stat === 'trust') current = relationshipDynamics.trust;
+                    else if (stat === 'intimacy') current = relationshipDynamics.intimacy;
                     
                     const progress = (current / required) * 100;
                     
@@ -193,14 +249,14 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
               </div>
             ))}
             
-            {character.progression?.achievements?.map((achievement) => (
+            {progression.achievements?.map((achievement) => (
               <div key={achievement} className="flex items-center gap-2 p-2 bg-amber-500/10 rounded border border-amber-500/20">
                 <Star className="w-4 h-4 text-amber-500" />
                 <div className="text-sm font-medium">{achievement}</div>
               </div>
             ))}
             
-            {achievedMilestones.length === 0 && !character.progression?.achievements?.length && (
+            {achievedMilestones.length === 0 && !progression.achievements?.length && (
               <div className="text-center py-4 text-muted-foreground text-sm">
                 No achievements yet. Keep building your relationship!
               </div>
@@ -250,7 +306,7 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
           <div>
             <div className="text-sm font-medium mb-1">Positions</div>
             <div className="flex flex-wrap gap-1">
-              {character.sexualProgression?.unlockedPositions?.map((position) => (
+              {sexualProgression.unlockedPositions?.map((position) => (
                 <Badge key={position} variant="secondary" className="text-xs">{position}</Badge>
               )) || <span className="text-xs text-muted-foreground">None unlocked</span>}
             </div>
@@ -261,7 +317,7 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
           <div>
             <div className="text-sm font-medium mb-1">Scenarios</div>
             <div className="flex flex-wrap gap-1">
-              {character.sexualProgression?.unlockedScenarios?.map((scenario) => (
+              {sexualProgression.unlockedScenarios?.map((scenario) => (
                 <Badge key={scenario} variant="secondary" className="text-xs">{scenario}</Badge>
               )) || <span className="text-xs text-muted-foreground">None unlocked</span>}
             </div>
@@ -272,7 +328,7 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
           <div>
             <div className="text-sm font-medium mb-1">Features</div>
             <div className="flex flex-wrap gap-1">
-              {character.progression?.unlockedFeatures?.map((feature) => (
+              {progression.unlockedFeatures?.map((feature) => (
                 <Badge key={feature} variant="outline" className="text-xs">{feature}</Badge>
               )) || <span className="text-xs text-muted-foreground">None unlocked</span>}
             </div>
