@@ -102,7 +102,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     toast.success('Prompt settings updated successfully');
   };
 
-  const handleSaveApiSettings = () => {
+  const handleSaveApiSettings = async () => {
     console.log('=== Saving API Settings ===');
     console.log('Provider:', provider);
     console.log('Model:', selectedModel);
@@ -131,6 +131,67 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     }, 100);
     
     toast.success('API settings saved successfully');
+  };
+
+  const handleTestApiConnection = async () => {
+    if (!apiKey) {
+      toast.error('Please enter an API key first');
+      return;
+    }
+
+    toast.info('Testing API connection...');
+    
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': window.location.origin,
+          'X-Title': 'Character Creator House'
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [
+            {
+              role: 'user',
+              content: 'Say "API test successful" if you can read this.'
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 20
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API test error:', response.status, errorText);
+        
+        if (response.status === 401) {
+          toast.error('Invalid API key - Please check your OpenRouter API key');
+        } else if (response.status === 429) {
+          toast.error('Rate limit exceeded - Please wait and try again');
+        } else if (response.status === 400) {
+          toast.error('Bad request - Check if the selected model is valid');
+        } else {
+          toast.error(`API test failed: ${response.status}`);
+        }
+        return;
+      }
+
+      const data = await response.json();
+      
+      if (data.choices && data.choices[0] && data.choices[0].message) {
+        toast.success('API connection successful! ✅');
+        console.log('API test response:', data.choices[0].message.content);
+      } else {
+        toast.error('API responded but with invalid format');
+      }
+      
+    } catch (error) {
+      console.error('API test error:', error);
+      toast.error('API connection failed - Check your internet connection');
+    }
   };
 
   return (
@@ -324,9 +385,14 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                     </CardContent>
                   </Card>
 
-                  <Button onClick={handleSaveApiSettings} className="w-full">
-                    Save API Settings
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={handleTestApiConnection} variant="outline" className="flex-1">
+                      Test Connection
+                    </Button>
+                    <Button onClick={handleSaveApiSettings} className="flex-1">
+                      Save API Settings
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

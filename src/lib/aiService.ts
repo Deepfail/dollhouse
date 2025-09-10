@@ -32,6 +32,27 @@ export class AIService {
 
       const model = this.house.aiSettings?.model || 'deepseek/deepseek-chat-v3.1';
       
+      console.log('Making OpenRouter API call:', {
+        model,
+        promptLength: prompt.length,
+        hasApiKey: !!apiKey
+      });
+      
+      const requestBody = {
+        model: model,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 200,
+        stream: false
+      };
+      
+      console.log('Request body:', JSON.stringify(requestBody, null, 2));
+      
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -40,37 +61,48 @@ export class AIService {
           'HTTP-Referer': window.location.origin,
           'X-Title': 'Character Creator House'
         },
-        body: JSON.stringify({
-          model: model,
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 1000
-        })
+        body: JSON.stringify(requestBody)
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('OpenRouter API error response:', errorText);
+        
         if (response.status === 401) {
           throw new Error('Invalid OpenRouter API key. Please check your settings.');
         } else if (response.status === 429) {
           throw new Error('Rate limit exceeded. Please wait a moment and try again.');
         } else if (response.status >= 500) {
           throw new Error('OpenRouter service is temporarily unavailable.');
+        } else if (response.status === 400) {
+          let errorMessage = 'Invalid request to OpenRouter API';
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData.error && errorData.error.message) {
+              errorMessage = errorData.error.message;
+            }
+          } catch (e) {
+            // Ignore JSON parse error
+          }
+          throw new Error(`OpenRouter API error: ${errorMessage}`);
         }
-        throw new Error(`OpenRouter API error: ${response.status}`);
+        throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('Response data:', data);
       
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
         throw new Error('Invalid response from OpenRouter API');
       }
 
-      return data.choices[0].message.content;
+      const content = data.choices[0].message.content;
+      console.log('Generated content:', content);
+      
+      return content;
     } catch (error) {
       console.error('OpenRouter API error:', error);
       throw this.handleAPIError(error);

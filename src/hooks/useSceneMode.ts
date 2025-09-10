@@ -134,7 +134,31 @@ export const useSceneMode = () => {
         setTimeout(processNextTurn, nextTurnDuration);
       } catch (error) {
         console.error('Error in auto-play:', error);
+        
+        // Add error message to scene
+        const errorMsgContent = `⚠️ Auto-play error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        const errorMessage: ChatMessage = {
+          id: `msg_${Date.now()}_autoplay_error`,
+          content: errorMsgContent,
+          timestamp: new Date(),
+          type: 'system'
+        };
+        
+        setActiveSessions(sessions => 
+          sessions.map(s => 
+            s.id === sessionId 
+              ? { 
+                  ...s, 
+                  messages: [...s.messages, errorMessage],
+                  sceneSettings: { ...s.sceneSettings!, autoPlay: false }, // Pause scene
+                  updatedAt: new Date()
+                }
+              : s
+          )
+        );
+        
         setIsProcessing(false);
+        toast.error('Scene auto-play stopped due to error. Check your API settings.');
       }
     };
     
@@ -172,36 +196,34 @@ export const useSceneMode = () => {
     console.log(`Generating response for ${character.name} with objective: ${objective}`);
     
     // Get recent conversation history for context
-    const recentMessages = currentSession.messages.slice(-10);
-    const conversationContext = recentMessages.map(msg => {
-      if (msg.characterId) {
-        const char = house.characters?.find(c => c.id === msg.characterId);
-        return `${char?.name || 'Unknown'}: ${msg.content}`;
-      }
-      return `System: ${msg.content}`;
-    }).join('\n');
+    const recentMessages = currentSession.messages.slice(-8).filter(msg => msg.type !== 'system');
+    const conversationContext = recentMessages.length > 0 
+      ? recentMessages.map(msg => {
+          if (msg.characterId) {
+            const char = house.characters?.find(c => c.id === msg.characterId);
+            return `${char?.name || 'Unknown'}: ${msg.content}`;
+          }
+          return `User: ${msg.content}`;
+        }).join('\n')
+      : 'No previous conversation.';
     
     // Generate character response based on their objective
-    const characterPrompt = `You are ${character.name}, a ${character.role} with the personality: ${character.personality}
-      
-Your secret objective in this scene is: ${objective}
-      
-Scene context: ${currentSession.context || 'A social gathering'}
-      
+    const characterPrompt = `You are ${character.name}. Your personality: ${character.personality}
+
+Your secret objective: ${objective}
+
+Scene: ${currentSession.context || 'A social gathering'}
+
 Recent conversation:
 ${conversationContext}
-      
+
 Other characters present: ${currentSession.participantIds
       .filter(id => id !== characterId)
       .map(id => house.characters?.find(c => c.id === id)?.name)
       .filter(Boolean)
       .join(', ')}
-      
-Respond as ${character.name} would, keeping your objective in mind but being subtle about it. 
-Make your response natural and conversational, advancing toward your goal without being obvious.
-Keep your response to 1-2 sentences maximum.
-      
-System prompt for character behavior: ${character.prompts.system}`;
+
+Respond as ${character.name}. Work toward your objective subtly. Keep response to 1-2 sentences maximum.`;
     
     try {
       const provider = house.aiSettings?.provider || 'openrouter';
@@ -216,6 +238,7 @@ System prompt for character behavior: ${character.prompts.system}`;
       }
 
       console.log(`Calling AI service for character response using ${provider}...`);
+      console.log('Prompt being sent:', characterPrompt);
       
       // Create AI service instance with current house settings
       const aiService = new AIService(house);
@@ -280,9 +303,9 @@ System prompt for character behavior: ${character.prompts.system}`;
       toast.error(`Error generating response for ${character.name}: ${errorMessage}`);
       
       // If this is an API configuration error, pause the scene
-      if (errorMessage.includes('API')) {
+      if (errorMessage.includes('API') || errorMessage.includes('key')) {
         await pauseScene(sessionId);
-        toast.error('Scene paused due to API error. Please try again.');
+        toast.error('Scene paused due to API error. Please configure your API settings.');
       }
     }
   };
