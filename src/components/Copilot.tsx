@@ -162,8 +162,8 @@ User message: "${userMessage.content}"
 
 Respond according to your personality and role as defined above. Be helpful and stay in character. KEEP IT BRIEF AND WITHIN THE TOKEN LIMIT.`;
 
-      const apiKey = house.aiSettings?.apiKey;
-      if (!apiKey) {
+      const apiKey = house.aiSettings?.apiKey?.trim();
+      if (!apiKey || apiKey.length === 0) {
         throw new Error('OpenRouter API key not configured');
       }
 
@@ -461,7 +461,7 @@ Respond according to your personality and role as defined above. Be helpful and 
               <Card className="p-3">
                 <div className="flex items-center gap-2">
                   {house.aiSettings?.provider === 'openrouter' ? (
-                    house.aiSettings?.apiKey && house.aiSettings.apiKey.length > 0 ? (
+                    house.aiSettings?.apiKey && house.aiSettings.apiKey.trim().length > 0 ? (
                       <>
                         <Check size={16} className="text-green-500" />
                         <div>
@@ -489,7 +489,7 @@ Respond according to your personality and role as defined above. Be helpful and 
                             Provider: {house.aiSettings?.provider || 'none'}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Key Status: {house.aiSettings?.apiKey ? `${house.aiSettings.apiKey.length} chars` : 'empty'}
+                            Key Status: {house.aiSettings?.apiKey ? `${house.aiSettings.apiKey.trim().length} chars` : 'empty'}
                           </p>
                         </div>
                       </>

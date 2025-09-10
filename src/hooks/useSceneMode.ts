@@ -202,11 +202,11 @@ Respond as ${character.name}. Work toward your objective subtly. Keep response t
       if (provider !== 'openrouter') {
         throw new Error(`Unsupported AI provider: ${provider}. Only OpenRouter is supported.`)
       }
-      if (!house?.aiSettings?.apiKey) {
+      if (!house?.aiSettings?.apiKey?.trim()) {
         throw new Error('OpenRouter API key is required. Please configure it in House Settings.')
       }
 
-      const aiService = new AIService(house)
+      const aiService = new AIService(() => house!)
       const response = await aiService.generateResponse(characterPrompt)
 
       const now = new Date()

@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useKV } from '@github/spark/hooks';
 import { useChat } from '@/hooks/useChat';
 import { useHouse } from '@/hooks/useHouse';
 import { ChatMessage } from '@/types';
@@ -23,6 +24,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
   const { house } = useHouse();
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState<string[]>([]);
+  const [forceUpdate] = useKV<number>('settings-force-update', 0); // React to settings changes
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Use the sessionId if provided, otherwise use the hook's active session
@@ -121,9 +123,19 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
 
   if (!currentSession) {
     const provider = house.aiSettings?.provider || 'openrouter';
-    const needsApiKey = provider === 'openrouter' && !house.aiSettings?.apiKey;
+    const apiKeyPresent = !!(house.aiSettings?.apiKey && house.aiSettings.apiKey.trim().length > 0);
+    const needsApiKey = provider === 'openrouter' && !apiKeyPresent;
     const hasCharacters = house.characters && house.characters.length > 0;
     const sparkUnavailable = typeof window === 'undefined' || !window.spark;
+    
+    // Debug logging for API key status
+    console.log('=== ChatInterface API Key Check ===');
+    console.log('Provider:', provider);
+    console.log('API Key Present:', apiKeyPresent);
+    console.log('API Key Value:', house.aiSettings?.apiKey ? `${house.aiSettings.apiKey.slice(0, 8)}... (${house.aiSettings.apiKey.trim().length} chars)` : 'empty');
+    console.log('Needs API Key:', needsApiKey);
+    console.log('Has Characters:', hasCharacters);
+    console.log('Force Update Trigger:', forceUpdate);
     
     return (
       <div className="flex-1 flex items-center justify-center bg-background p-8">

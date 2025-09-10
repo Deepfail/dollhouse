@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 export function useChat() {
   const [sessions, setSessions] = useKV<ChatSession[]>('chat-sessions', []);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [forceUpdate] = useKV<number>('settings-force-update', 0); // React to settings changes
   const { house } = useHouse();
   const { processUserMessage, processCharacterResponse, triggerMilestoneEvents } = useInteractionSystem();
   
@@ -22,9 +23,11 @@ export function useChat() {
       sessionCount: safeSessions.length,
       activeSessionId: activeSessionId ? activeSessionId.slice(0, 12) + '...' : null,
       activeSessionFound: !!activeSession,
-      sessionIds: safeSessions.map(s => s.id.slice(0, 12) + '...')
+      sessionIds: safeSessions.map(s => s.id.slice(0, 12) + '...'),
+      forceUpdateTrigger: forceUpdate,
+      apiKeyConfigured: !!(house.aiSettings?.apiKey?.trim())
     });
-  }, [safeSessions, activeSessionId, activeSession]);
+  }, [safeSessions, activeSessionId, activeSession, forceUpdate, house.aiSettings?.apiKey]);
 
   const createSession = (type: 'individual' | 'group' | 'scene', participantIds: string[], context?: string) => {
     console.log('=== createSession Debug ===');
@@ -224,7 +227,7 @@ export function useChat() {
 
       // Check provider configuration
       if (provider === 'openrouter') {
-        if (!house.aiSettings?.apiKey) {
+        if (!house.aiSettings?.apiKey?.trim()) {
           console.error('OpenRouter API key not configured');
           toast.error('OpenRouter API key is not configured. Please add your API key in House Settings.');
           return null;
@@ -245,8 +248,8 @@ export function useChat() {
         return `User: ${msg.content}`;
       }).join('\n');
 
-      // Create AI service instance with current house settings
-      const aiService = new AIService(house);
+      // Create AI service instance with a getter function that always returns fresh house data
+      const aiService = new AIService(() => house);
 
       // Build character prompt - make it more robust
       let characterPrompt = `You are ${character.name}`;

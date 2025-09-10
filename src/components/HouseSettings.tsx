@@ -134,7 +134,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     toast.success('Prompt settings updated successfully');
   };
 
-  const handleSaveApiSettings = () => {
+  const handleSaveApiSettings = async () => {
     console.log('=== Saving API Settings ===');
     console.log('Provider:', provider);
     console.log('Model:', selectedModel);
@@ -166,11 +166,19 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
         aiSettings: newApiSettings
       });
       
+      // Wait a bit to ensure the KV store is updated
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Trigger a force update to ensure other components re-render
       setForceUpdate(current => (current || 0) + 1);
       
       console.log('API settings save completed successfully');
       toast.success('API settings saved successfully');
+      
+      // Verify the save worked
+      setTimeout(() => {
+        console.log('Verification check - House AI settings after save:', house.aiSettings);
+      }, 200);
       
     } catch (error) {
       console.error('Failed to save API settings:', error);
@@ -345,7 +353,10 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                     <div>House Provider: {house.aiSettings?.provider || 'none'}</div>
                     <div>Form Model: {selectedModel}</div>
                     <div>House Model: {house.aiSettings?.model || 'none'}</div>
-                    <div>Match: {apiKey === house.aiSettings?.apiKey ? 'YES' : 'NO'}</div>
+                    <div>Form Trimmed Length: {apiKey.trim().length}</div>
+                    <div>House Trimmed Length: {house.aiSettings?.apiKey?.trim().length || 0}</div>
+                    <div>Match: {apiKey.trim() === (house.aiSettings?.apiKey?.trim() || '') ? 'YES' : 'NO'}</div>
+                    <div>Valid Check: {!!(house.aiSettings?.apiKey && house.aiSettings.apiKey.trim().length > 0) ? 'VALID' : 'INVALID'}</div>
                   </div>
                   
                   <div className="space-y-2">
