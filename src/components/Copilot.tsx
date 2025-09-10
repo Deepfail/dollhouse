@@ -145,8 +145,6 @@ Recent updates: ${JSON.stringify(safeUpdates.slice(-3))}
 
 User message: "${userMessage.content}"
 
-Respond according to your personality and role as defined above. Be helpful and stay in character. REMEMBER: Follow the length requirements specified in your personality prompt.`;
-
 Respond according to your personality and role as defined above. Be helpful and stay in character. KEEP IT BRIEF AND WITHIN THE TOKEN LIMIT.`;
 
       const apiKey = house.aiSettings?.apiKey;
