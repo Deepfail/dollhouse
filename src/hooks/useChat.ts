@@ -326,32 +326,33 @@ Respond as ${character.name} would, staying true to your character. Keep respons
         console.warn(`AI response failed: ${errorMessage}, using fallback`);
       }
       
-      // Always provide a fallback response instead of failing completely
-      const character = house.characters?.find(c => c.id === characterId);
-      const fallbackResponses = [
-        `*${character?.name || 'Character'} nods thoughtfully*`,
-        `I see what you mean.`,
-        `That's fascinating!`,
-        `*${character?.name || 'Character'} considers your words*`,
-        `Tell me more about that.`
-      ];
-      const response = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
-      
-      const message: ChatMessage = {
-        id: `msg-${Date.now()}-${characterId}`,
-        characterId,
-        content: response,
-        timestamp: new Date(),
-        type: 'text'
-      };
-      
-      // Process character response for relationship building
-      const character = house.characters?.find(c => c.id === characterId);
-      if (character) {
-        processCharacterResponse(characterId, response, character);
-      }
-      
-      return message;
+// Always provide a fallback response instead of failing completely
+const charRef = house.characters?.find(c => c.id === characterId);
+
+const fallbackResponses = [
+  `*${charRef?.name || 'Character'} nods thoughtfully*`,
+  `I see what you mean.`,
+  `That's fascinating!`,
+  `*${charRef?.name || 'Character'} considers your words*`,
+  `Tell me more about that.`
+];
+const response = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
+
+const message: ChatMessage = {
+  id: `msg-${Date.now()}-${characterId}`,
+  characterId,
+  content: response,
+  timestamp: new Date(),
+  type: 'text'
+};
+
+// Process character response for relationship building
+if (charRef) {
+  processCharacterResponse(characterId, response, charRef);
+}
+
+return message;
+
     }
   };
 

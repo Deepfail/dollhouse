@@ -239,13 +239,13 @@ export function useHouse() {
     
     // Initialize relationship dynamics for characters that don't have them
     const charactersNeedingUpdate = updatedHouse.characters.filter(char => 
-      !char.relationshipDynamics || !char.sexualProgression
+      !char.RelationshipDynamics  || !char.SexualProgression 
     );
     
     if (charactersNeedingUpdate.length > 0) {
       console.log('Initializing relationship dynamics for existing characters');
       updatedHouse.characters = updatedHouse.characters.map(char => {
-        if (!char.relationshipDynamics || !char.sexualProgression) {
+        if (!char.RelationshipDynamics || !char.SexualProgression) {
           return initializeCharacterDynamics(char);
         }
         return char;
