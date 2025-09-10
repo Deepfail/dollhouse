@@ -119,6 +119,7 @@ export interface House {
   // Global settings
   worldPrompt?: string;
   copilotPrompt?: string;
+  copilotMaxTokens?: number;
   
   // Auto character creator settings
   autoCreator: {

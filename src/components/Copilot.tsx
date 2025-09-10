@@ -112,7 +112,26 @@ export function Copilot() {
       // Use the custom copilot prompt from house settings, with fallback
       const copilotPersonality = house.copilotPrompt || `You are a helpful House Manager copilot for a character creator house application. You monitor characters, provide status updates, and assist users with managing their virtual house and characters.`;
 
+      // Use exact token limit from settings, with fallback based on prompt analysis
+      let maxTokens = house.copilotMaxTokens || 100;
+      
+      // If no custom limit is set, try to infer from prompt
+      if (!house.copilotMaxTokens) {
+        const promptLower = copilotPersonality.toLowerCase();
+        if (promptLower.includes('2-3 sentences') || promptLower.includes('brief') || promptLower.includes('short')) {
+          maxTokens = 75;
+        } else if (promptLower.includes('1 sentence') || promptLower.includes('very brief')) {
+          maxTokens = 50;
+        } else if (promptLower.includes('detailed') || promptLower.includes('long') || promptLower.includes('comprehensive')) {
+          maxTokens = 300;
+        } else if (promptLower.includes('paragraph')) {
+          maxTokens = 150;
+        }
+      }
+
       const promptContent = `${copilotPersonality}
+
+IMPORTANT: Keep your response within ${maxTokens} tokens or less. Be concise and follow the response length specified in your personality description.
 
 Current house status:
 - ${houseContext.characterCount} characters
@@ -129,7 +148,7 @@ Recent updates: ${JSON.stringify(safeUpdates.slice(-3))}
 
 User message: "${userMessage.content}"
 
-Respond according to your personality and role as defined above. Be helpful and stay in character. Keep responses conversational and engaging.`;
+Respond according to your personality and role as defined above. Be helpful and stay in character. KEEP IT BRIEF AND WITHIN THE TOKEN LIMIT.`;
 
       const apiKey = house.aiSettings?.apiKey;
       if (!apiKey) {
@@ -153,7 +172,7 @@ Respond according to your personality and role as defined above. Be helpful and 
             }
           ],
           temperature: 0.7,
-          max_tokens: 500
+          max_tokens: maxTokens
         })
       });
 

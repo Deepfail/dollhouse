@@ -33,6 +33,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   const [houseDescription, setHouseDescription] = useState(house.description || '');
   const [worldPrompt, setWorldPrompt] = useState(house.worldPrompt || '');
   const [copilotPrompt, setCopilotPrompt] = useState(house.copilotPrompt || '');
+  const [copilotMaxTokens, setCopilotMaxTokens] = useState(house.copilotMaxTokens || 100);
   const [currency, setCurrency] = useState(house.currency);
   
   // AI Settings state  
@@ -53,6 +54,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     setHouseDescription(house.description || '');
     setWorldPrompt(house.worldPrompt || '');
     setCopilotPrompt(house.copilotPrompt || '');
+    setCopilotMaxTokens(house.copilotMaxTokens || 100);
     setCurrency(house.currency);
     setProvider(house.aiSettings?.provider || 'openrouter');
     setSelectedModel(house.aiSettings?.model || 'gpt-4o');
@@ -70,6 +72,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       description: houseDescription,
       worldPrompt,
       copilotPrompt,
+      copilotMaxTokens,
       currency,
       aiSettings: {
         ...house.aiSettings,
@@ -361,6 +364,28 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                       placeholder="Define how the house manager AI should behave, what it monitors, and how it helps..."
                       className="min-h-[120px]"
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="copilot-max-tokens">Copilot Response Length (Max Tokens)</Label>
+                    <div className="space-y-2">
+                      <Input
+                        id="copilot-max-tokens"
+                        type="number"
+                        min="25"
+                        max="1000"
+                        value={copilotMaxTokens}
+                        onChange={(e) => setCopilotMaxTokens(parseInt(e.target.value) || 100)}
+                        placeholder="100"
+                      />
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <p>Controls how long the copilot's responses can be:</p>
+                        <p>• 25-50: Very brief (1 sentence)</p>
+                        <p>• 50-100: Short (2-3 sentences) - Recommended</p>
+                        <p>• 100-200: Medium (1 paragraph)</p>
+                        <p>• 200+: Long responses</p>
+                      </div>
+                    </div>
                   </div>
 
                   <Button onClick={handleSavePromptSettings} className="w-full">
