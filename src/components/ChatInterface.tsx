@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useChat } from '@/hooks/useChat';
 import { useHouse } from '@/hooks/useHouse';
 import { ChatMessage } from '@/types';
-import { PaperPlaneTilt as Send, ChatCircle as MessageCircle, Users, Camera, Warning } from '@phosphor-icons/react';
+import { PaperPlaneTilt as Send, ChatCircle as MessageCircle, Users, Camera, Warning, ArrowLeft } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ChatInterfaceProps {
@@ -321,6 +321,13 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
       {/* Chat Header */}
       <div className="border-b border-border p-4 bg-card">
         <div className="flex items-center gap-3">
+          {/* Back Button */}
+          {onBack && (
+            <Button size="sm" variant="ghost" onClick={onBack}>
+              <ArrowLeft size={16} />
+            </Button>
+          )}
+          
           <div className="flex -space-x-2">
             {participants.slice(0, 3).map((character, index) => (
               <Avatar key={character!.id} className={`border-2 border-card ${index > 0 ? 'ml-2' : ''}`}>

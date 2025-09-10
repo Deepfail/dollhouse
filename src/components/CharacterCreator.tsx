@@ -23,7 +23,7 @@ const PRESET_ROLES = [
   'Companion', 'Advisor', 'Assistant', 'Friend', 'Mentor', 'Guardian', 'Scholar', 'Artist', 'Warrior', 'Healer'
 ];
 
-const PRESET_SKILLS = [
+const PRESET_TRAITS = [
   'Conversation', 'Empathy', 'Wisdom', 'Creativity', 'Logic', 'Humor', 'Leadership', 'Patience', 'Adventure', 'Care'
 ];
 
@@ -41,7 +41,7 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
     personality: character?.personality || '',
     appearance: character?.appearance || '',
     role: character?.role || '',
-    skills: character?.skills || [],
+    traits: character?.traits || [],
     classes: character?.classes || [],
     prompts: {
       system: character?.prompts.system || '',
@@ -50,14 +50,14 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
     },
     stats: {
       relationship: character?.stats.relationship || 50,
-      energy: character?.stats.energy || 80,
+      wet: character?.stats.wet || 80,
       happiness: character?.stats.happiness || 70,
       experience: character?.stats.experience || 0,
       level: character?.stats.level || 1
     }
   });
 
-  const [customSkill, setCustomSkill] = useState('');
+  const [customTrait, setCustomTrait] = useState('');
   const [customClass, setCustomClass] = useState('');
   const [activeTab, setActiveTab] = useState('basic');
 
@@ -79,22 +79,22 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
     }
   };
 
-  const toggleSkill = (skill: string) => {
+  const toggleTrait = (trait: string) => {
     setFormData(prev => ({
       ...prev,
-      skills: prev.skills.includes(skill)
-        ? prev.skills.filter(s => s !== skill)
-        : [...prev.skills, skill]
+      traits: prev.traits.includes(trait)
+        ? prev.traits.filter(s => s !== trait)
+        : [...prev.traits, trait]
     }));
   };
 
-  const addCustomSkill = () => {
-    if (customSkill.trim() && !formData.skills.includes(customSkill.trim())) {
+  const addCustomTrait = () => {
+    if (customTrait.trim() && !formData.traits.includes(customTrait.trim())) {
       setFormData(prev => ({
         ...prev,
-        skills: [...prev.skills, customSkill.trim()]
+        traits: [...prev.traits, customTrait.trim()]
       }));
-      setCustomSkill('');
+      setCustomTrait('');
     }
   };
 
@@ -130,8 +130,9 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
       personality: formData.personality.trim(),
       appearance: formData.appearance.trim(),
       role: formData.role.trim(),
-      skills: formData.skills,
+      traits: formData.traits,
       classes: formData.classes,
+      rarity: 'common', // Default rarity
       unlocks: character?.unlocks || [],
       prompts: formData.prompts,
       stats: formData.stats,
@@ -236,41 +237,41 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
             </TabsContent>
 
             <TabsContent value="traits" className="space-y-6">
-              {/* Skills */}
+              {/* Traits */}
               <div className="space-y-3">
-                <Label>Skills</Label>
+                <Label>Traits</Label>
                 <div className="flex flex-wrap gap-2">
-                  {PRESET_SKILLS.map(skill => (
+                  {PRESET_TRAITS.map(trait => (
                     <Badge
-                      key={skill}
-                      variant={formData.skills.includes(skill) ? "default" : "outline"}
+                      key={trait}
+                      variant={formData.traits.includes(trait) ? "default" : "outline"}
                       className="cursor-pointer"
-                      onClick={() => toggleSkill(skill)}
+                      onClick={() => toggleTrait(trait)}
                     >
-                      {skill}
+                      {trait}
                     </Badge>
                   ))}
                 </div>
                 <div className="flex gap-2">
                   <Input
-                    value={customSkill}
-                    onChange={(e) => setCustomSkill(e.target.value)}
-                    placeholder="Add custom skill"
-                    onKeyDown={(e) => e.key === 'Enter' && addCustomSkill()}
+                    value={customTrait}
+                    onChange={(e) => setCustomTrait(e.target.value)}
+                    placeholder="Add custom trait"
+                    onKeyDown={(e) => e.key === 'Enter' && addCustomTrait()}
                   />
-                  <Button size="sm" onClick={addCustomSkill}>
+                  <Button size="sm" onClick={addCustomTrait}>
                     <Plus size={16} />
                   </Button>
                 </div>
-                {formData.skills.length > 0 && (
+                {formData.traits.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {formData.skills.map(skill => (
-                      <Badge key={skill} variant="secondary" className="gap-1">
-                        {skill}
+                    {formData.traits.map(trait => (
+                      <Badge key={trait} variant="secondary" className="gap-1">
+                        {trait}
                         <X 
                           size={12} 
                           className="cursor-pointer hover:text-destructive"
-                          onClick={() => toggleSkill(skill)}
+                          onClick={() => toggleTrait(trait)}
                         />
                       </Badge>
                     ))}
@@ -334,10 +335,10 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm">Energy: {formData.stats.energy}%</Label>
+                    <Label className="text-sm">Arousal: {formData.stats.wet}%</Label>
                     <Slider
-                      value={[formData.stats.energy]}
-                      onValueChange={(value) => updateFormData('stats.energy', value[0])}
+                      value={[formData.stats.wet]}
+                      onValueChange={(value) => updateFormData('stats.wet', value[0])}
                       max={100}
                       step={5}
                     />
@@ -419,13 +420,13 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                       <p className="text-muted-foreground">{formData.description}</p>
                     )}
                     
-                    {formData.skills.length > 0 && (
+                    {formData.traits.length > 0 && (
                       <div>
-                        <Label className="text-sm font-medium">Skills:</Label>
+                        <Label className="text-sm font-medium">Traits:</Label>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {formData.skills.map(skill => (
-                            <Badge key={skill} variant="secondary" className="text-xs">
-                              {skill}
+                          {formData.traits.map(trait => (
+                            <Badge key={trait} variant="secondary" className="text-xs">
+                              {trait}
                             </Badge>
                           ))}
                         </div>
@@ -451,8 +452,8 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                         <div className="font-medium">{formData.stats.relationship}%</div>
                       </div>
                       <div>
-                        <Label className="text-xs">Energy</Label>
-                        <div className="font-medium">{formData.stats.energy}%</div>
+                        <Label className="text-xs">Arousal</Label>
+                        <div className="font-medium">{formData.stats.wet}%</div>
                       </div>
                       <div>
                         <Label className="text-xs">Happiness</Label>

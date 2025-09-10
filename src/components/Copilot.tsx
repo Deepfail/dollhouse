@@ -102,7 +102,7 @@ export function Copilot() {
           ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.happiness, 0) / house.characters.length)
           : 0,
         avgEnergy: house.characters.length > 0 
-          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.energy, 0) / house.characters.length)
+          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.wet, 0) / house.characters.length)
           : 0,
         characters: house.characters.map(c => ({ name: c.name, role: c.role, stats: c.stats })),
         aiProvider: house.aiSettings?.provider,
@@ -251,12 +251,12 @@ Respond according to your personality and role as defined above. Be helpful and 
 
     house.characters.forEach(character => {
       // Check for low stats
-      if (character.stats.energy < 30) {
+      if (character.stats.wet < 30) {
         newUpdates.push({
-          id: `energy-${character.id}-${Date.now()}`,
+          id: `arousal-${character.id}-${Date.now()}`,
           type: 'need',
           characterId: character.id,
-          message: `${character.name} is getting tired and needs rest.`,
+          message: `${character.name} seems less aroused and could use some stimulation.`,
           priority: 'medium',
           timestamp: new Date(),
           handled: false
@@ -409,10 +409,10 @@ Respond according to your personality and role as defined above. Be helpful and 
                     <div>
                       <p className="font-medium">
                         {house.characters.length > 0 
-                          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.energy, 0) / house.characters.length)
+                          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.wet, 0) / house.characters.length)
                           : 0}%
                       </p>
-                      <p className="text-xs text-muted-foreground">Avg Energy</p>
+                      <p className="text-xs text-muted-foreground">Avg Arousal</p>
                     </div>
                   </div>
                 </Card>

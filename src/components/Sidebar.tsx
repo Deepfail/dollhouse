@@ -16,7 +16,7 @@ import {
   ChatCircle as MessageCircle, 
   Gear as Settings, 
   Heart, 
-  BatteryMedium as Battery, 
+  Droplets, 
   Smiley as Smile,
   Sparkles,
   Theater
@@ -25,6 +25,7 @@ import { CharacterCreator } from './CharacterCreator';
 import { AutoCharacterCreator } from './AutoCharacterCreator';
 import { SceneCreator } from './SceneCreator';
 import { HouseSettings } from './HouseSettings';
+import { CharacterCard } from './CharacterCard';
 
 interface SidebarProps {
   onStartChat?: (characterId: string) => void;
@@ -161,59 +162,12 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
                   </Card>
                 ) : (
                   (house.characters || []).map(character => (
-                    <Card key={character.id} className="p-3 hover:bg-accent/50 transition-colors cursor-pointer">
-                      <div className="flex items-start gap-3">
-                        <Avatar>
-                          <AvatarFallback className="bg-primary text-primary-foreground">
-                            {character.name.slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        
-                        <div className="flex-1 space-y-2">
-                          <div>
-                            <h4 className="font-medium text-sm">{character.name}</h4>
-                            <p className="text-xs text-muted-foreground line-clamp-2">
-                              {character.description}
-                            </p>
-                            {character.role && (
-                              <Badge variant="outline" className="text-xs mt-1">
-                                {character.role}
-                              </Badge>
-                            )}
-                          </div>
-                          
-                          {/* Stats */}
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-xs">
-                              <Heart size={12} className="text-red-500" />
-                              <Progress value={character.stats.relationship || 0} className="h-1 flex-1" />
-                              <span className="text-muted-foreground">{character.stats.relationship || 0}%</span>
-                            </div>
-                            
-                            <div className="flex items-center gap-2 text-xs">
-                              <Smile size={12} className="text-yellow-500" />
-                              <Progress value={character.stats.happiness || 0} className="h-1 flex-1" />
-                              <span className="text-muted-foreground">{character.stats.happiness || 0}%</span>
-                            </div>
-                            
-                            <div className="flex items-center gap-2 text-xs">
-                              <Battery size={12} className="text-blue-500" />
-                              <Progress value={character.stats.energy || 0} className="h-1 flex-1" />
-                              <span className="text-muted-foreground">{character.stats.energy || 0}%</span>
-                            </div>
-                          </div>
-
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full h-7 text-xs"
-                            onClick={() => startIndividualChat(character.id)}
-                          >
-                            Chat
-                          </Button>
-                        </div>
-                      </div>
-                    </Card>
+                    <CharacterCard
+                      key={character.id}
+                      character={character}
+                      onStartChat={startIndividualChat}
+                      compact={true}
+                    />
                   ))
                 )}
               </div>
@@ -238,14 +192,14 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
             <div className="space-y-3 pr-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium">Rooms</h3>
-                <Button size="sm" className="h-8">
+                <Button size="sm" className="h-8" onClick={() => toast.info('Room creation from sidebar - coming soon!')}>
                   <Plus size={16} />
                 </Button>
               </div>
 
               <div className="space-y-2">
                 {(house.rooms || []).map(room => (
-                  <Card key={room.id} className="p-3">
+                  <Card key={room.id} className="p-3 hover:bg-accent/50 transition-colors cursor-pointer">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-medium text-sm">{room.name}</h4>
                       <Badge variant={room.type === 'private' ? 'default' : 'secondary'}>
@@ -263,6 +217,25 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
                       </span>
                       <Progress value={(room.residents.length / room.capacity) * 100} className="h-1 w-16" />
                     </div>
+
+                    {/* Show characters in room */}
+                    {room.residents.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {room.residents.slice(0, 3).map(residentId => {
+                          const character = house.characters.find(c => c.id === residentId);
+                          return character ? (
+                            <Badge key={character.id} variant="outline" className="text-xs">
+                              {character.name}
+                            </Badge>
+                          ) : null;
+                        })}
+                        {room.residents.length > 3 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{room.residents.length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
                   </Card>
                 ))}
               </div>
