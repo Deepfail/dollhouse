@@ -48,8 +48,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   const [autoInterval, setAutoInterval] = useState(house.autoCreator?.interval || 60);
   const [autoMaxChars, setAutoMaxChars] = useState(house.autoCreator?.maxCharacters || 10);
 
-  // Sync state with house data when it changes
+  // Sync state with house data when it changes, but only if dialog is not open
   useEffect(() => {
+    if (!open) return; // Only sync when dialog is open
+    
+    console.log('=== Syncing form state with house data ===');
+    console.log('House AI Settings:', house.aiSettings);
+    
     setHouseName(house.name);
     setHouseDescription(house.description || '');
     setWorldPrompt(house.worldPrompt || 'Welcome to your Character Creator House! This is a virtual space where AI-powered characters live, interact, and grow. Characters have personalities, relationships, and can engage in conversations with you and each other.');
@@ -64,7 +69,9 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     setAutoEnabled(house.autoCreator?.enabled || false);
     setAutoInterval(house.autoCreator?.interval || 60);
     setAutoMaxChars(house.autoCreator?.maxCharacters || 10);
-  }, [house]);
+    
+    console.log('Form state synced - API Key:', house.aiSettings?.apiKey ? `${house.aiSettings.apiKey.slice(0, 8)}...` : 'empty');
+  }, [open, house]);
 
   const handleSaveHouseSettings = () => {
     updateHouse({
@@ -107,29 +114,41 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     console.log('Provider:', provider);
     console.log('Model:', selectedModel);
     console.log('API Key present:', !!apiKey);
+    console.log('API Key length:', apiKey.length);
     console.log('Image Provider:', imageProvider);
     console.log('Image API Key present:', !!imageApiKey);
+    console.log('Current house AI settings before save:', house.aiSettings);
     
+    // Create the complete AI settings object with current form values
     const newApiSettings = {
-      ...house.aiSettings,
       provider: provider as 'openrouter',
       model: selectedModel,
-      apiKey,
+      apiKey: apiKey.trim(), // Ensure no whitespace issues
       imageProvider: imageProvider as 'venice' | 'none',
-      imageApiKey
+      imageApiKey: imageApiKey.trim(),
+      // Preserve any other existing settings, but override with new values
+      ...(house.aiSettings || {}),
+      // Explicitly set the form values to override any existing ones
+      provider: provider as 'openrouter',
+      model: selectedModel,
+      apiKey: apiKey.trim(),
+      imageProvider: imageProvider as 'venice' | 'none',
+      imageApiKey: imageApiKey.trim()
     };
     
-    console.log('New AI settings:', newApiSettings);
+    console.log('New AI settings being saved:', newApiSettings);
     
+    // Update the house with new AI settings
     updateHouse({
       aiSettings: newApiSettings
     });
     
-    // Verify the update
+    // Verify after a short delay
     setTimeout(() => {
-      console.log('Updated house AI settings:', house.aiSettings);
-    }, 100);
+      console.log('House AI settings after save attempt:', house.aiSettings);
+    }, 200);
     
+    console.log('API settings save initiated');
     toast.success('API settings saved successfully');
   };
 
@@ -291,6 +310,15 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Debug Info */}
+                  <div className="p-3 bg-muted rounded-lg text-sm">
+                    <div className="text-muted-foreground mb-2">Debug Info:</div>
+                    <div>Form API Key: {apiKey ? `${apiKey.slice(0, 8)}...` : 'empty'}</div>
+                    <div>House API Key: {house.aiSettings?.apiKey ? `${house.aiSettings.apiKey.slice(0, 8)}...` : 'empty'}</div>
+                    <div>Provider: {provider}</div>
+                    <div>Model: {selectedModel}</div>
+                  </div>
+                  
                   <div className="space-y-2">
                     <Label htmlFor="provider">AI Provider</Label>
                     <Select
