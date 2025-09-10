@@ -55,16 +55,31 @@ export function Copilot() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
-  // Debug logging for API status
+  // Check if API is properly configured
+  const isApiConfigured = house.aiSettings?.provider === 'openrouter' && 
+                          house.aiSettings?.apiKey && 
+                          house.aiSettings.apiKey.trim().length > 0;
+
+  // Debug logging for API status (with more detail)
   useEffect(() => {
     console.log('=== Copilot API Status Debug ===');
     console.log('House AI Settings:', house.aiSettings);
     console.log('Provider:', house.aiSettings?.provider);
     console.log('Has API Key:', !!house.aiSettings?.apiKey);
     console.log('API Key Value:', house.aiSettings?.apiKey ? `${house.aiSettings.apiKey.slice(0, 8)}...` : 'empty');
+    console.log('API Key Trimmed Length:', house.aiSettings?.apiKey?.trim().length || 0);
     console.log('Model:', house.aiSettings?.model);
+    console.log('Is API Configured:', isApiConfigured);
     console.log('Force Update Trigger:', forceUpdate);
-  }, [house.aiSettings, forceUpdate]);
+    
+    // Also check KV directly for comparison
+    if (window.spark?.kv) {
+      window.spark.kv.get('character-house').then(kvData => {
+        console.log('KV House Data API Settings:', kvData?.aiSettings);
+        console.log('KV vs Hook match:', JSON.stringify(kvData?.aiSettings) === JSON.stringify(house.aiSettings));
+      }).catch(err => console.error('KV check failed:', err));
+    }
+  }, [house.aiSettings, forceUpdate, isApiConfigured]);
 
   // Ensure updates is never undefined
   const safeUpdates = updates || [];
@@ -92,6 +107,12 @@ export function Copilot() {
 
   const sendMessage = async () => {
     if (!inputMessage.trim()) return;
+
+    // Check API configuration before sending
+    if (!isApiConfigured) {
+      toast.error('Please configure your OpenRouter API key in House Settings first.');
+      return;
+    }
 
     const userMessage: CopilotMessage = {
       id: `user-${Date.now()}`,
@@ -461,7 +482,7 @@ Respond according to your personality and role as defined above. Be helpful and 
               <Card className="p-3">
                 <div className="flex items-center gap-2">
                   {house.aiSettings?.provider === 'openrouter' ? (
-                    house.aiSettings?.apiKey && house.aiSettings.apiKey.trim().length > 0 ? (
+                    isApiConfigured ? (
                       <>
                         <Check size={16} className="text-green-500" />
                         <div>
@@ -490,6 +511,9 @@ Respond according to your personality and role as defined above. Be helpful and 
                           </p>
                           <p className="text-xs text-muted-foreground">
                             Key Status: {house.aiSettings?.apiKey ? `${house.aiSettings.apiKey.trim().length} chars` : 'empty'}
+                          </p>
+                          <p className="text-xs text-red-500">
+                            Update #{forceUpdate || 0} - Not Ready
                           </p>
                         </div>
                       </>

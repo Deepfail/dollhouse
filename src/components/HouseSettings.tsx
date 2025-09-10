@@ -140,6 +140,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     console.log('Model:', selectedModel);
     console.log('API Key present:', !!apiKey);
     console.log('API Key length:', apiKey.length);
+    console.log('API Key first 8 chars:', apiKey.slice(0, 8));
     console.log('Image Provider:', imageProvider);
     console.log('Image API Key present:', !!imageApiKey);
     console.log('Current house AI settings before save:', house.aiSettings);
@@ -164,30 +165,58 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     console.log('New AI settings being saved:', newApiSettings);
     
     try {
-      // Use functional update to ensure we get the latest house state
-      updateHouse(currentHouse => ({
-        ...currentHouse,
-        aiSettings: newApiSettings,
-        updatedAt: new Date()
-      }));
+      // First, try using direct KV to ensure data is persisted
+      console.log('Attempting direct KV save...');
       
-      // Wait a bit to ensure the KV store is updated
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Get current house data directly from KV
+      const currentHouseFromKV = await window.spark.kv.get<any>('character-house');
+      console.log('Current house from KV:', currentHouseFromKV);
+      
+      // Update with new AI settings
+      const updatedHouseForKV = {
+        ...currentHouseFromKV,
+        aiSettings: newApiSettings,
+        updatedAt: new Date().toISOString() // Use ISO string for better compatibility
+      };
+      
+      // Save directly to KV
+      await window.spark.kv.set('character-house', updatedHouseForKV);
+      console.log('Direct KV save completed');
+      
+      // Also update through the hook (for immediate UI updates)
+      updateHouse(currentHouse => {
+        const updated = {
+          ...currentHouse,
+          aiSettings: newApiSettings,
+          updatedAt: new Date()
+        };
+        console.log('Hook update applied:', updated);
+        return updated;
+      });
       
       // Trigger a force update to ensure other components re-render
       setForceUpdate(current => (current || 0) + 1);
       
-      console.log('API settings save completed successfully');
-      toast.success('API settings saved successfully');
+      // Verify the save worked
+      setTimeout(async () => {
+        const verificationData = await window.spark.kv.get<any>('character-house');
+        console.log('Verification check - KV data:', verificationData?.aiSettings);
+        console.log('Verification check - Hook data:', house.aiSettings);
+        
+        if (verificationData?.aiSettings?.apiKey === apiKey.trim()) {
+          console.log('✅ API settings successfully saved and verified!');
+          toast.success('API settings saved and verified successfully');
+        } else {
+          console.error('❌ API settings save verification failed');
+          toast.error('API settings may not have saved correctly. Please try again.');
+        }
+      }, 1000);
       
-      // Verify the save worked after a short delay
-      setTimeout(() => {
-        console.log('Verification check - House AI settings after save:', house.aiSettings);
-      }, 500);
+      console.log('API settings save completed successfully');
       
     } catch (error) {
       console.error('Failed to save API settings:', error);
-      toast.error('Failed to save API settings');
+      toast.error('Failed to save API settings: ' + error.message);
     }
   };
 
@@ -360,8 +389,21 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                     <div>House Model: {house.aiSettings?.model || 'none'}</div>
                     <div>Form Trimmed Length: {apiKey.trim().length}</div>
                     <div>House Trimmed Length: {house.aiSettings?.apiKey?.trim().length || 0}</div>
-                    <div>Match: {apiKey.trim() === (house.aiSettings?.apiKey?.trim() || '') ? 'YES' : 'NO'}</div>
+                    <div>Values Match: {apiKey.trim() === (house.aiSettings?.apiKey?.trim() || '') ? 'YES' : 'NO'}</div>
                     <div>Valid Check: {!!(house.aiSettings?.apiKey && house.aiSettings.apiKey.trim().length > 0) ? 'VALID' : 'INVALID'}</div>
+                    <div>Force Update: #{forceUpdate || 0}</div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={async () => {
+                        const kvData = await window.spark.kv.get('character-house');
+                        console.log('Raw KV Data:', kvData);
+                        toast.info('KV data logged to console');
+                      }}
+                      className="mt-2"
+                    >
+                      Check KV Storage
+                    </Button>
                   </div>
                   
                   <div className="space-y-2">
