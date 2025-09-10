@@ -19,14 +19,30 @@ export function useChat() {
 
   // Debug session finding
   useEffect(() => {
-    console.log('useChat state update:', {
-      sessionCount: safeSessions.length,
-      activeSessionId: activeSessionId ? activeSessionId.slice(0, 12) + '...' : null,
-      activeSessionFound: !!activeSession,
-      sessionIds: safeSessions.map(s => s.id.slice(0, 12) + '...'),
-      forceUpdateTrigger: forceUpdate,
-      apiKeyConfigured: !!(house.aiSettings?.apiKey?.trim())
-    });
+    const verifyApiSettings = async () => {
+      try {
+        const kvHouse = await window.spark.kv.get<any>('character-house');
+        const kvApiConfigured = !!(kvHouse?.aiSettings?.apiKey?.trim());
+        const hookApiConfigured = !!(house.aiSettings?.apiKey?.trim());
+        
+        console.log('useChat API verification:', {
+          sessionCount: safeSessions.length,
+          activeSessionId: activeSessionId ? activeSessionId.slice(0, 12) + '...' : null,
+          activeSessionFound: !!activeSession,
+          sessionIds: safeSessions.map(s => s.id.slice(0, 12) + '...'),
+          forceUpdateTrigger: forceUpdate,
+          hookApiConfigured,
+          kvApiConfigured,
+          hookApiKey: house.aiSettings?.apiKey ? `${house.aiSettings.apiKey.slice(0, 8)}...` : 'empty',
+          kvApiKey: kvHouse?.aiSettings?.apiKey ? `${kvHouse.aiSettings.apiKey.slice(0, 8)}...` : 'empty',
+          apiSettingsMatch: hookApiConfigured === kvApiConfigured
+        });
+      } catch (error) {
+        console.error('API verification failed:', error);
+      }
+    };
+    
+    verifyApiSettings();
   }, [safeSessions, activeSessionId, activeSession, forceUpdate, house.aiSettings?.apiKey]);
 
   const createSession = (type: 'individual' | 'group' | 'scene', participantIds: string[], context?: string) => {
@@ -269,9 +285,6 @@ export function useChat() {
         return `User: ${msg.content}`;
       }).join('\n');
 
-      // Create AI service instance with a getter function that always returns fresh house data
-      const aiService = new AIService(() => house);
-
       // Build character prompt - make it more robust
       let characterPrompt = `You are ${character.name}`;
       
@@ -318,7 +331,12 @@ ${conversationContext}`;
 Respond as ${character.name} would, staying true to your character. Keep responses conversational and engaging, typically 1-2 sentences unless the situation calls for more detail.`;
 
       console.log(`Generating AI response for ${character.name} using ${provider}...`);
-      const response = await aiService.generateResponse(characterPrompt);
+      // Use the new direct API service that gets settings from KV directly
+      const response = await AIService.generateResponse(
+        characterPrompt,
+        house?.aiSettings?.apiKey,
+        house?.aiSettings?.model
+      );
 
       const message: ChatMessage = {
         id: `msg-${Date.now()}-${characterId}`,

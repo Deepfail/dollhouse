@@ -10,6 +10,7 @@ import { useHouse } from '@/hooks/useHouse';
 import { useQuickActions } from '@/hooks/useQuickActions';
 import { QuickActionsManager } from '@/components/QuickActionsManager';
 import { CopilotUpdate } from '@/types';
+import { AIService } from '@/lib/aiService';
 import { toast } from 'sonner';
 import { 
   Robot, 
@@ -55,10 +56,42 @@ export function Copilot() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
-  // Check if API is properly configured
+  // Check if API is properly configured - with additional verification
   const isApiConfigured = house.aiSettings?.provider === 'openrouter' && 
                           house.aiSettings?.apiKey && 
                           house.aiSettings.apiKey.trim().length > 0;
+
+  // Additional API verification using KV directly  
+  const [kvApiVerified, setKvApiVerified] = useState<boolean | null>(null);
+  
+  useEffect(() => {
+    const verifyApiFromKV = async () => {
+      try {
+        const kvHouse = await window.spark.kv.get<any>('character-house');
+        const kvApiConfigured = kvHouse?.aiSettings?.provider === 'openrouter' && 
+                               kvHouse?.aiSettings?.apiKey && 
+                               kvHouse?.aiSettings?.apiKey?.trim().length > 0;
+        setKvApiVerified(kvApiConfigured);
+        
+        if (kvApiConfigured !== isApiConfigured) {
+          console.log('API config mismatch detected:', {
+            hookConfigured: isApiConfigured,
+            kvConfigured: kvApiConfigured,
+            hookSettings: house.aiSettings,
+            kvSettings: kvHouse?.aiSettings
+          });
+        }
+      } catch (error) {
+        console.error('Failed to verify API from KV:', error);
+        setKvApiVerified(false);
+      }
+    };
+    
+    verifyApiFromKV();
+  }, [house.aiSettings, forceUpdate, isApiConfigured]);
+  
+  // Use the more reliable verification
+  const finalApiConfigured = kvApiVerified !== null ? kvApiVerified : isApiConfigured;
 
   // Debug logging for API status (with more detail)
   useEffect(() => {
@@ -109,7 +142,7 @@ export function Copilot() {
     if (!inputMessage.trim()) return;
 
     // Check API configuration before sending
-    if (!isApiConfigured) {
+    if (!finalApiConfigured) {
       toast.error('Please configure your OpenRouter API key in House Settings first.');
       return;
     }
@@ -188,33 +221,12 @@ Respond according to your personality and role as defined above. Be helpful and 
         throw new Error('OpenRouter API key not configured');
       }
 
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': window.location.origin,
-          'X-Title': 'Character Creator House'
-        },
-        body: JSON.stringify({
-          model: house.aiSettings.model || 'deepseek/deepseek-chat-v3.1',
-          messages: [
-            {
-              role: 'user',
-              content: promptContent
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: maxTokens
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`OpenRouter API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const responseContent = data.choices[0]?.message?.content;
+      // Use direct AIService instead of manual fetch
+      const responseContent = await AIService.generateResponse(
+        promptContent,
+        apiKey,
+        house.aiSettings.model || 'deepseek/deepseek-chat-v3.1'
+      );
 
       if (!responseContent) {
         throw new Error('Empty response from OpenRouter');
@@ -482,7 +494,7 @@ Respond according to your personality and role as defined above. Be helpful and 
               <Card className="p-3">
                 <div className="flex items-center gap-2">
                   {house.aiSettings?.provider === 'openrouter' ? (
-                    isApiConfigured ? (
+                    finalApiConfigured ? (
                       <>
                         <Check size={16} className="text-green-500" />
                         <div>
@@ -492,6 +504,9 @@ Respond according to your personality and role as defined above. Be helpful and 
                           </p>
                           <p className="text-xs text-muted-foreground">
                             Key: {house.aiSettings.apiKey.slice(0, 8)}... ({house.aiSettings.apiKey.length} chars)
+                          </p>
+                          <p className="text-xs text-green-500">
+                            Hook API: {isApiConfigured ? 'OK' : 'FAIL'} | KV API: {kvApiVerified ? 'OK' : kvApiVerified === false ? 'FAIL' : 'CHECKING'}
                           </p>
                           <p className="text-xs text-green-500">
                             Update #{forceUpdate || 0}
@@ -511,6 +526,9 @@ Respond according to your personality and role as defined above. Be helpful and 
                           </p>
                           <p className="text-xs text-muted-foreground">
                             Key Status: {house.aiSettings?.apiKey ? `${house.aiSettings.apiKey.trim().length} chars` : 'empty'}
+                          </p>
+                          <p className="text-xs text-red-500">
+                            Hook API: {isApiConfigured ? 'OK' : 'FAIL'} | KV API: {kvApiVerified ? 'OK' : kvApiVerified === false ? 'FAIL' : 'CHECKING'}
                           </p>
                           <p className="text-xs text-red-500">
                             Update #{forceUpdate || 0} - Not Ready

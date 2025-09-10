@@ -206,8 +206,11 @@ Respond as ${character.name}. Work toward your objective subtly. Keep response t
         throw new Error('OpenRouter API key is required. Please configure it in House Settings.')
       }
 
-      const aiService = new AIService(() => house!)
-      const response = await aiService.generateResponse(characterPrompt)
+      const response = await AIService.generateResponse(
+        characterPrompt,
+        house?.aiSettings?.apiKey,
+        house?.aiSettings?.model
+      )
 
       const now = new Date()
       const message: ChatMessage = {

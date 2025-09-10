@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { useHouse } from '@/hooks/useHouse';
 import { useKV } from '@github/spark/hooks';
 import { AVAILABLE_MODELS } from '@/types';
+import { AIService } from '@/lib/aiService';
 import { toast } from 'sonner';
 import { 
   Brain, 
@@ -150,73 +151,67 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       return;
     }
     
-    // Create the complete AI settings object with current form values
-    const newApiSettings = {
-      provider: provider as 'openrouter',
-      model: selectedModel,
-      apiKey: apiKey.trim(), // Ensure no whitespace issues
-      imageProvider: imageProvider as 'venice' | 'none',
-      imageApiKey: imageApiKey.trim(),
-      // Preserve existing AI settings that we don't show in the form
-      temperature: house.aiSettings?.temperature || 0.7,
-      maxTokens: house.aiSettings?.maxTokens || 512
-    };
-    
-    console.log('New AI settings being saved:', newApiSettings);
-    
     try {
-      // First, try using direct KV to ensure data is persisted
-      console.log('Attempting direct KV save...');
-      
-      // Get current house data directly from KV
-      const currentHouseFromKV = await window.spark.kv.get<any>('character-house');
-      console.log('Current house from KV:', currentHouseFromKV);
-      
-      // Update with new AI settings
-      const updatedHouseForKV = {
-        ...currentHouseFromKV,
-        aiSettings: newApiSettings,
-        updatedAt: new Date().toISOString() // Use ISO string for better compatibility
+      // Create the complete AI settings object with current form values
+      const newApiSettings = {
+        provider: provider as 'openrouter',
+        model: selectedModel,
+        apiKey: apiKey.trim(), // Ensure no whitespace issues
+        imageProvider: imageProvider as 'venice' | 'none',
+        imageApiKey: imageApiKey.trim(),
+        // Preserve existing AI settings that we don't show in the form
+        temperature: house.aiSettings?.temperature || 0.7,
+        maxTokens: house.aiSettings?.maxTokens || 512
       };
       
-      // Save directly to KV
-      await window.spark.kv.set('character-house', updatedHouseForKV);
-      console.log('Direct KV save completed');
+      console.log('New AI settings being saved:', newApiSettings);
       
-      // Also update through the hook (for immediate UI updates)
+      // Save using the hook's updateHouse method 
       updateHouse(currentHouse => {
         const updated = {
           ...currentHouse,
           aiSettings: newApiSettings,
           updatedAt: new Date()
         };
-        console.log('Hook update applied:', updated);
+        console.log('Updated House object:', updated);
+        console.log('Updated AI Settings object:', updated.aiSettings);
         return updated;
       });
       
       // Trigger a force update to ensure other components re-render
       setForceUpdate(current => (current || 0) + 1);
       
-      // Verify the save worked
-      setTimeout(async () => {
-        const verificationData = await window.spark.kv.get<any>('character-house');
-        console.log('Verification check - KV data:', verificationData?.aiSettings);
-        console.log('Verification check - Hook data:', house.aiSettings);
+      // Give a moment for the update to propagate
+      setTimeout(() => {
+        console.log('Checking updated house state...');
+        console.log('House AI Settings after update:', house.aiSettings);
         
-        if (verificationData?.aiSettings?.apiKey === apiKey.trim()) {
-          console.log('✅ API settings successfully saved and verified!');
-          toast.success('API settings saved and verified successfully');
-        } else {
-          console.error('❌ API settings save verification failed');
-          toast.error('API settings may not have saved correctly. Please try again.');
-        }
-      }, 1000);
+        // Verify the save worked by checking the KV directly
+        window.spark.kv.get('character-house').then(kvData => {
+          console.log('Verification - KV AI settings:', kvData?.aiSettings);
+          console.log('Verification - Hook AI settings:', house.aiSettings);
+          
+          if (kvData?.aiSettings?.apiKey === apiKey.trim()) {
+            console.log('✅ API settings successfully saved and verified!');
+            toast.success('API settings saved successfully');
+          } else {
+            console.error('❌ API settings save verification failed');
+            console.log('Expected:', apiKey.trim());
+            console.log('Got from KV:', kvData?.aiSettings?.apiKey);
+            console.log('Got from Hook:', house.aiSettings?.apiKey);
+            toast.error('API settings may not have saved correctly. Please try again.');
+          }
+        }).catch(err => {
+          console.error('KV verification check failed:', err);
+          toast.error('Unable to verify API settings save');
+        });
+      }, 500); // Give a bit more time for state to propagate
       
-      console.log('API settings save completed successfully');
+      console.log('API settings save initiated successfully');
       
     } catch (error) {
       console.error('Failed to save API settings:', error);
-      toast.error('Failed to save API settings: ' + error.message);
+      toast.error('Failed to save API settings: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
@@ -229,55 +224,19 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     toast.info('Testing API connection...');
     
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': window.location.origin,
-          'X-Title': 'Character Creator House'
-        },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: [
-            {
-              role: 'user',
-              content: 'Say "API test successful" if you can read this.'
-            }
-          ],
-          temperature: 0.3,
-          max_tokens: 20
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('API test error:', response.status, errorText);
-        
-        if (response.status === 401) {
-          toast.error('Invalid API key - Please check your OpenRouter API key');
-        } else if (response.status === 429) {
-          toast.error('Rate limit exceeded - Please wait and try again');
-        } else if (response.status === 400) {
-          toast.error('Bad request - Check if the selected model is valid');
-        } else {
-          toast.error(`API test failed: ${response.status}`);
-        }
-        return;
-      }
-
-      const data = await response.json();
+      const result = await AIService.testConnection(apiKey.trim(), selectedModel);
       
-      if (data.choices && data.choices[0] && data.choices[0].message) {
-        toast.success('API connection successful! ✅');
-        console.log('API test response:', data.choices[0].message.content);
+      if (result.success) {
+        toast.success('✅ ' + result.message);
+        console.log('API test successful:', result.message);
       } else {
-        toast.error('API responded but with invalid format');
+        toast.error('❌ ' + result.message);
+        console.error('API test failed:', result.message);
       }
       
     } catch (error) {
       console.error('API test error:', error);
-      toast.error('API connection failed - Check your internet connection');
+      toast.error('API connection test failed - Check your internet connection');
     }
   };
 
