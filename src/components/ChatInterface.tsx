@@ -298,7 +298,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                           toast.error('Spark API not available');
                         }
                       }
-                    }
+                    }}
                     className="flex-1 text-xs"
                   >
                     🚨 Emergency Test
