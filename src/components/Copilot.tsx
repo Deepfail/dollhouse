@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useKV } from '@github/spark/hooks';
 import { useHouse } from '@/hooks/useHouse';
+import { useQuickActions } from '@/hooks/useQuickActions';
+import { QuickActionsManager } from '@/components/QuickActionsManager';
 import { CopilotUpdate } from '@/types';
 import { toast } from 'sonner';
 import { 
@@ -25,7 +27,12 @@ import {
   XCircle as X,
   PaperPlaneRight,
   Chat,
-  House
+  House,
+  Bed,
+  ChartBar,
+  Lightning,
+  Shield,
+  Gift
 } from '@phosphor-icons/react';
 
 interface CopilotMessage {
@@ -37,6 +44,7 @@ interface CopilotMessage {
 
 export function Copilot() {
   const { house } = useHouse();
+  const { quickActions, executeAction } = useQuickActions();
   const [updates, setUpdates] = useKV<CopilotUpdate[]>('copilot-updates', []);
   const [chatMessages, setChatMessages] = useKV<CopilotMessage[]>('copilot-chat', []);
   const [inputMessage, setInputMessage] = useState('');
@@ -151,12 +159,35 @@ Keep responses concise but helpful (2-3 sentences max unless more detail is spec
     }
   };
 
+  const getIconComponent = (iconName: string) => {
+    const iconMap: Record<string, any> = {
+      House,
+      Bed,
+      Heart,
+      ChartBar,
+      Star,
+      Lightning,
+      Shield,
+      Gift
+    };
+    return iconMap[iconName] || Star;
+  };
+
+  const handleQuickAction = async (actionId: string) => {
+    try {
+      await executeAction(actionId);
+    } catch (error) {
+      console.error('Error executing quick action:', error);
+      toast.error('Failed to execute quick action');
+    }
+  };
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
   };
+  
   // Simulate copilot monitoring
   useEffect(() => {
     const interval = setInterval(() => {
@@ -469,22 +500,38 @@ Keep responses concise but helpful (2-3 sentences max unless more detail is spec
           </div>
 
           {/* Quick Actions */}
-          <div className="p-4 border-t border-border space-y-2">
-            <h3 className="font-medium text-sm">Quick Actions</h3>
-            <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" variant="outline" className="text-xs">
-                Gather All
-              </Button>
-              <Button size="sm" variant="outline" className="text-xs">
-                Rest All
-              </Button>
-              <Button size="sm" variant="outline" className="text-xs">
-                Feed All
-              </Button>
-              <Button size="sm" variant="outline" className="text-xs">
-                Check Status
-              </Button>
+          <div className="p-4 border-t border-border space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium text-sm">Quick Actions</h3>
+              <QuickActionsManager />
             </div>
+            
+            <div className="grid grid-cols-2 gap-2">
+              {quickActions
+                .filter(action => action.enabled)
+                .slice(0, 6) // Show max 6 actions in the grid
+                .map(action => {
+                  const IconComponent = getIconComponent(action.icon);
+                  return (
+                    <Button
+                      key={action.id}
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-auto py-2 flex flex-col gap-1"
+                      onClick={() => handleQuickAction(action.id)}
+                    >
+                      <IconComponent size={16} />
+                      <span className="text-xs leading-tight">{action.label}</span>
+                    </Button>
+                  );
+                })}
+            </div>
+            
+            {quickActions.filter(action => action.enabled).length > 6 && (
+              <p className="text-xs text-muted-foreground text-center">
+                +{quickActions.filter(action => action.enabled).length - 6} more actions available
+              </p>
+            )}
           </div>
         </TabsContent>
 
