@@ -460,6 +460,17 @@ export function useHouse() {
       console.log('House after update applied:', updated);
       console.log('New AI settings:', updated.aiSettings);
       
+      // Extra validation for AI settings
+      if (updated.aiSettings?.apiKey) {
+        console.log('API Key validation:', {
+          keyLength: updated.aiSettings.apiKey.length,
+          keyTrimmedLength: updated.aiSettings.apiKey.trim().length,
+          keyStartsWith: updated.aiSettings.apiKey.startsWith('sk-or-'),
+          provider: updated.aiSettings.provider,
+          model: updated.aiSettings.model
+        });
+      }
+      
       return updated;
     });
   };
