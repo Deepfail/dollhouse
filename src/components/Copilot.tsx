@@ -127,9 +127,8 @@ export function Copilot() {
         } else if (promptLower.includes('paragraph')) {
           maxTokens = 150;
         }
-      const promptContent = `${copilotPersonality}
-
-      const promptContent = `${copilotPersonality}
+        
+        const promptContent = `${copilotPersonality}
 
 Current house status:
 - ${houseContext.characterCount} characters
