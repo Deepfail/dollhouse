@@ -434,15 +434,22 @@ export function useHouse() {
   };
 
   const updateHouse = (updates: Partial<House>) => {
-    console.log('Updating house with:', updates);
+    console.log('=== useHouse.updateHouse called ===');
+    console.log('Updates being applied:', updates);
+    
     setHouse(current => {
       const currentHouse = current || DEFAULT_HOUSE;
+      console.log('Current house before update:', currentHouse);
+      
       const updated = {
         ...currentHouse,
         ...updates,
         updatedAt: new Date()
       };
-      console.log('House updated from:', currentHouse, 'to:', updated);
+      
+      console.log('House after update applied:', updated);
+      console.log('New AI settings:', updated.aiSettings);
+      
       return updated;
     });
   };

@@ -47,10 +47,24 @@ export function Copilot() {
   const { quickActions, executeAction } = useQuickActions();
   const [updates, setUpdates] = useKV<CopilotUpdate[]>('copilot-updates', []);
   const [chatMessages, setChatMessages] = useKV<CopilotMessage[]>('copilot-chat', []);
+  const [forceUpdate] = useKV<number>('settings-force-update', 0); // React to settings changes
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [showQuickActions, setShowQuickActions] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  // Debug logging for API status
+  useEffect(() => {
+    console.log('=== Copilot API Status Debug ===');
+    console.log('House AI Settings:', house.aiSettings);
+    console.log('Provider:', house.aiSettings?.provider);
+    console.log('Has API Key:', !!house.aiSettings?.apiKey);
+    console.log('API Key Value:', house.aiSettings?.apiKey ? `${house.aiSettings.apiKey.slice(0, 8)}...` : 'empty');
+    console.log('Model:', house.aiSettings?.model);
+    console.log('Force Update Trigger:', forceUpdate);
+  }, [house.aiSettings, forceUpdate]);
 
   // Ensure updates is never undefined
   const safeUpdates = updates || [];
@@ -447,13 +461,19 @@ Respond according to your personality and role as defined above. Be helpful and 
               <Card className="p-3">
                 <div className="flex items-center gap-2">
                   {house.aiSettings?.provider === 'openrouter' ? (
-                    house.aiSettings?.apiKey ? (
+                    house.aiSettings?.apiKey && house.aiSettings.apiKey.length > 0 ? (
                       <>
                         <Check size={16} className="text-green-500" />
                         <div>
                           <p className="font-medium text-green-600">OpenRouter Connected</p>
                           <p className="text-xs text-muted-foreground">
                             Model: {house.aiSettings.model}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Key: {house.aiSettings.apiKey.slice(0, 8)}... ({house.aiSettings.apiKey.length} chars)
+                          </p>
+                          <p className="text-xs text-green-500">
+                            Update #{forceUpdate || 0}
                           </p>
                         </div>
                       </>
@@ -463,7 +483,13 @@ Respond according to your personality and role as defined above. Be helpful and 
                         <div>
                           <p className="font-medium text-red-600">API Key Required</p>
                           <p className="text-xs text-muted-foreground">
-                            Configure in House Settings
+                            Configure in House Settings → API tab
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Provider: {house.aiSettings?.provider || 'none'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Key Status: {house.aiSettings?.apiKey ? `${house.aiSettings.apiKey.length} chars` : 'empty'}
                           </p>
                         </div>
                       </>
