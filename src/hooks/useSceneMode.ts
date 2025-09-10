@@ -121,61 +121,62 @@ export const useSceneMode = () => {
     }))
   }
 
-const processCharacterTurn = async (sessionId: string, characterId: string): Promise<void> => {
-  // read fresh session
-  let currentSession: ChatSession | undefined;
-  setActiveSessions(s => { currentSession = s.find(x => x.id === sessionId); return s; });
+  const processCharacterTurn = async (sessionId: string, characterId: string): Promise<void> => {
+    // read fresh session
+    let currentSession: ChatSession | undefined;
+    setActiveSessions(s => { currentSession = s.find(x => x.id === sessionId); return s; });
 
-  if (!currentSession || !currentSession.active) return;
+    if (!currentSession || !currentSession.active) return;
 
-  const character = house.characters?.find(c => c.id === characterId);
-  if (!character) {
-    setActiveSessions(s => s.map(sess => sess.id === sessionId ? {
-      ...sess,
-      messages: [...sess.messages, {
-        id: `msg_${Date.now()}_sys_missing`,
-        content: `Character ${characterId} not found; skipping turn.`,
-        timestamp: new Date(),
-        type: 'system'
-      }]
-    } : sess));
-    return;
-  }
+    const character = house.characters?.find(c => c.id === characterId);
+    if (!character) {
+      setActiveSessions(s => s.map(sess => sess.id === sessionId ? {
+        ...sess,
+        messages: [...sess.messages, {
+          id: `msg_${Date.now()}_sys_missing`,
+          content: `Character ${characterId} not found; skipping turn.`,
+          timestamp: new Date(),
+          type: 'system'
+        }]
+      } : sess));
+      return;
+    }
 
-  const objective = currentSession.sceneObjectives?.[characterId];
-  if (!objective) {
-    setActiveSessions(s => s.map(sess => sess.id === sessionId ? {
-      ...sess,
-      messages: [...sess.messages, {
-        id: `msg_${Date.now()}_sys_noobj`,
-        content: `No objective found for ${character.name}; skipping turn.`,
-        timestamp: new Date(),
-        type: 'system'
-      }]
-    } : sess));
-    return;
-  }
+    const objective = currentSession.sceneObjectives?.[characterId];
+    if (!objective) {
+      console.log('No objective found for character:', characterId);
+      setActiveSessions(s => s.map(sess => sess.id === sessionId ? {
+        ...sess,
+        messages: [...sess.messages, {
+          id: `msg_${Date.now()}_sys_noobj`,
+          content: `No objective found for ${character.name}; skipping turn.`,
+          timestamp: new Date(),
+          type: 'system'
+        }]
+      } : sess));
+      return;
+    }
 
-  // Build recent convo context (exclude system msgs)
-  const recentMessages = currentSession.messages.slice(-8).filter(m => m.type !== 'system');
-  const conversationContext = recentMessages.length
-    ? recentMessages.map(m => {
-        if (m.characterId) {
-          const name = house.characters?.find(c => c.id === m.characterId)?.name ?? 'Character';
-          return `${name}: ${m.content}`;
-        }
-        return `User: ${m.content}`;
-      }).join('\n')
-    : 'No previous conversation.';
+    // Build recent convo context (exclude system msgs)
+    const recentMessages = currentSession.messages.slice(-8).filter(m => m.type !== 'system');
+    const conversationContext = recentMessages.length
+      ? recentMessages.map(m => {
+          if (m.characterId) {
+            const name = house.characters?.find(c => c.id === m.characterId)?.name ?? 'Character';
+            return `${name}: ${m.content}`;
+          }
+          return `User: ${m.content}`;
+        }).join('\n')
+      : 'No previous conversation.';
 
-  const others =
-    currentSession.participantIds
-      .filter(id => id !== characterId)
-      .map(id => house.characters?.find(c => c.id === id)?.name)
-      .filter(Boolean)
-      .join(', ') || 'others';
+    const others =
+      currentSession.participantIds
+        .filter(id => id !== characterId)
+        .map(id => house.characters?.find(c => c.id === id)?.name)
+        .filter(Boolean)
+        .join(', ') || 'others';
 
-  const characterPrompt = `
+    const characterPrompt = `
 You are ${character.name}.
 Personality: ${character.personality}
 Secret objective: ${objective}
@@ -189,62 +190,64 @@ ${conversationContext}
 Respond as ${character.name}. Work toward your objective subtly. Keep response to 1–2 sentences.
 `.trim();
 
-  try {
-    const provider = house.aiSettings?.provider || 'openrouter';
-    if (provider !== 'openrouter') {
-      throw new Error(`Unsupported AI provider: ${provider}. Only OpenRouter is supported.`);
+    console.log(`Generating response for ${character.name} with objective: ${objective}`);
+
+    try {
+      const provider = house.aiSettings?.provider || 'openrouter';
+      if (provider !== 'openrouter') {
+        throw new Error(`Unsupported AI provider: ${provider}. Only OpenRouter is supported.`);
+      }
+      if (!house.aiSettings?.apiKey) {
+        throw new Error('OpenRouter API key is required. Please configure it in House Settings.');
+      }
+
+      const aiService = new AIService(house);
+      const response = await aiService.generateResponse(characterPrompt);
+
+      const message: ChatMessage = {
+        id: `msg_${Date.now()}_${characterId}`,
+        characterId,
+        content: response,
+        timestamp: new Date(),
+        type: 'text'
+      };
+
+      setActiveSessions(s => s.map(sess =>
+        sess.id === sessionId
+          ? { ...sess, messages: [...sess.messages, message], updatedAt: new Date() }
+          : sess
+      ));
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+
+      const errorMsg: ChatMessage = {
+        id: `msg_${Date.now()}_autoplay_error`,
+        content: `⚠️ Auto-play error for ${character.name}: ${msg}`,
+        timestamp: new Date(),
+        type: 'system'
+      };
+
+      setActiveSessions(s => s.map(sess =>
+        sess.id === sessionId
+          ? {
+              ...sess,
+              messages: [...sess.messages, errorMsg],
+              updatedAt: new Date(),
+              // pause autoplay on config/API errors
+              sceneSettings: /api|key|openrouter/i.test(msg)
+                ? { ...(sess.sceneSettings ?? {}), autoPlay: false }
+                : sess.sceneSettings
+            }
+          : sess
+      ));
+
+      if (/api|key|openrouter/i.test(msg)) {
+        toast.error('Scene paused due to API configuration error. Check House Settings.');
+      } else {
+        toast.error(`Error generating response for ${character.name}: ${msg}`);
+      }
     }
-    if (!house.aiSettings?.apiKey) {
-      throw new Error('OpenRouter API key is required. Please configure it in House Settings.');
-    }
-
-    const aiService = new AIService(house);
-    const response = await aiService.generateResponse(characterPrompt);
-
-    const message: ChatMessage = {
-      id: `msg_${Date.now()}_${characterId}`,
-      characterId,
-      content: response,
-      timestamp: new Date(),
-      type: 'text'
-    };
-
-    setActiveSessions(s => s.map(sess =>
-      sess.id === sessionId
-        ? { ...sess, messages: [...sess.messages, message], updatedAt: new Date() }
-        : sess
-    ));
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Unknown error';
-
-    const errorMsg: ChatMessage = {
-      id: `msg_${Date.now()}_autoplay_error`,
-      content: `⚠️ Auto-play error for ${character.name}: ${msg}`,
-      timestamp: new Date(),
-      type: 'system'
-    };
-
-    setActiveSessions(s => s.map(sess =>
-      sess.id === sessionId
-        ? {
-            ...sess,
-            messages: [...sess.messages, errorMsg],
-            updatedAt: new Date(),
-            // pause autoplay on config/API errors
-            sceneSettings: /api|key|openrouter/i.test(msg)
-              ? { ...(sess.sceneSettings ?? {}), autoPlay: false }
-              : sess.sceneSettings
-          }
-        : sess
-    ));
-
-    if (/api|key|openrouter/i.test(msg)) {
-      toast.error('Scene paused due to API configuration error. Check House Settings.');
-    } else {
-      toast.error(`Error generating response for ${character.name}: ${msg}`);
-    }
-  }
-};
+  };
 
   const startAutoPlay = async (sessionId: string) => {
     const tick = async () => {
