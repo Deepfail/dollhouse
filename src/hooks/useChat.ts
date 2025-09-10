@@ -2,6 +2,7 @@ import { useKV } from '@github/spark/hooks';
 import { ChatSession, ChatMessage, Character } from '@/types';
 import { useState, useEffect } from 'react';
 import { useHouse } from './useHouse';
+import { useInteractionSystem } from './useInteractionSystem';
 import { AIService } from '@/lib/aiService';
 import { toast } from 'sonner';
 
@@ -9,6 +10,7 @@ export function useChat() {
   const [sessions, setSessions] = useKV<ChatSession[]>('chat-sessions', []);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const { house } = useHouse();
+  const { processUserMessage, processCharacterResponse, triggerMilestoneEvents } = useInteractionSystem();
   
   // Ensure sessions is never undefined
   const safeSessions = sessions || [];
@@ -144,9 +146,22 @@ export function useChat() {
       return updated;
     });
 
-    // If this is a user message, trigger AI responses
+    // If this is a user message, trigger AI responses and process interactions
     if (!characterId && activeSession.participantIds.length > 0) {
       console.log('Triggering AI responses for participants:', activeSession.participantIds);
+      
+      // Process relationship interactions for each character in the session
+      activeSession.participantIds.forEach(participantId => {
+        const character = house.characters?.find(c => c.id === participantId);
+        if (character) {
+          processUserMessage(participantId, content, character);
+          // Randomly trigger milestone events
+          if (Math.random() < 0.1) {
+            triggerMilestoneEvents(participantId, character);
+          }
+        }
+      });
+      
       // Don't await this - let it run in background
       setTimeout(() => {
         generateAIResponses(activeSession.id, message);
@@ -289,6 +304,9 @@ Respond as ${character.name} would, staying true to your character. Keep respons
         type: 'text'
       };
 
+      // Process character response for relationship building
+      processCharacterResponse(characterId, response, character);
+
       return message;
     } catch (error) {
       console.error('Error generating AI response:', error);
@@ -326,6 +344,12 @@ Respond as ${character.name} would, staying true to your character. Keep respons
         timestamp: new Date(),
         type: 'text'
       };
+      
+      // Process character response for relationship building
+      const character = house.characters?.find(c => c.id === characterId);
+      if (character) {
+        processCharacterResponse(characterId, response, character);
+      }
       
       return message;
     }

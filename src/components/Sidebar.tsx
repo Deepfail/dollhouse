@@ -26,6 +26,7 @@ import { AutoCharacterCreator } from './AutoCharacterCreator';
 import { SceneCreator } from './SceneCreator';
 import { HouseSettings } from './HouseSettings';
 import { CharacterCard } from './CharacterCard';
+import { GiftManager } from './GiftManager';
 
 interface SidebarProps {
   onStartChat?: (characterId: string) => void;
@@ -39,6 +40,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
   const [showCreator, setShowCreator] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [selectedTab, setSelectedTab] = useState('characters');
+  const [selectedCharacterForGift, setSelectedCharacterForGift] = useState<string | null>(null);
 
   const startIndividualChat = (characterId: string) => {
     if (onStartChat) {
@@ -166,6 +168,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
                       key={character.id}
                       character={character}
                       onStartChat={startIndividualChat}
+                      onGift={(characterId) => setSelectedCharacterForGift(characterId)}
                       compact={true}
                     />
                   ))
@@ -326,6 +329,15 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
         <HouseSettings
           open={showSettings}
           onOpenChange={setShowSettings}
+        />
+      )}
+
+      {/* Gift Manager Modal */}
+      {selectedCharacterForGift && (
+        <GiftManager
+          character={house.characters.find(c => c.id === selectedCharacterForGift)!}
+          isOpen={!!selectedCharacterForGift}
+          onClose={() => setSelectedCharacterForGift(null)}
         />
       )}
     </div>

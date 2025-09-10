@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useKV } from '@github/spark/hooks';
 import { House, Character, Room, ChatSession, CopilotUpdate } from '@/types';
+import { useRelationshipDynamics } from './useRelationshipDynamics';
 
 const DEFAULT_HOUSE: House = {
   id: 'main-house',
@@ -121,31 +122,58 @@ const DEFAULT_HOUSE: House = {
 
 export function useHouse() {
   const [house, setHouse] = useKV<House>('character-house', DEFAULT_HOUSE);
+  const { initializeCharacterDynamics } = useRelationshipDynamics();
 
   // Ensure house is never undefined by providing the default
   const safeHouse = house || DEFAULT_HOUSE;
   
-  // Migration: Update old Spark settings to OpenRouter
+  // Migration: Update old Spark settings to OpenRouter and initialize relationship dynamics
   useEffect(() => {
+    let needsUpdate = false;
+    let updatedHouse = { ...safeHouse };
+    
+    // Migrate provider from spark to openrouter
     if (safeHouse.aiSettings?.provider === 'spark') {
       console.log('Migrating house settings: switching from spark to openrouter');
-      setHouse(current => ({
-        ...current,
-        aiSettings: {
-          ...current.aiSettings,
-          provider: 'openrouter',
-          model: 'deepseek/deepseek-chat-v3.1'
-        }
-      }));
+      updatedHouse.aiSettings = {
+        ...updatedHouse.aiSettings,
+        provider: 'openrouter',
+        model: 'deepseek/deepseek-chat-v3.1'
+      };
+      needsUpdate = true;
     }
-  }, [safeHouse.aiSettings]);
+    
+    // Initialize relationship dynamics for characters that don't have them
+    const charactersNeedingUpdate = updatedHouse.characters.filter(char => 
+      !char.relationshipDynamics || !char.sexualProgression
+    );
+    
+    if (charactersNeedingUpdate.length > 0) {
+      console.log('Initializing relationship dynamics for existing characters');
+      updatedHouse.characters = updatedHouse.characters.map(char => {
+        if (!char.relationshipDynamics || !char.sexualProgression) {
+          return initializeCharacterDynamics(char);
+        }
+        return char;
+      });
+      needsUpdate = true;
+    }
+    
+    if (needsUpdate) {
+      updatedHouse.updatedAt = new Date();
+      setHouse(updatedHouse);
+    }
+  }, [safeHouse.aiSettings, safeHouse.characters.length, initializeCharacterDynamics, setHouse]);
   
   const addCharacter = (character: Character) => {
+    // Initialize relationship dynamics for new characters
+    const initializedCharacter = initializeCharacterDynamics(character);
+    
     setHouse(current => {
       const currentHouse = current || DEFAULT_HOUSE;
       return {
         ...currentHouse,
-        characters: [...currentHouse.characters, character],
+        characters: [...currentHouse.characters, initializedCharacter],
         updatedAt: new Date()
       };
     });
