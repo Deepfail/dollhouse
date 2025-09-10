@@ -293,12 +293,12 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                             setActiveSessionId(testSessionId);
                             setTimeout(() => window.location.reload(), 500);
                           });
-                    }}
+                        } else {
                           console.error('Spark API not available');
                           toast.error('Spark API not available');
                         }
                       }
-                    }}
+                    }
                     className="flex-1 text-xs"
                   >
                     🚨 Emergency Test
