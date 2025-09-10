@@ -123,6 +123,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
     const provider = house.aiSettings?.provider || 'openrouter';
     const needsApiKey = provider === 'openrouter' && !house.aiSettings?.apiKey;
     const hasCharacters = house.characters && house.characters.length > 0;
+    const sparkUnavailable = typeof window === 'undefined' || !window.spark;
     
     return (
       <div className="flex-1 flex items-center justify-center bg-background p-8">
@@ -286,11 +287,16 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                         };
                         
                         // Try to manually set the session
-                        spark.kv.set('test-session', testSession).then(() => {
-                          console.log('Test session saved to KV');
-                          setActiveSessionId(testSessionId);
-                          setTimeout(() => window.location.reload(), 500);
-                        });
+                        if (typeof window !== 'undefined' && window.spark) {
+                          window.spark.kv.set('test-session', testSession).then(() => {
+                            console.log('Test session saved to KV');
+                            setActiveSessionId(testSessionId);
+                            setTimeout(() => window.location.reload(), 500);
+                          });
+                        } else {
+                          console.error('Spark API not available');
+                          toast.error('Spark API not available');
+                        }
                       }
                     }}
                     className="flex-1 text-xs"

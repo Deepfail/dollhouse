@@ -76,28 +76,19 @@ function App() {
       return;
     }
     
-    // Clear any existing active session to avoid conflicts
-    setActiveSessionId(null);
-    
     try {
-      // Create the session with a small delay to ensure KV is ready
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Clear any existing active session to avoid conflicts
+      setActiveSessionId(null);
       
       const sessionId = createSession('individual', [characterId]);
       console.log('createSession returned:', sessionId);
       
       if (sessionId) {
-        console.log('Setting session states:', sessionId);
-        
-        // Set all the states in the right order
+        // Set the active session immediately
         setActiveSessionId(sessionId);
         setChatActiveSessionId(sessionId);
-        
-        // Wait a bit for states to propagate, then switch view
-        setTimeout(() => {
-          setCurrentView('chat');
-          toast.success(`Started chat with ${character.name}`);
-        }, 200);
+        setCurrentView('chat');
+        toast.success(`Started chat with ${character.name}`);
       } else {
         console.error('Failed to create session for character:', characterId);
         toast.error('Failed to create chat session');
@@ -117,31 +108,22 @@ function App() {
         // Use existing session
         setActiveSessionId(sessionId);
         setChatActiveSessionId(sessionId);
-        setTimeout(() => {
-          setCurrentView('chat');
-          toast.success('Started group chat');
-        }, 200);
+        setCurrentView('chat');
+        toast.success('Started group chat');
       } else {
         // Create new group chat with all characters
         const characterIds = (house.characters || []).map(c => c.id);
         console.log('Character IDs for group chat:', characterIds);
         
         if (characterIds.length > 1) {
-          // Clear any existing active session
-          setActiveSessionId(null);
-          
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
           const newSessionId = createSession('group', characterIds);
           console.log('Group session created:', newSessionId);
           
           if (newSessionId) {
             setActiveSessionId(newSessionId);
             setChatActiveSessionId(newSessionId);
-            setTimeout(() => {
-              setCurrentView('chat');
-              toast.success(`Started group chat with ${characterIds.length} characters`);
-            }, 200);
+            setCurrentView('chat');
+            toast.success(`Started group chat with ${characterIds.length} characters`);
           } else {
             toast.error('Failed to create group chat');
           }
@@ -159,32 +141,12 @@ function App() {
 
   const handleStartScene = (sessionId: string) => {
     console.log('handleStartScene called with sessionId:', sessionId);
-    console.log('Available scene sessions:', activeSessions.map(s => ({ id: s.id, type: s.type, active: s.active })));
     
-    // Set active session immediately
+    // Simply set the active session and switch view
     setActiveSessionId(sessionId);
     setCurrentView('scene');
     
-    // Check if session exists, otherwise retry a few times
-    const checkSession = (attempt: number = 1) => {
-      const session = activeSessions.find(s => s.id === sessionId);
-      
-      if (session) {
-        console.log('Scene session found on attempt', attempt, ':', { id: session.id, type: session.type, active: session.active });
-        return;
-      }
-      
-      if (attempt <= 3) {
-        console.log(`Scene session not found on attempt ${attempt}, retrying...`);
-        setTimeout(() => checkSession(attempt + 1), 200);
-      } else {
-        console.error('Scene session not found after 3 attempts:', sessionId);
-        console.log('Available sessions:', activeSessions.map(s => s.id));
-        toast.error('Scene session not found. The scene may not have been created properly.');
-      }
-    };
-    
-    checkSession();
+    toast.success('Scene started! Session ID: ' + sessionId.slice(0, 12));
   };
 
   const handleBackToHouse = () => {

@@ -89,20 +89,10 @@ export function useChat() {
     console.log('New session object:', newSession);
 
     try {
-      // Update sessions immediately and synchronously
+      // Update sessions immediately using the functional form
       setSessions(current => {
         const currentSessions = current || [];
-        const finalSessions = [...currentSessions, newSession];
-        console.log('Session array update - before:', currentSessions.length, 'after:', finalSessions.length);
-        console.log('Updated sessions:', finalSessions.map(s => ({ id: s.id.slice(0, 8), type: s.type, participants: s.participantIds.length })));
-        
-        // Also set as active immediately
-        setTimeout(() => {
-          console.log('Setting newly created session as active:', sessionId);
-          setActiveSessionId(sessionId);
-        }, 0);
-        
-        return finalSessions;
+        return [...currentSessions, newSession];
       });
       
       console.log('Session creation completed successfully, returning ID:', sessionId);
@@ -138,7 +128,7 @@ export function useChat() {
       type: 'text'
     };
 
-    // Update the session with the new message
+    // Update the session with the new message first
     setSessions(current => {
       const currentSessions = current || [];
       const updated = currentSessions.map(session =>
@@ -157,34 +147,49 @@ export function useChat() {
     // If this is a user message, trigger AI responses
     if (!characterId && activeSession.participantIds.length > 0) {
       console.log('Triggering AI responses for participants:', activeSession.participantIds);
-      await generateAIResponses(activeSession.id, message);
+      // Don't await this - let it run in background
+      setTimeout(() => {
+        generateAIResponses(activeSession.id, message);
+      }, 500);
     }
   };
 
   const generateAIResponses = async (sessionId: string, userMessage: ChatMessage) => {
+    // Get fresh session state
     const session = safeSessions.find(s => s.id === sessionId);
-    if (!session) return;
+    if (!session) {
+      console.error('Session not found for AI response generation:', sessionId);
+      return;
+    }
 
-    // This would integrate with the AI service
-    // For now, we'll add placeholder responses
-    for (const characterId of session.participantIds) {
+    console.log('Generating AI responses for session:', sessionId, 'participants:', session.participantIds);
+
+    // Generate responses for each character, with staggered timing
+    for (let i = 0; i < session.participantIds.length; i++) {
+      const characterId = session.participantIds[i];
+      const delay = Math.random() * 1500 + 500 + (i * 1000); // Stagger responses
+      
       setTimeout(async () => {
-        const response = await generateCharacterResponse(characterId, userMessage, session);
-        if (response) {
-          setSessions(current => {
-            const currentSessions = current || [];
-            return currentSessions.map(s =>
-              s.id === sessionId
-                ? {
-                    ...s,
-                    messages: [...s.messages, response],
-                    updatedAt: new Date()
-                  }
-                : s
-            );
-          });
+        try {
+          const response = await generateCharacterResponse(characterId, userMessage, session);
+          if (response) {
+            setSessions(current => {
+              const currentSessions = current || [];
+              return currentSessions.map(s =>
+                s.id === sessionId
+                  ? {
+                      ...s,
+                      messages: [...s.messages, response],
+                      updatedAt: new Date()
+                    }
+                  : s
+              );
+            });
+          }
+        } catch (error) {
+          console.error(`Error generating response for character ${characterId}:`, error);
         }
-      }, Math.random() * 2000 + 500); // Stagger responses
+      }, delay);
     }
   };
 

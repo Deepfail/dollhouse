@@ -55,15 +55,10 @@ export const useSceneMode = () => {
     
     console.log('Scene session created:', newSession);
     
-    // Update sessions synchronously
-    setActiveSessions(sessions => {
-      const updatedSessions = [...sessions, newSession];
-      console.log('Scene sessions updated, old count:', sessions.length, 'new count:', updatedSessions.length);
-      console.log('All sessions:', updatedSessions.map(s => ({ id: s.id, type: s.type, active: s.active })));
-      return updatedSessions;
-    });
+    // Update sessions - simpler approach
+    setActiveSessions(sessions => [...sessions, newSession]);
     
-    toast.success('Scene session created! Characters will begin interacting automatically.');
+    toast.success('Scene session created! Session ID: ' + sessionId.slice(0, 12));
     
     // Start auto-play after a brief delay
     setTimeout(() => {

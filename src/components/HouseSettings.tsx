@@ -31,9 +31,9 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   // House configuration state
   const [houseName, setHouseName] = useState(house.name);
   const [houseDescription, setHouseDescription] = useState(house.description || '');
-  const [worldPrompt, setWorldPrompt] = useState(house.worldPrompt || '');
-  const [copilotPrompt, setCopilotPrompt] = useState(house.copilotPrompt || '');
-  const [copilotMaxTokens, setCopilotMaxTokens] = useState(house.copilotMaxTokens || 100);
+  const [worldPrompt, setWorldPrompt] = useState(house.worldPrompt || 'Welcome to your Character Creator House! This is a virtual space where AI-powered characters live, interact, and grow. Characters have personalities, relationships, and can engage in conversations with you and each other.');
+  const [copilotPrompt, setCopilotPrompt] = useState(house.copilotPrompt || 'You are a helpful House Manager AI for a character creator house. Keep responses to 2-3 sentences maximum. Monitor character well-being, provide status updates, and assist users with managing their virtual house and characters. Be friendly but concise.');
+  const [copilotMaxTokens, setCopilotMaxTokens] = useState(house.copilotMaxTokens || 75);
   const [currency, setCurrency] = useState(house.currency);
   
   // AI Settings state  
@@ -52,12 +52,12 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   useEffect(() => {
     setHouseName(house.name);
     setHouseDescription(house.description || '');
-    setWorldPrompt(house.worldPrompt || '');
-    setCopilotPrompt(house.copilotPrompt || '');
-    setCopilotMaxTokens(house.copilotMaxTokens || 100);
+    setWorldPrompt(house.worldPrompt || 'Welcome to your Character Creator House! This is a virtual space where AI-powered characters live, interact, and grow. Characters have personalities, relationships, and can engage in conversations with you and each other.');
+    setCopilotPrompt(house.copilotPrompt || 'You are a helpful House Manager AI for a character creator house. Keep responses to 2-3 sentences maximum. Monitor character well-being, provide status updates, and assist users with managing their virtual house and characters. Be friendly but concise.');
+    setCopilotMaxTokens(house.copilotMaxTokens || 75);
     setCurrency(house.currency);
     setProvider(house.aiSettings?.provider || 'openrouter');
-    setSelectedModel(house.aiSettings?.model || 'gpt-4o');
+    setSelectedModel(house.aiSettings?.model || 'deepseek/deepseek-chat-v3.1');
     setApiKey(house.aiSettings?.apiKey || '');
     setImageProvider(house.aiSettings?.imageProvider || 'venice');
     setImageApiKey(house.aiSettings?.imageApiKey || '');
