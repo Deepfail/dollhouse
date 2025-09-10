@@ -256,13 +256,21 @@ export function CharacterCard({
                         </div>
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Role</label>
-                          <p className="text-sm mt-1">{character.role || '—'}</p>
+                          <p className="text-sm mt-1 capitalize">{character.role || '—'}</p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Personalities</label>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {character.personalities?.length ? character.personalities.map((personality) => (
+                              <Badge key={personality} variant="default" className="text-xs capitalize">{personality}</Badge>
+                            )) : <span className="text-sm text-muted-foreground">—</span>}
+                          </div>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Traits</label>
                           <div className="flex flex-wrap gap-1 mt-1">
                             {character.traits?.length ? character.traits.map((trait) => (
-                              <Badge key={trait} variant="secondary" className="text-xs">{trait}</Badge>
+                              <Badge key={trait} variant="secondary" className="text-xs capitalize">{trait}</Badge>
                             )) : <span className="text-sm text-muted-foreground">—</span>}
                           </div>
                         </div>

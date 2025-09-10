@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useKV } from '@github/spark/hooks';
-import { Character, AutoCharacterConfig } from '@/types';
+import { Character, AutoCharacterConfig, AVAILABLE_PERSONALITIES, AVAILABLE_ROLES } from '@/types';
 import { generateRandomCharacter } from '@/lib/characterGenerator';
 import { useHouse } from '@/hooks/useHouse';
 
@@ -8,8 +8,8 @@ export const useAutoCharacterCreator = () => {
   const { house, updateHouse } = useHouse();
   const [config, setConfig] = useKV<AutoCharacterConfig>('auto-character-config', {
     themes: ['fantasy', 'sci-fi', 'modern', 'historical'],
-    personalities: ['friendly', 'mysterious', 'cheerful', 'serious', 'playful'],
-    roles: ['warrior', 'mage', 'scholar', 'artist', 'merchant'],
+    personalities: AVAILABLE_PERSONALITIES.slice(0, 10), // Use first 10 personalities as defaults
+    roles: AVAILABLE_ROLES.slice(0, 10), // Use first 10 roles as defaults
     rarityWeights: {
       common: 70,
       rare: 25,

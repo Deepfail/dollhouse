@@ -1,41 +1,31 @@
-import { Character, AutoCharacterConfig } from '@/types';
+import { Character, AutoCharacterConfig, AVAILABLE_PERSONALITIES, AVAILABLE_ROLES, AVAILABLE_TRAITS } from '@/types';
 
 const CHARACTER_THEMES = {
   fantasy: {
     names: ['Aria', 'Zephyr', 'Luna', 'Raven', 'Sage', 'Phoenix', 'Orion', 'Nova'],
-    roles: ['Mage', 'Warrior', 'Ranger', 'Healer', 'Alchemist', 'Bard'],
-    personalities: ['wise and mysterious', 'brave and loyal', 'cunning and witty', 'gentle and caring'],
+    roles: ['mage', 'warrior', 'ranger', 'healer', 'alchemist', 'bard'],
+    personalities: ['wise', 'mysterious', 'brave', 'loyal', 'cunning', 'witty', 'gentle', 'caring'],
     appearances: ['flowing robes', 'intricate armor', 'leather gear', 'mystical tattoos', 'glowing eyes']
   },
   'sci-fi': {
     names: ['Zara', 'Kai', 'Neo', 'Cyber', 'Vex', 'Echo', 'Flux', 'Nyx'],
-    roles: ['Engineer', 'Pilot', 'Hacker', 'Scientist', 'Android', 'Explorer'],
-    personalities: ['logical and precise', 'adventurous and bold', 'analytical and curious', 'rebellious and free'],
+    roles: ['engineer', 'pilot', 'hacker', 'scientist', 'android', 'explorer'],
+    personalities: ['logical', 'precise', 'adventurous', 'bold', 'analytical', 'curious', 'rebellious', 'free'],
     appearances: ['cybernetic implants', 'sleek uniform', 'glowing circuits', 'holographic display', 'metallic skin']
   },
   modern: {
     names: ['Alex', 'Sam', 'Riley', 'Jordan', 'Casey', 'Taylor', 'Morgan', 'Avery'],
-    roles: ['Artist', 'Developer', 'Chef', 'Musician', 'Writer', 'Athlete'],
-    personalities: ['creative and passionate', 'calm and focused', 'energetic and social', 'thoughtful and introspective'],
+    roles: ['artist', 'developer', 'chef', 'musician', 'writer', 'athlete'],
+    personalities: ['creative', 'passionate', 'calm', 'focused', 'energetic', 'social', 'thoughtful', 'introspective'],
     appearances: ['trendy outfit', 'casual wear', 'artistic style', 'professional attire', 'unique accessories']
   },
   historical: {
     names: ['Elara', 'Marcus', 'Isabella', 'Dmitri', 'Celeste', 'Leonardo', 'Anastasia', 'Victor'],
-    roles: ['Noble', 'Scholar', 'Merchant', 'Artisan', 'Knight', 'Diplomat'],
-    personalities: ['refined and elegant', 'scholarly and wise', 'ambitious and clever', 'honorable and just'],
+    roles: ['noble', 'scholar', 'merchant', 'artisan', 'knight', 'diplomat'],
+    personalities: ['refined', 'elegant', 'scholarly', 'wise', 'ambitious', 'clever', 'honorable', 'just'],
     appearances: ['elaborate gowns', 'formal attire', 'ornate jewelry', 'rich fabrics', 'period clothing']
   }
 };
-
-const PERSONALITY_TRAITS = [
-  'cheerful', 'mysterious', 'playful', 'serious', 'witty', 'gentle', 'bold', 'shy',
-  'curious', 'loyal', 'rebellious', 'wise', 'energetic', 'calm', 'artistic', 'logical'
-];
-
-const SKILLS_POOL = [
-  'Conversation', 'Combat', 'Magic', 'Crafting', 'Music', 'Art', 'Cooking', 'Leadership',
-  'Stealth', 'Technology', 'Medicine', 'History', 'Philosophy', 'Athletics', 'Charm', 'Strategy'
-];
 
 const CLASSES_POOL = [
   'Novice', 'Apprentice', 'Expert', 'Master', 'Legendary', 'Mystic', 'Elite', 'Prodigy'
@@ -69,8 +59,8 @@ export async function generateRandomCharacter(config: AutoCharacterConfig, house
   
   // Generate base attributes
   const name = getRandomElement(themeData.names);
-  const role = getRandomElement(themeData.roles);
-  const personalityTrait = getRandomElement(themeData.personalities);
+  const role = getRandomElement([...themeData.roles, ...AVAILABLE_ROLES]);
+  const personalityTraits = getRandomElements([...themeData.personalities, ...AVAILABLE_PERSONALITIES], 2);
   const appearance = getRandomElement(themeData.appearances);
   
   // Generate stats based on rarity
@@ -82,20 +72,20 @@ export async function generateRandomCharacter(config: AutoCharacterConfig, house
   
   const stats = {
     relationship: Math.floor(Math.random() * (baseStats.max - baseStats.min)) + baseStats.min,
-    energy: 100,
+    wet: Math.floor(Math.random() * 30) + 70, // Base arousal 70-100
     happiness: Math.floor(Math.random() * (baseStats.max - baseStats.min)) + baseStats.min,
     experience: baseStats.bonus * 10,
     level: Math.floor(baseStats.bonus / 10) + 1
   };
   
-  // Generate skills and classes
-  const skillCount = rarity === 'legendary' ? 4 : rarity === 'rare' ? 3 : 2;
-  const skills = getRandomElements(SKILLS_POOL, skillCount);
-  const classes = getRandomElements(CLASSES_POOL, Math.min(2, skillCount));
+  // Generate traits and classes
+  const traitCount = rarity === 'legendary' ? 4 : rarity === 'rare' ? 3 : 2;
+  const traits = getRandomElements(AVAILABLE_TRAITS, traitCount);
+  const classes = getRandomElements(CLASSES_POOL, Math.min(2, traitCount));
   
   // Generate AI prompts using LLM
   const characterPrompt = `Create a detailed character profile for a ${theme} character named ${name} who is a ${role}.
-They have a ${personalityTrait} personality and ${appearance}.
+They have ${personalityTraits.join(', ')} personality traits and ${appearance}.
 Their rarity level is ${rarity}.
 
 Generate:
@@ -144,9 +134,9 @@ Format as JSON with keys: personality, background, systemPrompt`;
         } catch {
           // If JSON parsing fails, extract data manually
           parsedData = {
-            personality: `A ${personalityTrait} ${role} with unique charm.`,
-            background: `${name} is a ${rarity} ${role} from the ${theme} realm. They have made their mark through their ${personalityTrait} nature and distinctive ${appearance}.`,
-            systemPrompt: `You are ${name}, a ${personalityTrait} ${role}. Respond in character, showing your ${personalityTrait} personality through your words and actions.`
+            personality: `A ${personalityTraits.join(', ')} ${role} with unique charm.`,
+            background: `${name} is a ${rarity} ${role} from the ${theme} realm. They have made their mark through their ${personalityTraits.join(' and ')} nature and distinctive ${appearance}.`,
+            systemPrompt: `You are ${name}, a ${personalityTraits.join(', ')} ${role}. Respond in character, showing your ${personalityTraits.join(' and ')} personality through your words and actions.`
           };
         }
         
@@ -157,18 +147,65 @@ Format as JSON with keys: personality, background, systemPrompt`;
           personality: parsedData.personality,
           appearance: `${appearance} - ${theme} style`,
           role,
-          stats,
-          skills,
+          personalities: personalityTraits,
+          traits,
           classes,
           unlocks: [],
+          stats,
+          rarity,
           prompts: {
             system: parsedData.systemPrompt,
             personality: parsedData.personality,
             background: parsedData.background
           },
+          relationshipDynamics: {
+            affection: 50,
+            trust: 50,
+            intimacy: 0,
+            dominance: Math.floor(Math.random() * 100),
+            jealousy: Math.floor(Math.random() * 50) + 10,
+            loyalty: Math.floor(Math.random() * 50) + 50,
+            possessiveness: Math.floor(Math.random() * 40) + 10,
+            relationshipStatus: 'stranger',
+            bonds: {},
+            significantEvents: [],
+            userPreferences: {
+              likes: [],
+              dislikes: [],
+              turnOns: [],
+              turnOffs: []
+            }
+          },
+          sexualProgression: {
+            arousal: Math.floor(Math.random() * 30),
+            libido: Math.floor(Math.random() * 50) + 50,
+            experience: baseStats.bonus,
+            kinks: [],
+            limits: [],
+            fantasies: [],
+            skills: {},
+            unlockedPositions: [],
+            unlockedOutfits: [],
+            unlockedToys: [],
+            unlockedScenarios: [],
+            sexualMilestones: [],
+            compatibility: {
+              overall: 50,
+              kinkAlignment: 50,
+              stylePreference: 50
+            },
+            memorableEvents: []
+          },
           conversationHistory: [],
           memories: [],
           preferences: {},
+          relationships: {},
+          progression: {
+            level: stats.level,
+            nextLevelExp: stats.level * 100,
+            unlockedFeatures: [],
+            achievements: []
+          },
           createdAt: new Date(),
           updatedAt: new Date(),
           autoGenerated: true
@@ -186,22 +223,69 @@ Format as JSON with keys: personality, background, systemPrompt`;
     const character: Character = {
       id: `char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name,
-      description: `${name} is a ${rarity} ${role} from the ${theme} realm. They have made their mark through their ${personalityTrait} nature and distinctive ${appearance}.`,
-      personality: `A ${personalityTrait} ${role} with unique charm.`,
+      description: `${name} is a ${rarity} ${role} from the ${theme} realm. They have made their mark through their ${personalityTraits.join(' and ')} nature and distinctive ${appearance}.`,
+      personality: `A ${personalityTraits.join(', ')} ${role} with unique charm.`,
       appearance: `${appearance} - ${theme} style`,
       role,
-      stats,
-      skills,
+      personalities: personalityTraits,
+      traits,
       classes,
       unlocks: [],
+      stats,
+      rarity,
       prompts: {
-        system: `You are ${name}, a ${personalityTrait} ${role}. Respond in character, showing your ${personalityTrait} personality through your words and actions.`,
-        personality: `A ${personalityTrait} ${role} with unique charm.`,
+        system: `You are ${name}, a ${personalityTraits.join(', ')} ${role}. Respond in character, showing your ${personalityTraits.join(' and ')} personality through your words and actions.`,
+        personality: `A ${personalityTraits.join(', ')} ${role} with unique charm.`,
         background: `${name} is a ${rarity} ${role} from the ${theme} realm.`
+      },
+      relationshipDynamics: {
+        affection: 50,
+        trust: 50,
+        intimacy: 0,
+        dominance: Math.floor(Math.random() * 100),
+        jealousy: Math.floor(Math.random() * 50) + 10,
+        loyalty: Math.floor(Math.random() * 50) + 50,
+        possessiveness: Math.floor(Math.random() * 40) + 10,
+        relationshipStatus: 'stranger',
+        bonds: {},
+        significantEvents: [],
+        userPreferences: {
+          likes: [],
+          dislikes: [],
+          turnOns: [],
+          turnOffs: []
+        }
+      },
+      sexualProgression: {
+        arousal: Math.floor(Math.random() * 30),
+        libido: Math.floor(Math.random() * 50) + 50,
+        experience: baseStats.bonus,
+        kinks: [],
+        limits: [],
+        fantasies: [],
+        skills: {},
+        unlockedPositions: [],
+        unlockedOutfits: [],
+        unlockedToys: [],
+        unlockedScenarios: [],
+        sexualMilestones: [],
+        compatibility: {
+          overall: 50,
+          kinkAlignment: 50,
+          stylePreference: 50
+        },
+        memorableEvents: []
       },
       conversationHistory: [],
       memories: [],
       preferences: {},
+      relationships: {},
+      progression: {
+        level: stats.level,
+        nextLevelExp: stats.level * 100,
+        unlockedFeatures: [],
+        achievements: []
+      },
       createdAt: new Date(),
       updatedAt: new Date(),
       autoGenerated: true
@@ -215,8 +299,8 @@ export async function generateCharactersByTheme(theme: string, count: number, ho
   const characters: Character[] = [];
   const config: AutoCharacterConfig = {
     themes: [theme],
-    personalities: PERSONALITY_TRAITS,
-    roles: CHARACTER_THEMES[theme as keyof typeof CHARACTER_THEMES]?.roles || ['Adventurer'],
+    personalities: AVAILABLE_PERSONALITIES,
+    roles: CHARACTER_THEMES[theme as keyof typeof CHARACTER_THEMES]?.roles || ['adventurer'],
     rarityWeights: { common: 60, rare: 30, legendary: 10 }
   };
   

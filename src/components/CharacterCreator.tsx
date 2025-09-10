@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { useHouse } from '@/hooks/useHouse';
-import { Character } from '@/types';
+import { Character, AVAILABLE_PERSONALITIES, AVAILABLE_ROLES, AVAILABLE_TRAITS } from '@/types';
 import { Plus, X, FloppyDisk as Save } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
@@ -18,14 +18,6 @@ interface CharacterCreatorProps {
   onOpenChange: (open: boolean) => void;
   character?: Character; // For editing existing characters
 }
-
-const PRESET_ROLES = [
-  'Companion', 'Advisor', 'Assistant', 'Friend', 'Mentor', 'Guardian', 'Scholar', 'Artist', 'Warrior', 'Healer'
-];
-
-const PRESET_TRAITS = [
-  'Conversation', 'Empathy', 'Wisdom', 'Creativity', 'Logic', 'Humor', 'Leadership', 'Patience', 'Adventure', 'Care'
-];
 
 const PRESET_CLASSES = [
   'Friendly', 'Mysterious', 'Energetic', 'Calm', 'Playful', 'Serious', 'Romantic', 'Intellectual', 'Sporty', 'Artistic'
@@ -41,6 +33,7 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
     personality: character?.personality || '',
     appearance: character?.appearance || '',
     role: character?.role || '',
+    personalities: character?.personalities || [],
     traits: character?.traits || [],
     classes: character?.classes || [],
     prompts: {
@@ -57,6 +50,7 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
     }
   });
 
+  const [customPersonality, setCustomPersonality] = useState('');
   const [customTrait, setCustomTrait] = useState('');
   const [customClass, setCustomClass] = useState('');
   const [activeTab, setActiveTab] = useState('basic');
@@ -76,6 +70,25 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
         ...prev,
         [field]: value
       }));
+    }
+  };
+
+  const togglePersonality = (personality: string) => {
+    setFormData(prev => ({
+      ...prev,
+      personalities: prev.personalities.includes(personality)
+        ? prev.personalities.filter(p => p !== personality)
+        : [...prev.personalities, personality]
+    }));
+  };
+
+  const addCustomPersonality = () => {
+    if (customPersonality.trim() && !formData.personalities.includes(customPersonality.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        personalities: [...prev.personalities, customPersonality.trim()]
+      }));
+      setCustomPersonality('');
     }
   };
 
@@ -130,16 +143,62 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
       personality: formData.personality.trim(),
       appearance: formData.appearance.trim(),
       role: formData.role.trim(),
+      personalities: formData.personalities,
       traits: formData.traits,
       classes: formData.classes,
       rarity: 'common', // Default rarity
       unlocks: character?.unlocks || [],
       prompts: formData.prompts,
       stats: formData.stats,
+      relationshipDynamics: character?.relationshipDynamics || {
+        affection: 50,
+        trust: 50,
+        intimacy: 0,
+        dominance: 50,
+        jealousy: 30,
+        loyalty: 50,
+        possessiveness: 30,
+        relationshipStatus: 'stranger',
+        bonds: {},
+        significantEvents: [],
+        userPreferences: {
+          likes: [],
+          dislikes: [],
+          turnOns: [],
+          turnOffs: []
+        }
+      },
+      sexualProgression: character?.sexualProgression || {
+        arousal: 0,
+        libido: 50,
+        experience: 0,
+        kinks: [],
+        limits: [],
+        fantasies: [],
+        skills: {},
+        unlockedPositions: [],
+        unlockedOutfits: [],
+        unlockedToys: [],
+        unlockedScenarios: [],
+        sexualMilestones: [],
+        compatibility: {
+          overall: 50,
+          kinkAlignment: 50,
+          stylePreference: 50
+        },
+        memorableEvents: []
+      },
       lastInteraction: character?.lastInteraction,
       conversationHistory: character?.conversationHistory || [],
       memories: character?.memories || [],
       preferences: character?.preferences || {},
+      relationships: character?.relationships || {},
+      progression: character?.progression || {
+        level: 1,
+        nextLevelExp: 100,
+        unlockedFeatures: [],
+        achievements: []
+      },
       createdAt: character?.createdAt || new Date(),
       updatedAt: new Date()
     };
@@ -167,7 +226,7 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="basic">Basic Info</TabsTrigger>
-            <TabsTrigger value="traits">Traits & Stats</TabsTrigger>
+            <TabsTrigger value="attributes">Attributes</TabsTrigger>
             <TabsTrigger value="prompts">AI Prompts</TabsTrigger>
             <TabsTrigger value="preview">Preview</TabsTrigger>
           </TabsList>
@@ -191,11 +250,11 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                     id="role"
                     value={formData.role}
                     onChange={(e) => updateFormData('role', e.target.value)}
-                    placeholder="e.g., Companion, Advisor"
+                    placeholder="e.g., nurse, student, secretary"
                     list="preset-roles"
                   />
                   <datalist id="preset-roles">
-                    {PRESET_ROLES.map(role => (
+                    {AVAILABLE_ROLES.map(role => (
                       <option key={role} value={role} />
                     ))}
                   </datalist>
@@ -236,16 +295,58 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
               </div>
             </TabsContent>
 
-            <TabsContent value="traits" className="space-y-6">
+            <TabsContent value="attributes" className="space-y-6">
+              {/* Personalities */}
+              <div className="space-y-3">
+                <Label>Personalities</Label>
+                <div className="flex flex-wrap gap-2">
+                  {AVAILABLE_PERSONALITIES.map(personality => (
+                    <Badge
+                      key={personality}
+                      variant={formData.personalities.includes(personality) ? "default" : "outline"}
+                      className="cursor-pointer capitalize"
+                      onClick={() => togglePersonality(personality)}
+                    >
+                      {personality}
+                    </Badge>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={customPersonality}
+                    onChange={(e) => setCustomPersonality(e.target.value)}
+                    placeholder="Add custom personality"
+                    onKeyDown={(e) => e.key === 'Enter' && addCustomPersonality()}
+                  />
+                  <Button size="sm" onClick={addCustomPersonality}>
+                    <Plus size={16} />
+                  </Button>
+                </div>
+                {formData.personalities.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {formData.personalities.map(personality => (
+                      <Badge key={personality} variant="secondary" className="gap-1 capitalize">
+                        {personality}
+                        <X 
+                          size={12} 
+                          className="cursor-pointer hover:text-destructive"
+                          onClick={() => togglePersonality(personality)}
+                        />
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Traits */}
               <div className="space-y-3">
                 <Label>Traits</Label>
                 <div className="flex flex-wrap gap-2">
-                  {PRESET_TRAITS.map(trait => (
+                  {AVAILABLE_TRAITS.map(trait => (
                     <Badge
                       key={trait}
                       variant={formData.traits.includes(trait) ? "default" : "outline"}
-                      className="cursor-pointer"
+                      className="cursor-pointer capitalize"
                       onClick={() => toggleTrait(trait)}
                     >
                       {trait}
@@ -266,7 +367,7 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                 {formData.traits.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {formData.traits.map(trait => (
-                      <Badge key={trait} variant="secondary" className="gap-1">
+                      <Badge key={trait} variant="secondary" className="gap-1 capitalize">
                         {trait}
                         <X 
                           size={12} 
@@ -420,12 +521,25 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                       <p className="text-muted-foreground">{formData.description}</p>
                     )}
                     
+                    {formData.personalities.length > 0 && (
+                      <div>
+                        <Label className="text-sm font-medium">Personalities:</Label>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {formData.personalities.map(personality => (
+                            <Badge key={personality} variant="default" className="text-xs capitalize">
+                              {personality}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
                     {formData.traits.length > 0 && (
                       <div>
                         <Label className="text-sm font-medium">Traits:</Label>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {formData.traits.map(trait => (
-                            <Badge key={trait} variant="secondary" className="text-xs">
+                            <Badge key={trait} variant="secondary" className="text-xs capitalize">
                               {trait}
                             </Badge>
                           ))}

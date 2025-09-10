@@ -2,7 +2,7 @@ export interface Character {
   id: string;
   name: string;
   description: string;
-  personality: string;
+  personality: string; // personality selection from list
   appearance: string;
   avatar?: string;
   roomId?: string;
@@ -16,9 +16,10 @@ export interface Character {
     level: number;
   };
   
-  // Customizable traits
+  // Customizable attributes
   role: string;
-  traits: string[]; // renamed from skills
+  personalities: string[]; // multiple personality traits
+  traits: string[]; // physical/behavioral traits  
   classes: string[];
   unlocks: string[];
   rarity: 'common' | 'rare' | 'legendary' | 'epic';
@@ -369,4 +370,101 @@ export const AVAILABLE_MODELS: AIModel[] = [
     description: 'DeepSeek R1 reasoning model',
     contextLength: 64000
   }
+];
+
+// Character Creation Constants
+export const AVAILABLE_PERSONALITIES = [
+  'flirtatious',
+  'submissive',
+  'teasing',
+  'seductive',
+  'innocent',
+  'mysterious',
+  'cheerful',
+  'serious',
+  'carefree',
+  'shy',
+  'unconfident',
+  'hyper',
+  'caring',
+  'spiritual',
+  'playful',
+  'friendly',
+  'energetic',
+  'calm',
+  'romantic',
+  'intellectual',
+  'sporty',
+  'artistic',
+  'conservative',
+  'youthful',
+  'naive',
+  'pure',
+  'untouched',
+  'childlike',
+  'curious',
+  'adventurous',
+  'bold',
+  'brave',
+  'confident',
+  'timid',
+  'sweet',
+  'cute',
+  'adorable',
+  'willing',
+  'defiant',
+  'proud',
+  'touchy'
+];
+
+export const AVAILABLE_ROLES = [
+  'spy',
+  'daddy\'s girl',
+  'girl scout',
+  'influencer',
+  'schoolgirl',
+  'ballet baby',
+  'cheerleader',
+  'secretary',
+  'nurse',
+  'bookworm',
+  'princess',
+  'gymnast',
+  'singer',
+  'dancer',
+  'teacher',
+  'onlyfans',
+  'student',
+  'maid',
+  'cook',
+  'babysitter',
+  'assistant',
+  'talent scout',
+  'hostess',
+  'spa girl',
+  'cocktail waitress',
+  'tour guide',
+  'counselor',
+  'hacker girl',
+  'gamer girl'
+];
+
+export const AVAILABLE_TRAITS = [
+  'big tits',
+  'big ass',
+  'flat chest',
+  'undeveloped',
+  'bouncy tits',
+  'flexible',
+  'no gag reflex',
+  'long tongue',
+  'oral fixation',
+  'still sucks thumb',
+  'thigh gap',
+  'skinny',
+  'thick',
+  'can twerk',
+  'petite',
+  'perky tits',
+  'big puppy dog eyes'
 ];
