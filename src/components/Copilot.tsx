@@ -127,8 +127,9 @@ export function Copilot() {
         } else if (promptLower.includes('paragraph')) {
           maxTokens = 150;
         }
-        
-        const promptContent = `${copilotPersonality}
+      }
+      
+      const promptContent = `${copilotPersonality}
 
 Current house status:
 - ${houseContext.characterCount} characters
@@ -146,6 +147,8 @@ Recent updates: ${JSON.stringify(safeUpdates.slice(-3))}
 User message: "${userMessage.content}"
 
 Respond according to your personality and role as defined above. Be helpful and stay in character. KEEP IT BRIEF AND WITHIN THE TOKEN LIMIT.`;
+
+      try {
 
       const apiKey = house.aiSettings?.apiKey;
       if (!apiKey) {
