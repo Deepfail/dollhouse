@@ -1,4 +1,5 @@
 import { House } from '@/types';
+import { simpleStorage } from '@/hooks/useSimpleStorage';
 
 // Direct OpenRouter service - no reliance on house state getter which might be stale
 export class AIService {
@@ -15,17 +16,23 @@ export class AIService {
     
     if (!finalApiKey) {
       try {
-        const house = await window.spark.kv.get<House>('character-house');
-        console.log('Retrieved house from KV for AI service:', !!house);
+        const house = simpleStorage.get<House>('character-house');
+        console.log('Retrieved house from localStorage for AI service:', !!house);
         console.log('House AI settings:', house?.aiSettings);
         
-        finalApiKey = house?.aiSettings?.apiKey?.trim();
-        finalModel = house?.aiSettings?.model || finalModel;
+        // Use new structured fields with fallback to legacy fields
+        const textApiKey = house?.aiSettings?.textApiKey || house?.aiSettings?.apiKey;
+        const textModel = house?.aiSettings?.textModel || house?.aiSettings?.model;
         
-        console.log('Using KV API Key:', !!finalApiKey);
-        console.log('Using KV Model:', finalModel);
+        if (textApiKey && textModel) {
+          finalApiKey = textApiKey.trim();
+          finalModel = textModel || finalModel;
+          
+          console.log('Using localStorage Text API Key:', !!finalApiKey);
+          console.log('Using localStorage Text Model:', finalModel);
+        }
       } catch (error) {
-        console.error('Failed to get house settings from KV:', error);
+        console.error('Failed to get house settings from localStorage:', error);
       }
     }
     
@@ -104,9 +111,10 @@ export class AIService {
     
     if (!finalApiKey) {
       try {
-        const house = await window.spark.kv.get<House>('character-house');
-        finalApiKey = house?.aiSettings?.apiKey?.trim();
-        finalModel = house?.aiSettings?.model || finalModel;
+        const house = simpleStorage.get<House>('character-house');
+        // Use new structured fields with fallback to legacy fields
+        finalApiKey = (house?.aiSettings?.textApiKey || house?.aiSettings?.apiKey)?.trim();
+        finalModel = house?.aiSettings?.textModel || house?.aiSettings?.model || finalModel;
       } catch (error) {
         return { success: false, message: 'Failed to get API settings from storage' };
       }
@@ -186,10 +194,14 @@ export class AIServiceLegacy {
 
   async generateResponse(prompt: string): Promise<string> {
     const house = this.getHouse();
+    // Use new structured fields with fallback to legacy fields
+    const textApiKey = house.aiSettings?.textApiKey || house.aiSettings?.apiKey;
+    const textModel = house.aiSettings?.textModel || house.aiSettings?.model;
+    
     return AIService.generateResponse(
       prompt, 
-      house.aiSettings?.apiKey, 
-      house.aiSettings?.model
+      textApiKey, 
+      textModel
     );
   }
 

@@ -87,6 +87,7 @@
 }
 
 @layer base {
+  :root,
   #spark-app {
     --tomato-contrast: #fff;
     --red-contrast: #fff;
@@ -254,6 +255,7 @@
     --font-family: var(--font-sans-serif);
   }
 
+  :root.dark-theme,
   #spark-app.dark-theme {
     --color-bg: var(--color-neutral-1);
     --color-bg-inset: #000000;

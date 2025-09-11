@@ -10,7 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { useHouse } from '@/hooks/useHouse';
-import { useKV } from '@github/spark/hooks';
+import { useSimpleStorage, simpleStorage } from '@/hooks/useSimpleStorage';
 import { AVAILABLE_MODELS } from '@/types';
 import { AIService } from '@/lib/aiService';
 import { toast } from 'sonner';
@@ -31,7 +31,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   const { house, updateHouse } = useHouse();
   
   // Force update trigger to help with persistence issues
-  const [forceUpdate, setForceUpdate] = useKV<number>('settings-force-update', 0);
+  const [forceUpdate, setForceUpdate] = useSimpleStorage<number>('settings-force-update', 0);
   
   // House configuration state
   const [houseName, setHouseName] = useState(house.name);
@@ -41,12 +41,16 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   const [copilotMaxTokens, setCopilotMaxTokens] = useState(house.copilotMaxTokens || 75);
   const [currency, setCurrency] = useState(house.currency);
   
-  // AI Settings state  
-  const [provider, setProvider] = useState(house.aiSettings?.provider || 'openrouter');
-  const [selectedModel, setSelectedModel] = useState(house.aiSettings?.model || 'deepseek/deepseek-chat-v3.1');
-  const [apiKey, setApiKey] = useState(house.aiSettings?.apiKey || '');
-  const [imageProvider, setImageProvider] = useState(house.aiSettings?.imageProvider || 'venice');
+  // AI Settings state - properly separated  
+  const [textProvider, setTextProvider] = useState(house.aiSettings?.textProvider || house.aiSettings?.provider || 'openrouter');
+  const [textModel, setTextModel] = useState(house.aiSettings?.textModel || house.aiSettings?.model || 'deepseek/deepseek-chat-v3.1');
+  const [textApiKey, setTextApiKey] = useState(house.aiSettings?.textApiKey || house.aiSettings?.apiKey || '');
+  const [textApiUrl, setTextApiUrl] = useState(house.aiSettings?.textApiUrl || '');
+  
+  // Image Generation Settings - completely separate
+  const [imageProvider, setImageProvider] = useState(house.aiSettings?.imageProvider || 'none');
   const [imageApiKey, setImageApiKey] = useState(house.aiSettings?.imageApiKey || '');
+  const [imageApiUrl, setImageApiUrl] = useState(house.aiSettings?.imageApiUrl || '');
 
   // Auto character creator settings
   const [autoEnabled, setAutoEnabled] = useState(house.autoCreator?.enabled || false);
@@ -55,20 +59,23 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
 
   // Watch for house updates to sync success
   useEffect(() => {
-    if (house.aiSettings?.apiKey && house.aiSettings.apiKey !== '' && open) {
+    const currentTextApiKey = house.aiSettings?.textApiKey || house.aiSettings?.apiKey;
+    if (currentTextApiKey && currentTextApiKey !== '' && open) {
       console.log('House AI settings updated successfully:', house.aiSettings);
       // Sync form state to match house state after successful save
-      if (house.aiSettings.apiKey !== apiKey) {
-        setApiKey(house.aiSettings.apiKey);
+      if (currentTextApiKey !== textApiKey) {
+        setTextApiKey(currentTextApiKey);
       }
-      if (house.aiSettings.provider !== provider) {
-        setProvider(house.aiSettings.provider);
+      const currentTextProvider = house.aiSettings?.textProvider || house.aiSettings?.provider;
+      if (currentTextProvider !== textProvider) {
+        setTextProvider(currentTextProvider || 'openrouter');
       }
-      if (house.aiSettings.model !== selectedModel) {
-        setSelectedModel(house.aiSettings.model);
+      const currentTextModel = house.aiSettings?.textModel || house.aiSettings?.model;
+      if (currentTextModel !== textModel) {
+        setTextModel(currentTextModel || 'deepseek/deepseek-chat-v3.1');
       }
     }
-  }, [house.aiSettings?.apiKey, house.aiSettings?.provider, house.aiSettings?.model, open]);
+  }, [house.aiSettings?.textApiKey, house.aiSettings?.apiKey, house.aiSettings?.textProvider, house.aiSettings?.provider, house.aiSettings?.textModel, house.aiSettings?.model, open]);
   useEffect(() => {
     if (!open) return; // Only sync when dialog is first opened
     
@@ -84,11 +91,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       setCopilotPrompt(house.copilotPrompt || 'You are a helpful House Manager AI for a character creator house. Keep responses to 2-3 sentences maximum. Monitor character well-being, provide status updates, and assist users with managing their virtual house and characters. Be friendly but concise.');
       setCopilotMaxTokens(house.copilotMaxTokens || 75);
       setCurrency(house.currency);
-      setProvider(house.aiSettings?.provider || 'openrouter');
-      setSelectedModel(house.aiSettings?.model || 'deepseek/deepseek-chat-v3.1');
-      setApiKey(house.aiSettings?.apiKey || '');
-      setImageProvider(house.aiSettings?.imageProvider || 'venice');
+      setTextProvider(house.aiSettings?.textProvider || house.aiSettings?.provider || 'openrouter');
+      setTextModel(house.aiSettings?.textModel || house.aiSettings?.model || 'deepseek/deepseek-chat-v3.1');
+      setTextApiKey(house.aiSettings?.textApiKey || house.aiSettings?.apiKey || '');
+      setTextApiUrl(house.aiSettings?.textApiUrl || '');
+      setImageProvider(house.aiSettings?.imageProvider || 'none');
       setImageApiKey(house.aiSettings?.imageApiKey || '');
+      setImageApiUrl(house.aiSettings?.imageApiUrl || '');
       setAutoEnabled(house.autoCreator?.enabled || false);
       setAutoInterval(house.autoCreator?.interval || 60);
       setAutoMaxChars(house.autoCreator?.maxCharacters || 10);
@@ -109,11 +118,18 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       currency,
       aiSettings: {
         ...house.aiSettings,
-        provider: provider as 'openrouter',
-        model: selectedModel,
-        apiKey,
-        imageProvider: imageProvider as 'venice' | 'none',
-        imageApiKey
+        // Legacy fields for backward compatibility
+        provider: textProvider as 'openrouter',
+        model: textModel,
+        apiKey: textApiKey,
+        // New structured fields
+        textProvider: textProvider as 'openrouter',
+        textModel,
+        textApiKey,
+        textApiUrl,
+        imageProvider: imageProvider as 'venice' | 'openai' | 'stability' | 'none',
+        imageApiKey,
+        imageApiUrl
       },
       autoCreator: {
         ...house.autoCreator,
@@ -137,16 +153,16 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
 
   const handleSaveApiSettings = async () => {
     console.log('=== Saving API Settings ===');
-    console.log('Provider:', provider);
-    console.log('Model:', selectedModel);
-    console.log('API Key present:', !!apiKey);
-    console.log('API Key length:', apiKey.length);
-    console.log('API Key first 8 chars:', apiKey.slice(0, 8));
+    console.log('Text Provider:', textProvider);
+    console.log('Text Model:', textModel);
+    console.log('Text API Key present:', !!textApiKey);
+    console.log('Text API Key length:', textApiKey.length);
+    console.log('Text API Key first 8 chars:', textApiKey.slice(0, 8));
     console.log('Image Provider:', imageProvider);
     console.log('Image API Key present:', !!imageApiKey);
     console.log('Current house AI settings before save:', house.aiSettings);
     
-    if (!apiKey.trim()) {
+    if (!textApiKey.trim()) {
       toast.error('Please enter an API key');
       return;
     }
@@ -154,14 +170,18 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     try {
       // Create the complete AI settings object with current form values
       const newApiSettings = {
-        provider: provider as 'openrouter',
-        model: selectedModel,
-        apiKey: apiKey.trim(), // Ensure no whitespace issues
-        imageProvider: imageProvider as 'venice' | 'none',
+        // Legacy fields for backward compatibility
+        provider: textProvider as 'openrouter',
+        model: textModel,
+        apiKey: textApiKey.trim(),
+        // New structured fields
+        textProvider: textProvider as 'openrouter',
+        textModel,
+        textApiKey: textApiKey.trim(),
+        textApiUrl,
+        imageProvider: imageProvider as 'venice' | 'openai' | 'stability' | 'none',
         imageApiKey: imageApiKey.trim(),
-        // Preserve existing AI settings that we don't show in the form
-        temperature: house.aiSettings?.temperature || 0.7,
-        maxTokens: house.aiSettings?.maxTokens || 512
+        imageApiUrl
       };
       
       console.log('New AI settings being saved:', newApiSettings);
@@ -186,25 +206,22 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
         console.log('Checking updated house state...');
         console.log('House AI Settings after update:', house.aiSettings);
         
-        // Verify the save worked by checking the KV directly
-        window.spark.kv.get('character-house').then(kvData => {
-          console.log('Verification - KV AI settings:', kvData?.aiSettings);
-          console.log('Verification - Hook AI settings:', house.aiSettings);
-          
-          if (kvData?.aiSettings?.apiKey === apiKey.trim()) {
-            console.log('✅ API settings successfully saved and verified!');
-            toast.success('API settings saved successfully');
-          } else {
-            console.error('❌ API settings save verification failed');
-            console.log('Expected:', apiKey.trim());
-            console.log('Got from KV:', kvData?.aiSettings?.apiKey);
-            console.log('Got from Hook:', house.aiSettings?.apiKey);
-            toast.error('API settings may not have saved correctly. Please try again.');
-          }
-        }).catch(err => {
-          console.error('KV verification check failed:', err);
-          toast.error('Unable to verify API settings save');
-        });
+        // Verify the save worked by checking localStorage directly
+        const kvData = simpleStorage.get('character-house') as any;
+        console.log('Verification - localStorage settings:', kvData?.aiSettings);
+        console.log('Verification - Hook AI settings:', house.aiSettings);
+        
+        const savedTextApiKey = kvData?.aiSettings?.textApiKey || kvData?.aiSettings?.apiKey;
+        if (savedTextApiKey === textApiKey.trim()) {
+          console.log('✅ API settings successfully saved and verified!');
+          toast.success('API settings saved successfully');
+        } else {
+          console.error('❌ API settings save verification failed');
+          console.log('Expected:', textApiKey.trim());
+          console.log('Got from localStorage:', savedTextApiKey);
+          console.log('Got from Hook:', house.aiSettings?.apiKey);
+          toast.error('API settings may not have saved correctly. Please try again.');
+        }
       }, 500); // Give a bit more time for state to propagate
       
       console.log('API settings save initiated successfully');
@@ -216,7 +233,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   };
 
   const handleTestApiConnection = async () => {
-    if (!apiKey) {
+    if (!textApiKey) {
       toast.error('Please enter an API key first');
       return;
     }
@@ -224,7 +241,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     toast.info('Testing API connection...');
     
     try {
-      const result = await AIService.testConnection(apiKey.trim(), selectedModel);
+      const result = await AIService.testConnection(textApiKey.trim(), textModel);
       
       if (result.success) {
         toast.success('✅ ' + result.message);
@@ -340,22 +357,25 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   {/* Debug Info */}
                   <div className="p-3 bg-muted rounded-lg text-sm">
                     <div className="text-muted-foreground mb-2">Debug Info:</div>
-                    <div>Form API Key: {apiKey ? `${apiKey.slice(0, 8)}... (${apiKey.length} chars)` : 'empty'}</div>
-                    <div>House API Key: {house.aiSettings?.apiKey ? `${house.aiSettings.apiKey.slice(0, 8)}... (${house.aiSettings.apiKey.length} chars)` : 'empty'}</div>
-                    <div>Form Provider: {provider}</div>
-                    <div>House Provider: {house.aiSettings?.provider || 'none'}</div>
-                    <div>Form Model: {selectedModel}</div>
-                    <div>House Model: {house.aiSettings?.model || 'none'}</div>
-                    <div>Form Trimmed Length: {apiKey.trim().length}</div>
-                    <div>House Trimmed Length: {house.aiSettings?.apiKey?.trim().length || 0}</div>
-                    <div>Values Match: {apiKey.trim() === (house.aiSettings?.apiKey?.trim() || '') ? 'YES' : 'NO'}</div>
-                    <div>Valid Check: {!!(house.aiSettings?.apiKey && house.aiSettings.apiKey.trim().length > 0) ? 'VALID' : 'INVALID'}</div>
+                    <div>Form Text API Key: {textApiKey ? `${textApiKey.slice(0, 8)}... (${textApiKey.length} chars)` : 'empty'}</div>
+                    <div>House Text API Key: {(house.aiSettings?.textApiKey || house.aiSettings?.apiKey) ? `${(house.aiSettings?.textApiKey || house.aiSettings?.apiKey)?.slice(0, 8)}... (${(house.aiSettings?.textApiKey || house.aiSettings?.apiKey)?.length} chars)` : 'empty'}</div>
+                    <div>Form Text Provider: {textProvider}</div>
+                    <div>House Text Provider: {house.aiSettings?.textProvider || house.aiSettings?.provider || 'none'}</div>
+                    <div>Form Text Model: {textModel}</div>
+                    <div>House Text Model: {house.aiSettings?.textModel || house.aiSettings?.model || 'none'}</div>
+                    <div>Form Trimmed Length: {textApiKey.trim().length}</div>
+                    <div>House Trimmed Length: {(house.aiSettings?.textApiKey || house.aiSettings?.apiKey)?.trim().length || 0}</div>
+                    <div>Values Match: {textApiKey.trim() === ((house.aiSettings?.textApiKey || house.aiSettings?.apiKey)?.trim() || '') ? 'YES' : 'NO'}</div>
+                    <div>Valid Check: {(() => {
+                      const key = house.aiSettings?.textApiKey || house.aiSettings?.apiKey;
+                      return key && key.trim().length > 0 ? 'VALID' : 'INVALID';
+                    })()}</div>
                     <div>Force Update: #{forceUpdate || 0}</div>
                     <Button 
                       variant="outline" 
                       size="sm" 
                       onClick={async () => {
-                        const kvData = await window.spark.kv.get('character-house');
+                        const kvData = simpleStorage.get('character-house');
                         console.log('Raw KV Data:', kvData);
                         toast.info('KV data logged to console');
                       }}
@@ -368,8 +388,8 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label htmlFor="provider">AI Provider</Label>
                     <Select
-                      value={provider}
-                      onValueChange={setProvider}
+                      value={textProvider}
+                      onValueChange={(value) => setTextProvider(value as 'openrouter')}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select AI provider" />
@@ -380,15 +400,15 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                     </Select>
                   </div>
 
-                  {provider === 'openrouter' && (
+                  {textProvider === 'openrouter' && (
                     <>
                       <div className="space-y-2">
                         <Label htmlFor="api-key">OpenRouter API Key</Label>
                         <Input
                           id="api-key"
                           type="password"
-                          value={apiKey}
-                          onChange={(e) => setApiKey(e.target.value)}
+                          value={textApiKey}
+                          onChange={(e) => setTextApiKey(e.target.value)}
                           placeholder="sk-or-v1-..."
                         />
                         <p className="text-xs text-muted-foreground">
@@ -399,8 +419,8 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                       <div className="space-y-2">
                         <Label htmlFor="ai-model">AI Model</Label>
                         <Select
-                          value={selectedModel}
-                          onValueChange={setSelectedModel}
+                          value={textModel}
+                          onValueChange={setTextModel}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select AI model" />
@@ -429,7 +449,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                         <Label htmlFor="image-provider">Image Provider</Label>
                         <Select
                           value={imageProvider}
-                          onValueChange={setImageProvider}
+                          onValueChange={(value) => setImageProvider(value as 'venice' | 'openai' | 'stability' | 'none')}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select image provider" />

@@ -280,11 +280,21 @@ export interface House {
   
   // AI Configuration  
   aiSettings: {
-    provider: 'openrouter';
-    model: string;
-    apiKey?: string;
-    imageProvider: 'venice' | 'none';
+    // Text/Chat AI Provider
+    textProvider: 'openrouter' | 'venice' | 'anthropic' | 'openai';
+    textApiKey?: string;
+    textModel: string;
+    textApiUrl?: string; // Custom API endpoint
+    
+    // Image Generation Provider (separate)
+    imageProvider: 'venice' | 'openai' | 'stability' | 'none';
     imageApiKey?: string;
+    imageApiUrl?: string; // Custom API endpoint
+    
+    // Legacy fields for backward compatibility
+    provider?: 'openrouter' | 'venice'; // @deprecated
+    model?: string; // @deprecated  
+    apiKey?: string; // @deprecated
   };
   
   createdAt: Date;

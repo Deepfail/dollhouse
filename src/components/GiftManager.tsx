@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Gift, Heart, Star, Sparkles, Crown } from '@phosphor-icons/react';
+import { Gift, Heart, Star, Sparkle, Crown } from '@phosphor-icons/react';
 import { Character, Gift as GiftType } from '@/types';
 import { useHouse } from '@/hooks/useHouse';
 import { useRelationshipDynamics } from '@/hooks/useRelationshipDynamics';
@@ -131,7 +131,7 @@ const getRarityColor = (rarity: GiftType['rarity']) => {
 const getRarityIcon = (rarity: GiftType['rarity']) => {
   switch (rarity) {
     case 'legendary': return <Crown size={16} className="text-amber-500" />;
-    case 'rare': return <Sparkles size={16} className="text-purple-500" />;
+    case 'rare': return <Sparkle size={16} className="text-purple-500" />;
     default: return <Star size={16} className="text-blue-500" />;
   }
 };

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useKV } from '@github/spark/hooks';
+import { useSimpleStorage, simpleStorage } from '@/hooks/useSimpleStorage';
 import { useHouse } from '@/hooks/useHouse';
 import { useQuickActions } from '@/hooks/useQuickActions';
 import { QuickActionsManager } from '@/components/QuickActionsManager';
@@ -46,9 +46,9 @@ interface CopilotMessage {
 export function Copilot() {
   const { house } = useHouse();
   const { quickActions, executeAction } = useQuickActions();
-  const [updates, setUpdates] = useKV<CopilotUpdate[]>('copilot-updates', []);
-  const [chatMessages, setChatMessages] = useKV<CopilotMessage[]>('copilot-chat', []);
-  const [forceUpdate] = useKV<number>('settings-force-update', 0); // React to settings changes
+  const [updates, setUpdates] = useSimpleStorage<CopilotUpdate[]>('copilot-updates', []);
+  const [chatMessages, setChatMessages] = useSimpleStorage<CopilotMessage[]>('copilot-chat', []);
+  const [forceUpdate] = useSimpleStorage<number>('settings-force-update', 0); // React to settings changes
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
@@ -67,7 +67,7 @@ export function Copilot() {
   useEffect(() => {
     const verifyApiFromKV = async () => {
       try {
-        const kvHouse = await window.spark.kv.get<any>('character-house');
+        const kvHouse = simpleStorage.get<any>('character-house');
         const kvApiConfigured = kvHouse?.aiSettings?.provider === 'openrouter' && 
                                kvHouse?.aiSettings?.apiKey && 
                                kvHouse?.aiSettings?.apiKey?.trim().length > 0;
@@ -104,14 +104,6 @@ export function Copilot() {
     console.log('Model:', house.aiSettings?.model);
     console.log('Is API Configured:', isApiConfigured);
     console.log('Force Update Trigger:', forceUpdate);
-    
-    // Also check KV directly for comparison
-    if (window.spark?.kv) {
-      window.spark.kv.get('character-house').then(kvData => {
-        console.log('KV House Data API Settings:', kvData?.aiSettings);
-        console.log('KV vs Hook match:', JSON.stringify(kvData?.aiSettings) === JSON.stringify(house.aiSettings));
-      }).catch(err => console.error('KV check failed:', err));
-    }
   }, [house.aiSettings, forceUpdate, isApiConfigured]);
 
   // Ensure updates is never undefined
@@ -503,7 +495,7 @@ Respond according to your personality and role as defined above. Be helpful and 
                             Model: {house.aiSettings.model}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Key: {house.aiSettings.apiKey.slice(0, 8)}... ({house.aiSettings.apiKey.length} chars)
+                            Key: {house.aiSettings.apiKey?.slice(0, 8)}... ({house.aiSettings.apiKey?.length} chars)
                           </p>
                           <p className="text-xs text-green-500">
                             Hook API: {isApiConfigured ? 'OK' : 'FAIL'} | KV API: {kvApiVerified ? 'OK' : kvApiVerified === false ? 'FAIL' : 'CHECKING'}

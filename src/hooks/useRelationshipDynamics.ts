@@ -1,6 +1,6 @@
-// src/hooks/useRelationshipDynamics.ts
+//import { useKV } from './useLocalKV';src/hooks/useRelationshipDynamics.ts
 import { useCallback } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useSimpleStorage } from './useSimpleStorage';
 import { toast } from 'sonner'
 
 // If your alias isn't configured, swap to a relative import:
@@ -52,8 +52,8 @@ function ensureStats(input: Character['stats']): Stats {
 }
 
 export function useRelationshipDynamics() {
-  const [characters, setCharacters] = useKV<Character[]>('characters', [])
-  const [unlockableContent] = useKV<UnlockableContent[]>('unlockable-content', [])
+  const [characters, setCharacters] = useSimpleStorage<Character[]>('characters', [])
+  const [unlockableContent] = useSimpleStorage<UnlockableContent[]>('unlockable-content', [])
 
   /** Update high-level dynamics + basic stats in one go (all fields optional) */
   const updateRelationshipStats = useCallback(
@@ -65,11 +65,9 @@ export function useRelationshipDynamics() {
           | 'affection'
           | 'trust'
           | 'dominance'
-          | 'submissiveness'
           | 'relationship'
           | 'happiness'
           | 'wet'
-          | 'intimacy'
           | 'experience'
         >
       >
@@ -84,13 +82,12 @@ export function useRelationshipDynamics() {
           if (updates.affection !== undefined) dyn.affection = clamp(updates.affection)
           if (updates.trust !== undefined) dyn.trust = clamp(updates.trust)
           if (updates.dominance !== undefined) dyn.dominance = clamp(updates.dominance)
-          if (updates.submissiveness !== undefined)
-            dyn.submissiveness = clamp(updates.submissiveness)
+          // submissiveness property removed
 
           if (updates.relationship !== undefined) stats.relationship = clamp(updates.relationship)
           if (updates.happiness !== undefined) stats.happiness = clamp(updates.happiness)
           if (updates.wet !== undefined) stats.wet = clamp(updates.wet)
-          if (updates.intimacy !== undefined) stats.intimacy = clamp(updates.intimacy)
+          // Note: intimacy is in relationshipDynamics, not stats
           if (updates.experience !== undefined) stats.experience = Math.max(0, updates.experience)
 
           ;(updated as any).relationshipDynamics = dyn
@@ -125,7 +122,7 @@ export function useRelationshipDynamics() {
           // simple heuristic bumps (tune as needed)
           if ((event as any).type === 'trust_gain') dyn.trust = clamp(dyn.trust + 5)
           if ((event as any).type === 'affection_gain') dyn.affection = clamp(dyn.affection + 5)
-          if ((event as any).type === 'intimate') stats.intimacy = clamp(stats.intimacy + 10)
+          if ((event as any).type === 'intimate') updated.relationshipDynamics.intimacy = clamp(updated.relationshipDynamics.intimacy + 10)
 
           ;(updated as any).relationshipDynamics = dyn
           ;(updated as any).stats = stats
@@ -165,7 +162,7 @@ export function useRelationshipDynamics() {
 
           // light stat nudge
           const stats = ensureStats(updated.stats)
-          stats.intimacy = clamp(stats.intimacy + 5)
+          updated.relationshipDynamics.intimacy = clamp(updated.relationshipDynamics.intimacy + 5)
           updated.stats = stats
           updated.updatedAt = new Date()
           return updated as Character
@@ -186,10 +183,10 @@ export function useRelationshipDynamics() {
           const stats = ensureStats(updated.stats)
 
           const score =
-            (dyn.affection + dyn.trust + (stats.intimacy ?? 0)) / 3 // simple average
+            (dyn.affection + dyn.trust + dyn.intimacy) / 3 // simple average
 
           let status: Dyn['relationshipStatus'] = 'stranger'
-          if (score >= 90) status = 'intimate_partner'
+          if (score >= 90) status = 'devoted'
           else if (score >= 75) status = 'lover'
           else if (score >= 55) status = 'close_friend'
           else if (score >= 30) status = 'acquaintance'
@@ -218,7 +215,7 @@ export function useRelationshipDynamics() {
         const req = content.requirements || {}
         if (req.minAffection != null && dyn.affection < req.minAffection) return false
         if (req.minTrust != null && dyn.trust < req.minTrust) return false
-        if (req.minIntimacy != null && stats.intimacy < req.minIntimacy) return false
+        if (req.minIntimacy != null && dyn.intimacy < req.minIntimacy) return false
         if (req.minRelationship != null && stats.relationship < req.minRelationship) return false
         return true
       })

@@ -5,12 +5,13 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useKV } from '@github/spark/hooks';
+import { useSimpleStorage, simpleStorage } from '@/hooks/useSimpleStorage';
 import { useChat } from '@/hooks/useChat';
 import { useHouse } from '@/hooks/useHouse';
 import { ChatMessage } from '@/types';
 import { PaperPlaneTilt as Send, ChatCircle as MessageCircle, Users, Camera, Warning, ArrowLeft } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 
 interface ChatInterfaceProps {
   sessionId: string | null;
@@ -24,7 +25,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
   const { house } = useHouse();
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState<string[]>([]);
-  const [forceUpdate] = useKV<number>('settings-force-update', 0); // React to settings changes
+  const [forceUpdate] = useSimpleStorage<number>('settings-force-update', 0); // React to settings changes
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Use the sessionId if provided, otherwise use the hook's active session
@@ -126,7 +127,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
     const apiKeyPresent = !!(house.aiSettings?.apiKey && house.aiSettings.apiKey.trim().length > 0);
     const needsApiKey = provider === 'openrouter' && !apiKeyPresent;
     const hasCharacters = house.characters && house.characters.length > 0;
-    const sparkUnavailable = typeof window === 'undefined' || !window.spark;
+    const sparkUnavailable = false; // Always available with localStorage
     
     // Debug logging for API key status
     console.log('=== ChatInterface API Key Check ===');
@@ -299,15 +300,14 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                         };
                         
                         // Try to manually set the session
-                        if (typeof window !== 'undefined' && window.spark) {
-                          window.spark.kv.set('test-session', testSession).then(() => {
-                            console.log('Test session saved to KV');
-                            setActiveSessionId(testSessionId);
-                            setTimeout(() => window.location.reload(), 500);
-                          });
+                        if (typeof window !== 'undefined') {
+                          simpleStorage.set('test-session', testSession);
+                          console.log('Test session saved to localStorage');
+                          setActiveSessionId(testSessionId);
+                          setTimeout(() => window.location.reload(), 500);
                         } else {
-                          console.error('Spark API not available');
-                          toast.error('Spark API not available');
+                          console.error('LocalStorage not available');
+                          toast.error('LocalStorage not available');
                         }
                       }
                     }}

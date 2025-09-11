@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { 
   Plus,
   Trash,
-  Settings,
+  Gear,
   House,
   Bed,
   Heart,
@@ -92,7 +92,7 @@ export function QuickActionsManager() {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
-          <Settings size={16} />
+          <Gear size={16} />
           Customize Actions
         </Button>
       </DialogTrigger>

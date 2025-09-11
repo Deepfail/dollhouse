@@ -1,4 +1,4 @@
-import { useKV } from '@github/spark/hooks';
+import { useSimpleStorage } from './useSimpleStorage';
 import { useHouse } from './useHouse';
 import { toast } from 'sonner';
 
@@ -47,7 +47,7 @@ const DEFAULT_ACTIONS: QuickAction[] = [
 ];
 
 export function useQuickActions() {
-  const [quickActions, setQuickActions] = useKV<QuickAction[]>('quick-actions', DEFAULT_ACTIONS);
+  const [quickActions, setQuickActions] = useSimpleStorage<QuickAction[]>('quick-actions', DEFAULT_ACTIONS);
   const { house, updateCharacter } = useHouse();
 
   const executeAction = async (actionId: string) => {
@@ -189,7 +189,7 @@ export function useQuickActions() {
     }
 
     const statusReport = house.characters.map(char => {
-      const needsAttention = [];
+      const needsAttention: string[] = [];
       if (char.stats.wet < 30) needsAttention.push('low arousal');
       if (char.stats.happiness < 40) needsAttention.push('unhappy');
       if (char.stats.relationship < 50) needsAttention.push('distant');

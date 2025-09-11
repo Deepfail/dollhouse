@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useAutoCharacterCreator } from '@/hooks/useAutoCharacterCreator';
-import { Sparkles, Plus, Settings, Clock, Users } from '@phosphor-icons/react';
+import { Sparkle, Plus, Gear, Clock, Users } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
 export const AutoCharacterCreator: React.FC = () => {
@@ -67,7 +67,7 @@ export const AutoCharacterCreator: React.FC = () => {
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Sparkles className="text-primary" />
+          <Sparkle className="text-primary" />
           Auto Character Creator
           <Badge variant={isEnabled ? "default" : "secondary"}>
             {isEnabled ? "Active" : "Inactive"}
@@ -132,7 +132,7 @@ export const AutoCharacterCreator: React.FC = () => {
             variant="outline"
             onClick={() => setShowSettings(!showSettings)}
           >
-            <Settings size={16} />
+            <Gear size={16} />
           </Button>
         </div>
 

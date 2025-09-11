@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useSimpleStorage } from './useSimpleStorage';
 
 import { ChatSession, Character, ChatMessage, SceneObjective } from '@/types'
 import { useHouse } from './useHouse'           // if your hook lives elsewhere, fix this path
@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 
 export const useSceneMode = () => {
   const { house } = useHouse()
-  const [activeSessions, setActiveSessions] = useKV<ChatSession[]>('scene-sessions', [])
+  const [activeSessions, setActiveSessions] = useSimpleStorage<ChatSession[]>('scene-sessions', [])
   const [isProcessing, setIsProcessing] = useState(false)
 
   // Keep a live copy for timers to read fresh state
@@ -91,7 +91,7 @@ export const useSceneMode = () => {
   const pauseScene = async (sessionId: string) => {
     updateSession(sessionId, (s) => ({
       ...s,
-      sceneSettings: { ...(s.sceneSettings ?? {}), autoPlay: false },
+      sceneSettings: { turnDuration: 5000, ...(s.sceneSettings ?? {}), autoPlay: false },
       updatedAt: new Date(),
     }))
   }
@@ -99,7 +99,7 @@ export const useSceneMode = () => {
   const resumeScene = async (sessionId: string) => {
     updateSession(sessionId, (s) => ({
       ...s,
-      sceneSettings: { ...(s.sceneSettings ?? {}), autoPlay: true },
+      sceneSettings: { turnDuration: 5000, ...(s.sceneSettings ?? {}), autoPlay: true },
       updatedAt: new Date(),
     }))
     await startAutoPlay(sessionId)
@@ -244,7 +244,7 @@ Respond as ${character.name}. Work toward your objective subtly. Keep response t
         updatedAt: now,
         // Pause autoplay on config/API errors
         sceneSettings: /api|key|openrouter/i.test(msg)
-          ? { ...(s.sceneSettings ?? {}), autoPlay: false }
+          ? { turnDuration: 5000, ...(s.sceneSettings ?? {}), autoPlay: false }
           : s.sceneSettings,
       }))
 

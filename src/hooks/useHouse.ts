@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useKV } from '@github/spark/hooks';
+import { useSimpleStorage } from './useSimpleStorage';
 import { House, Character, Room, ChatSession, CopilotUpdate } from '@/types';
 import { useRelationshipDynamics } from './useRelationshipDynamics';
 
@@ -206,18 +206,23 @@ const DEFAULT_HOUSE: House = {
     themes: ['fantasy', 'sci-fi', 'modern']
   },
   aiSettings: {
-    provider: 'openrouter', // Default to OpenRouter
-    model: 'deepseek/deepseek-chat-v3.1',
-    apiKey: '', // User needs to add OpenRouter key
-    imageProvider: 'venice',
-    imageApiKey: '' // User needs to add their Venice AI API key for image generation
+    provider: 'openrouter', // Legacy field
+    model: 'deepseek/deepseek-chat-v3.1', // Legacy field
+    apiKey: '', // Legacy field
+    textProvider: 'openrouter' as const, // New structured field
+    textModel: 'deepseek/deepseek-chat-v3.1',
+    textApiKey: '',
+    textApiUrl: '',
+    imageProvider: 'venice' as const,
+    imageApiKey: '',
+    imageApiUrl: ''
   },
   createdAt: new Date(),
   updatedAt: new Date()
 };
 
 export function useHouse() {
-  const [house, setHouse] = useKV<House>('character-house', DEFAULT_HOUSE);
+  const [house, setHouse] = useSimpleStorage<House>('character-house', DEFAULT_HOUSE);
   const { initializeCharacterDynamics } = useRelationshipDynamics();
 
   // Ensure house is never undefined by providing the default
@@ -228,8 +233,8 @@ export function useHouse() {
     let needsUpdate = false;
     let updatedHouse = { ...safeHouse };
     
-    // Migrate provider from spark to openrouter
-    if (safeHouse.aiSettings?.provider === 'spark') {
+    // Migrate provider from spark to openrouter (legacy migration)
+    if ((safeHouse.aiSettings as any)?.provider === 'spark') {
       console.log('Migrating house settings: switching from spark to openrouter');
       updatedHouse.aiSettings = {
         ...updatedHouse.aiSettings,
@@ -241,13 +246,13 @@ export function useHouse() {
     
     // Initialize relationship dynamics for characters that don't have them
     const charactersNeedingUpdate = updatedHouse.characters.filter(char => 
-      !char.RelationshipDynamics  || !char.SexualProgression 
+      !char.relationshipDynamics  || !char.sexualProgression 
     );
     
     if (charactersNeedingUpdate.length > 0) {
       console.log('Initializing relationship dynamics for existing characters');
       updatedHouse.characters = updatedHouse.characters.map(char => {
-        if (!char.RelationshipDynamics || !char.SexualProgression) {
+        if (!char.relationshipDynamics || !char.sexualProgression) {
           return initializeCharacterDynamics(char);
         }
         return char;

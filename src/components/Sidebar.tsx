@@ -16,10 +16,10 @@ import {
   ChatCircle as MessageCircle, 
   Gear as Settings, 
   Heart, 
-  Droplets, 
+  Drop, 
   Smiley as Smile,
-  Sparkles,
-  Theater
+  Sparkle,
+  Play
 } from '@phosphor-icons/react';
 import { CharacterCreator } from './CharacterCreator';
 import { AutoCharacterCreator } from './AutoCharacterCreator';
@@ -128,14 +128,14 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
               value="auto" 
               className="flex-1 text-xs justify-start px-2 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
-              <Sparkles size={14} className="mr-1" />
+              <Sparkle size={14} className="mr-1" />
               Auto Create
             </TabsTrigger>
             <TabsTrigger 
               value="scenes" 
               className="flex-1 text-xs justify-start px-2 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
-              <Theater size={14} className="mr-1" />
+              <Play size={14} className="mr-1" />
               Scenes
             </TabsTrigger>
           </TabsList>

@@ -14,14 +14,14 @@ import {
   Smiley as Smile,
   ChatCircle as MessageCircle,
   Gift,
-  Home,
+  House,
   Trophy,
-  Sparkles,
+  Sparkle,
   Check,
   Clock,
   Crown,
   Lock,
-  Droplets,
+  Drop,
   BookOpen,
   Eye,
   ShieldCheck,
@@ -31,7 +31,7 @@ import {
   Users,
   Calendar,
   TrendUp,
-  Award
+  Medal
 } from '@phosphor-icons/react';
 
 import { Character } from '@/types';
@@ -52,7 +52,7 @@ const getRarityIcon = (rarity?: Character['rarity']) => {
     case 'legendary':
       return <Crown className={cls + ' text-amber-400'} />;
     case 'epic':
-      return <Sparkles className={cls + ' text-purple-400'} />;
+      return <Sparkle className={cls + ' text-purple-400'} />;
     case 'rare':
       return <Trophy className={cls + ' text-blue-400'} />;
     default:
@@ -81,7 +81,7 @@ export function CharacterCard({
 }: CharacterCardProps) {
   const [showDetails, setShowDetails] = useState(false);
   const { sessions } = useChat();
-  const { updateRelationshipStats, checkSexualMilestones } = useRelationshipDynamics();
+  const { updateRelationshipStats } = useRelationshipDynamics();
 
   // Safely access character properties with defaults
   const stats = character.stats || {
@@ -194,7 +194,7 @@ export function CharacterCard({
                   <span className="text-[9px] text-muted-foreground w-6">{stats.relationship}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Droplets size={10} className="text-pink-500" />
+                  <Drop size={10} className="text-pink-500" />
                   <Progress value={stats.wet} className="h-1 flex-1" />
                   <span className="text-[9px] text-muted-foreground w-6">{stats.wet}</span>
                 </div>
@@ -297,7 +297,7 @@ export function CharacterCard({
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span className="flex items-center gap-2">
-                              <Droplets size={12} className="text-pink-500" />
+                              <Drop size={12} className="text-pink-500" />
                               Arousal
                             </span>
                             <span className="font-medium">{stats.wet}%</span>
@@ -337,7 +337,7 @@ export function CharacterCard({
                       )}
                       {onMove && (
                         <Button size="sm" variant="outline" onClick={() => onMove(character.id)}>
-                          <Home size={14} className="mr-2" />
+                          <House size={14} className="mr-2" />
                           Move Room
                         </Button>
                       )}
@@ -480,7 +480,7 @@ export function CharacterCard({
 
                     <Card className="p-4">
                       <h4 className="font-semibold mb-3 flex items-center gap-2">
-                        <Award size={16} />
+                        <Medal size={16} />
                         Milestones
                       </h4>
                       <div className="space-y-2">
@@ -609,13 +609,13 @@ export function CharacterCard({
 
                     <Card className="p-4">
                       <h4 className="font-semibold mb-3 flex items-center gap-2">
-                        <Sparkles size={16} />
+                        <Sparkle size={16} />
                         Achievements
                       </h4>
                       <div className="space-y-2">
                         {progression.achievements?.map((achievement) => (
                           <div key={achievement} className="flex items-center gap-2 p-2 bg-muted/30 rounded">
-                            <Award size={16} className="text-amber-500" />
+                            <Medal size={16} className="text-amber-500" />
                             <span className="text-sm">{achievement}</span>
                           </div>
                         )) || (
@@ -635,7 +635,7 @@ export function CharacterCard({
                     <div className="space-y-2">
                       {progression.unlockedFeatures?.map((feature) => (
                         <div key={feature} className="flex items-center gap-2 p-2 bg-muted/30 rounded">
-                          <Sparkles size={16} className="text-purple-500" />
+                          <Sparkle size={16} className="text-purple-500" />
                           <span className="text-sm">{feature}</span>
                         </div>
                       )) || (
@@ -745,7 +745,7 @@ export function CharacterCard({
           <span className="text-muted-foreground w-8">{stats.happiness}%</span>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <Droplets size={12} className="text-pink-500" />
+          <Drop size={12} className="text-pink-500" />
           <Progress value={stats.wet} className="h-1 flex-1" />
           <span className="text-muted-foreground w-8">{stats.wet}%</span>
         </div>
@@ -781,7 +781,7 @@ export function CharacterCard({
             onMove?.(character.id);
           }}
         >
-          <Home size={14} />
+          <House size={14} />
         </Button>
       </div>
     </Card>

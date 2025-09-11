@@ -11,7 +11,7 @@ import {
   Lock, 
   Check, 
   Fire, 
-  Sparkles,
+  Sparkle,
   TrendUp,
   Calendar
 } from '@phosphor-icons/react';
@@ -298,7 +298,7 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
       {/* Unlocked Content */}
       <Card className="p-4">
         <div className="flex items-center gap-2 mb-3">
-          <Sparkles className="w-5 h-5 text-purple-500" />
+          <Sparkle className="w-5 h-5 text-purple-500" />
           <h3 className="font-semibold">Unlocked Content</h3>
         </div>
         

@@ -1,15 +1,16 @@
-import { useKV } from '@github/spark/hooks';
+import { useSimpleStorage, simpleStorage } from './useSimpleStorage';
 import { ChatSession, ChatMessage, Character } from '@/types';
 import { useState, useEffect } from 'react';
 import { useHouse } from './useHouse';
 import { useInteractionSystem } from './useInteractionSystem';
 import { AIService } from '@/lib/aiService';
+import { storage } from '@/lib/storage';
 import { toast } from 'sonner';
 
 export function useChat() {
-  const [sessions, setSessions] = useKV<ChatSession[]>('chat-sessions', []);
+  const [sessions, setSessions] = useSimpleStorage<ChatSession[]>('chat-sessions', []);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [forceUpdate] = useKV<number>('settings-force-update', 0); // React to settings changes
+  const [forceUpdate] = useSimpleStorage<number>('settings-force-update', 0); // React to settings changes
   const { house } = useHouse();
   const { processUserMessage, processCharacterResponse, triggerMilestoneEvents } = useInteractionSystem();
   
@@ -21,7 +22,7 @@ export function useChat() {
   useEffect(() => {
     const verifyApiSettings = async () => {
       try {
-        const kvHouse = await window.spark.kv.get<any>('character-house');
+        const kvHouse = simpleStorage.get<any>('character-house');
         const kvApiConfigured = !!(kvHouse?.aiSettings?.apiKey?.trim());
         const hookApiConfigured = !!(house.aiSettings?.apiKey?.trim());
         

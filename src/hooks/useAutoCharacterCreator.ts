@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useKV } from '@github/spark/hooks';
+import { useSimpleStorage } from './useSimpleStorage';
 import { Character, AutoCharacterConfig, AVAILABLE_PERSONALITIES, AVAILABLE_ROLES } from '@/types';
 import { generateRandomCharacter } from '@/lib/characterGenerator';
 import { useHouse } from '@/hooks/useHouse';
 
 export const useAutoCharacterCreator = () => {
   const { house, updateHouse } = useHouse();
-  const [config, setConfig] = useKV<AutoCharacterConfig>('auto-character-config', {
+  const [config, setConfig] = useSimpleStorage<AutoCharacterConfig>('auto-character-config', {
     themes: ['fantasy', 'sci-fi', 'modern', 'historical'],
     personalities: AVAILABLE_PERSONALITIES.slice(0, 10), // Use first 10 personalities as defaults
     roles: AVAILABLE_ROLES.slice(0, 10), // Use first 10 roles as defaults

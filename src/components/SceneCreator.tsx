@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { useHouse } from '@/hooks/useHouse';
 import { useSceneMode } from '@/hooks/useSceneMode';
 import { SceneObjective } from '@/types';
-import { Theater, Users, Target, Play, Plus, X } from '@phosphor-icons/react';
+import { FilmStrip, Users, Target, Play, Plus, X } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
 interface SceneCreatorProps {
@@ -200,7 +200,7 @@ Each objective should be 1-2 sentences describing what the character wants to ac
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Theater className="text-primary" />
+          <FilmStrip className="text-primary" />
           Scene Creator
         </CardTitle>
         <p className="text-sm text-muted-foreground">
