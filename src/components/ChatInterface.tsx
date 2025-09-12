@@ -124,19 +124,14 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
 
   if (!currentSession) {
     const provider = house.aiSettings?.provider || 'openrouter';
-    const apiKeyPresent = !!(house.aiSettings?.apiKey && house.aiSettings.apiKey.trim().length > 0);
-    const needsApiKey = provider === 'openrouter' && !apiKeyPresent;
+    const needsApiKey = false; // Let AIService handle validation
     const hasCharacters = house.characters && house.characters.length > 0;
     const sparkUnavailable = false; // Always available with localStorage
     
-    // Debug logging for API key status
-    console.log('=== ChatInterface API Key Check ===');
-    console.log('Provider:', provider);
-    console.log('API Key Present:', apiKeyPresent);
-    console.log('API Key Value:', house.aiSettings?.apiKey ? `${house.aiSettings.apiKey.slice(0, 8)}... (${house.aiSettings.apiKey.trim().length} chars)` : 'empty');
-    console.log('Needs API Key:', needsApiKey);
-    console.log('Has Characters:', hasCharacters);
-    console.log('Force Update Trigger:', forceUpdate);
+    // Check if API key is configured
+    const hasApiKey = !!(house.aiSettings?.textApiKey || house.aiSettings?.apiKey);
+    
+    // Simplified - let AIService handle validation
     
     return (
       <div className="flex-1 flex items-center justify-center bg-background p-8">
@@ -152,16 +147,34 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                 Refresh Page
               </Button>
             </>
-          ) : needsApiKey ? (
+          ) : !hasApiKey ? (
             <>
               <Warning size={48} className="mx-auto text-yellow-500 mb-4" />
               <h3 className="text-xl font-semibold mb-2">API Key Required</h3>
               <p className="text-muted-foreground mb-4">
-                You need to configure your OpenRouter API key in House Settings before chatting with characters.
+                To chat with your characters, you need to configure an OpenRouter API key. This allows the AI to generate responses for your characters.
               </p>
-              <Button onClick={() => window.location.hash = '#settings'} variant="default">
+              <p className="text-sm text-muted-foreground mb-6">
+                Get your free API key from <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">openrouter.ai</a>
+              </p>
+              <Button 
+                onClick={() => {
+                  // Try to open settings - this might not work directly, so provide instructions
+                  const settingsButton = document.querySelector('[data-settings-trigger]');
+                  if (settingsButton) {
+                    (settingsButton as HTMLElement).click();
+                  } else {
+                    // Fallback: show instructions
+                    toast.info('Click the gear icon (⚙️) in the sidebar to open House Settings');
+                  }
+                }} 
+                variant="default"
+              >
                 Open House Settings
               </Button>
+              <p className="text-xs text-muted-foreground mt-4">
+                Once configured, you'll be able to chat with your AI characters!
+              </p>
             </>
           ) : !hasCharacters ? (
             <>
@@ -170,6 +183,17 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
               <p className="text-muted-foreground mb-4">
                 Create some characters first before starting a chat.
               </p>
+              <Button onClick={() => {
+                // Try to open character creator
+                const createButton = document.querySelector('[data-create-character]');
+                if (createButton) {
+                  (createButton as HTMLElement).click();
+                } else {
+                  toast.info('Click the + button in the Characters tab to create a character');
+                }
+              }} variant="default">
+                Create Character
+              </Button>
             </>
           ) : (
             <>
@@ -225,7 +249,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                   Available characters: {house.characters?.length || 0}<br/>
                   Session ID: {sessionId || 'None'}<br/>
                   Provider: {house.aiSettings?.provider || 'Not set'}<br/>
-                  Has API Key: {house.aiSettings?.apiKey ? 'Yes' : 'No'}<br/>
+                  Has API Key: {hasApiKey ? 'Yes' : 'No'}<br/>
                   Available Sessions: {sessions.length}<br/>
                   Active Session Found: {currentSession ? 'Yes' : 'No'}
                 </div>

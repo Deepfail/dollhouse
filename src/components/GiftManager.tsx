@@ -25,7 +25,7 @@ const AVAILABLE_GIFTS: GiftType[] = [
     cost: 50,
     rarity: 'common',
     effects: {
-      relationship: 5,
+      love: 5,
       happiness: 10
     },
     icon: '🍫'
@@ -37,7 +37,7 @@ const AVAILABLE_GIFTS: GiftType[] = [
     cost: 75,
     rarity: 'common',
     effects: {
-      relationship: 8,
+      love: 8,
       happiness: 12,
       energy: -5
     },
@@ -50,7 +50,7 @@ const AVAILABLE_GIFTS: GiftType[] = [
     cost: 200,
     rarity: 'rare',
     effects: {
-      relationship: 15,
+      love: 15,
       happiness: 20
     },
     icon: '💎'
@@ -62,7 +62,7 @@ const AVAILABLE_GIFTS: GiftType[] = [
     cost: 100,
     rarity: 'common',
     effects: {
-      relationship: 10,
+      love: 10,
       happiness: 15
     },
     icon: '🧸'
@@ -74,7 +74,7 @@ const AVAILABLE_GIFTS: GiftType[] = [
     cost: 150,
     rarity: 'rare',
     effects: {
-      relationship: 12,
+      love: 12,
       happiness: 8,
       energy: 10
     },
@@ -87,7 +87,7 @@ const AVAILABLE_GIFTS: GiftType[] = [
     cost: 300,
     rarity: 'rare',
     effects: {
-      relationship: 20,
+      love: 20,
       happiness: 25,
       energy: 15
     },
@@ -100,7 +100,7 @@ const AVAILABLE_GIFTS: GiftType[] = [
     cost: 500,
     rarity: 'legendary',
     effects: {
-      relationship: 30,
+      love: 30,
       happiness: 35
     },
     icon: '💍'
@@ -112,7 +112,7 @@ const AVAILABLE_GIFTS: GiftType[] = [
     cost: 750,
     rarity: 'legendary', 
     effects: {
-      relationship: 40,
+      love: 40,
       happiness: 45,
       energy: 25
     },
@@ -152,7 +152,7 @@ export function GiftManager({ character, isOpen, onClose }: GiftManagerProps) {
 
     // Safely access character stats with defaults
     const stats = character.stats || {
-      relationship: 0,
+      love: 0,
       wet: 0,
       happiness: 0,
       experience: 0,
@@ -161,8 +161,8 @@ export function GiftManager({ character, isOpen, onClose }: GiftManagerProps) {
 
     // Update character stats
     const statUpdates: any = {};
-    if (gift.effects.relationship) {
-      statUpdates.relationship = stats.relationship + gift.effects.relationship;
+    if (gift.effects.love) {
+      statUpdates.love = stats.love + gift.effects.love;
     }
     if (gift.effects.happiness) {
       statUpdates.happiness = stats.happiness + gift.effects.happiness;
@@ -178,8 +178,8 @@ export function GiftManager({ character, isOpen, onClose }: GiftManagerProps) {
       type: 'gift_given',
       description: `Received ${gift.name}: ${gift.description}`,
       impact: {
-        affection: gift.effects.relationship || 0,
-        trust: Math.floor((gift.effects.relationship || 0) / 2)
+        affection: gift.effects.love || 0,
+        trust: Math.floor((gift.effects.love || 0) / 2)
       }
     });
 
@@ -189,7 +189,7 @@ export function GiftManager({ character, isOpen, onClose }: GiftManagerProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="w-[95vw] max-w-6xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Gift size={20} />
@@ -237,10 +237,10 @@ export function GiftManager({ character, isOpen, onClose }: GiftManagerProps) {
                       
                       {gift.effects && (
                         <div className="mt-2 space-y-1">
-                          {gift.effects.relationship && (
+                          {gift.effects.love && (
                             <div className="flex items-center gap-1 text-xs">
                               <Heart size={10} className="text-red-500" />
-                              <span>+{gift.effects.relationship} Relationship</span>
+                              <span>+{gift.effects.love} Love</span>
                             </div>
                           )}
                           {gift.effects.happiness && (

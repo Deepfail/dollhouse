@@ -7,9 +7,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAutoCharacterCreator } from '@/hooks/useAutoCharacterCreator';
-import { Sparkle, Plus, Gear, Clock, Users } from '@phosphor-icons/react';
+import { Sparkle, Plus, Gear, Clock, Users, Crown, Star, Diamond } from '@phosphor-icons/react';
 import { toast } from 'sonner';
+
+// Available character themes from the generator
+const AVAILABLE_THEMES = [
+  { id: 'college', name: 'College', description: 'Promiscuous, big tits and ass. Looking for fun.', icon: '🎓' },
+  { id: 'prime', name: 'Prime', description: 'Rebellious, adventurous, craving attention and validation.', icon: '🏫' },
+  { id: 'fresh', name: 'Fresh', description: 'Playful, embodying a fun spirit.', icon: '🧸' }
+];
+
+const RARITY_CONFIG = {
+  common: { name: 'Common', color: 'bg-gray-500', icon: Star, multiplier: 1 },
+  rare: { name: 'Rare', color: 'bg-blue-500', icon: Crown, multiplier: 1.5 },
+  legendary: { name: 'Legendary', color: 'bg-yellow-500', icon: Diamond, multiplier: 2 }
+};
 
 export const AutoCharacterCreator: React.FC = () => {
   const {
@@ -32,7 +46,10 @@ export const AutoCharacterCreator: React.FC = () => {
   const handleCreateNow = async () => {
     try {
       const character = await createRandomCharacter();
-      toast.success(`Created new character: ${character.name}`);
+      const rarityIcon = RARITY_CONFIG[character.rarity].icon;
+      toast.success(`Created ${character.rarity} character: ${character.name}`, {
+        icon: React.createElement(rarityIcon, { size: 16 })
+      });
     } catch (error) {
       toast.error('Failed to create character');
     }
@@ -47,21 +64,26 @@ export const AutoCharacterCreator: React.FC = () => {
     toast.success('Auto-creator settings saved');
   };
 
-  const addTheme = (theme: string) => {
-    if (theme && !config.themes.includes(theme)) {
-      setConfig(prev => ({
-        ...prev,
-        themes: [...prev.themes, theme]
-      }));
-    }
-  };
-
-  const removeTheme = (theme: string) => {
+  const toggleTheme = (themeId: string) => {
     setConfig(prev => ({
       ...prev,
-      themes: prev.themes.filter(t => t !== theme)
+      themes: prev.themes.includes(themeId)
+        ? prev.themes.filter(t => t !== themeId)
+        : [...prev.themes, themeId]
     }));
   };
+
+  const getRarityStats = () => {
+    // This would ideally come from the house state, but for now we'll show config
+    const total = config.rarityWeights.common + config.rarityWeights.rare + config.rarityWeights.legendary;
+    return {
+      common: Math.round((config.rarityWeights.common / total) * 100),
+      rare: Math.round((config.rarityWeights.rare / total) * 100),
+      legendary: Math.round((config.rarityWeights.legendary / total) * 100)
+    };
+  };
+
+  const rarityStats = getRarityStats();
 
   return (
     <Card className="w-full">
@@ -170,89 +192,147 @@ export const AutoCharacterCreator: React.FC = () => {
               </div>
 
               {/* Themes */}
-              <div className="space-y-2">
-                <Label>Character Themes</Label>
-                <div className="flex flex-wrap gap-2">
-                  {config.themes.map(theme => (
-                    <Badge 
-                      key={theme}
-                      variant="secondary"
-                      className="cursor-pointer"
-                      onClick={() => removeTheme(theme)}
-                    >
-                      {theme} ×
-                    </Badge>
+              <div className="space-y-3">
+                <Label className="text-base font-medium">Character Themes</Label>
+                <p className="text-sm text-muted-foreground">
+                  Select which age groups to generate characters from
+                </p>
+                <div className="grid gap-3">
+                  {AVAILABLE_THEMES.map(theme => (
+                    <div key={theme.id} className="flex items-start space-x-3 p-3 border rounded-lg">
+                      <Checkbox
+                        id={theme.id}
+                        checked={config.themes.includes(theme.id)}
+                        onCheckedChange={() => toggleTheme(theme.id)}
+                      />
+                      <div className="flex-1 space-y-1">
+                        <Label 
+                          htmlFor={theme.id} 
+                          className="text-sm font-medium cursor-pointer flex items-center gap-2"
+                        >
+                          <span className="text-lg">{theme.icon}</span>
+                          {theme.name}
+                        </Label>
+                        <p className="text-xs text-muted-foreground">{theme.description}</p>
+                      </div>
+                    </div>
                   ))}
                 </div>
-                <div className="flex gap-2">
-                  <Input 
-                    placeholder="Add new theme..."
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        addTheme((e.target as HTMLInputElement).value);
-                        (e.target as HTMLInputElement).value = '';
-                      }
-                    }}
-                  />
-                </div>
+                {config.themes.length === 0 && (
+                  <p className="text-sm text-destructive">Please select at least one theme</p>
+                )}
               </div>
 
-              {/* Rarity Weights */}
-              <div className="space-y-3">
-                <Label>Character Rarity Weights</Label>
+              {/* Rarity Configuration */}
+              <div className="space-y-4">
+                <Label className="text-base font-medium">Character Rarity</Label>
+                <p className="text-sm text-muted-foreground">
+                  Control how often different rarity characters appear. Higher rarity = better stats and abilities.
+                </p>
                 
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm">Common: {config.rarityWeights.common}%</span>
+                <div className="grid gap-4">
+                  {/* Common */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${RARITY_CONFIG.common.color}`} />
+                        <span className="text-sm font-medium">{RARITY_CONFIG.common.name}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {rarityStats.common}%
+                        </Badge>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        Basic stats, common traits
+                      </span>
+                    </div>
+                    <Slider
+                      value={[config.rarityWeights.common]}
+                      onValueChange={([value]) => 
+                        setConfig(prev => ({
+                          ...prev,
+                          rarityWeights: { ...prev.rarityWeights, common: value }
+                        }))
+                      }
+                      min={0}
+                      max={100}
+                      step={5}
+                    />
                   </div>
-                  <Slider
-                    value={[config.rarityWeights.common]}
-                    onValueChange={([value]) => 
-                      setConfig(prev => ({
-                        ...prev,
-                        rarityWeights: { ...prev.rarityWeights, common: value }
-                      }))
-                    }
-                    min={0}
-                    max={100}
-                    step={5}
-                  />
+
+                  {/* Rare */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${RARITY_CONFIG.rare.color}`} />
+                        <span className="text-sm font-medium">{RARITY_CONFIG.rare.name}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {rarityStats.rare}%
+                        </Badge>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        Enhanced stats, special abilities
+                      </span>
+                    </div>
+                    <Slider
+                      value={[config.rarityWeights.rare]}
+                      onValueChange={([value]) => 
+                        setConfig(prev => ({
+                          ...prev,
+                          rarityWeights: { ...prev.rarityWeights, rare: value }
+                        }))
+                      }
+                      min={0}
+                      max={100}
+                      step={5}
+                    />
+                  </div>
+
+                  {/* Legendary */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${RARITY_CONFIG.legendary.color}`} />
+                        <span className="text-sm font-medium">{RARITY_CONFIG.legendary.name}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {rarityStats.legendary}%
+                        </Badge>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        Maximum stats, unique abilities, special rooms
+                      </span>
+                    </div>
+                    <Slider
+                      value={[config.rarityWeights.legendary]}
+                      onValueChange={([value]) => 
+                        setConfig(prev => ({
+                          ...prev,
+                          rarityWeights: { ...prev.rarityWeights, legendary: value }
+                        }))
+                      }
+                      min={0}
+                      max={100}
+                      step={5}
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm">Rare: {config.rarityWeights.rare}%</span>
+                {/* Rarity Benefits Preview */}
+                <div className="p-3 bg-muted rounded-lg space-y-2">
+                  <h5 className="text-sm font-medium">Rarity Benefits:</h5>
+                  <div className="grid grid-cols-1 gap-2 text-xs">
+                    <div className="flex justify-between">
+                      <span>Common:</span>
+                      <span>1x base stats</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Rare:</span>
+                      <span>1.5x base stats + special trait</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Legendary:</span>
+                      <span>2x base stats + unique ability + VIP room</span>
+                    </div>
                   </div>
-                  <Slider
-                    value={[config.rarityWeights.rare]}
-                    onValueChange={([value]) => 
-                      setConfig(prev => ({
-                        ...prev,
-                        rarityWeights: { ...prev.rarityWeights, rare: value }
-                      }))
-                    }
-                    min={0}
-                    max={100}
-                    step={5}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm">Legendary: {config.rarityWeights.legendary}%</span>
-                  </div>
-                  <Slider
-                    value={[config.rarityWeights.legendary]}
-                    onValueChange={([value]) => 
-                      setConfig(prev => ({
-                        ...prev,
-                        rarityWeights: { ...prev.rarityWeights, legendary: value }
-                      }))
-                    }
-                    min={0}
-                    max={100}
-                    step={5}
-                  />
                 </div>
               </div>
 

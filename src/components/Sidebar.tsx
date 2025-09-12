@@ -8,6 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useHouse } from '@/hooks/useHouse';
 import { useChat } from '@/hooks/useChat';
+import { Character } from '@/types';
 import { toast } from 'sonner';
 import { 
   Plus, 
@@ -27,6 +28,8 @@ import { SceneCreator } from './SceneCreator';
 import { HouseSettings } from './HouseSettings';
 import { CharacterCard } from './CharacterCard';
 import { GiftManager } from './GiftManager';
+import { DataManager } from './DataManager';
+import { PersistenceDebugger } from './PersistenceDebugger';
 
 interface SidebarProps {
   onStartChat?: (characterId: string) => void;
@@ -41,6 +44,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
   const [showSettings, setShowSettings] = useState(false);
   const [selectedTab, setSelectedTab] = useState('characters');
   const [selectedCharacterForGift, setSelectedCharacterForGift] = useState<string | null>(null);
+  const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
 
   const startIndividualChat = (characterId: string) => {
     if (onStartChat) {
@@ -168,6 +172,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
                       key={character.id}
                       character={character}
                       onStartChat={startIndividualChat}
+                      onEdit={setEditingCharacter}
                       onGift={(characterId) => setSelectedCharacterForGift(characterId)}
                       compact={true}
                     />
@@ -304,7 +309,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
       </Tabs>
 
       {/* Settings Footer */}
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border space-y-2">
         <Button 
           variant="ghost" 
           size="sm" 
@@ -314,6 +319,10 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
           <Settings size={16} className="mr-2" />
           House Settings
         </Button>
+        <div className="flex gap-2">
+          <DataManager />
+          <PersistenceDebugger />
+        </div>
       </div>
 
       {/* Character Creator Modal */}
@@ -321,6 +330,15 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
         <CharacterCreator
           open={showCreator}
           onOpenChange={setShowCreator}
+        />
+      )}
+
+      {/* Character Editor Modal */}
+      {editingCharacter && (
+        <CharacterCreator
+          open={!!editingCharacter}
+          onOpenChange={() => setEditingCharacter(null)}
+          character={editingCharacter}
         />
       )}
 

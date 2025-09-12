@@ -35,11 +35,23 @@ const DEFAULT_HOUSE: House = {
       rarity: 'common',
       roomId: 'common-room',
       stats: {
-        relationship: 70,
+        love: 70,
         happiness: 80,
         wet: 75,
+        willing: 65,
+        selfEsteem: 70,
+        loyalty: 80,
+        fight: 20,
+        pain: 30,
         experience: 50,
         level: 5
+      },
+      skills: {
+        hands: 40,
+        mouth: 35,
+        missionary: 30,
+        doggy: 25,
+        cowgirl: 20
       },
       relationshipDynamics: {
         affection: 70,
@@ -47,7 +59,6 @@ const DEFAULT_HOUSE: House = {
         intimacy: 40,
         dominance: 45,
         jealousy: 20,
-        loyalty: 80,
         possessiveness: 30,
         relationshipStatus: 'close_friend',
         bonds: {},
@@ -77,7 +88,7 @@ const DEFAULT_HOUSE: House = {
             name: 'First Kiss',
             description: 'Share your first kiss.',
             achieved: false,
-            requiredStats: { relationship: 30, trust: 20 },
+            requiredStats: { love: 30, trust: 20 },
             rewards: { statBoosts: { intimacy: 10 } }
           }
         ],
@@ -121,11 +132,23 @@ const DEFAULT_HOUSE: House = {
       rarity: 'rare',
       roomId: 'common-room',
       stats: {
-        relationship: 65,
+        love: 65,
         happiness: 75,
         wet: 70,
+        willing: 60,
+        selfEsteem: 75,
+        loyalty: 90,
+        fight: 15,
+        pain: 25,
         experience: 75,
         level: 7
+      },
+      skills: {
+        hands: 50,
+        mouth: 45,
+        missionary: 40,
+        doggy: 35,
+        cowgirl: 30
       },
       relationshipDynamics: {
         affection: 65,
@@ -133,7 +156,6 @@ const DEFAULT_HOUSE: House = {
         intimacy: 50,
         dominance: 55,
         jealousy: 10,
-        loyalty: 90,
         possessiveness: 20,
         relationshipStatus: 'close_friend',
         bonds: {},
@@ -163,7 +185,7 @@ const DEFAULT_HOUSE: House = {
             name: 'First Kiss',
             description: 'Share your first kiss.',
             achieved: false,
-            requiredStats: { relationship: 30, trust: 20 },
+            requiredStats: { love: 30, trust: 20 },
             rewards: { statBoosts: { intimacy: 10 } }
           }
         ],
@@ -197,8 +219,8 @@ const DEFAULT_HOUSE: House = {
   ],
   currency: 1000,
   worldPrompt: `This is a magical character house where AI companions live and interact. The atmosphere is warm, welcoming, and full of personality. Characters have their own rooms, can socialize together, and form meaningful relationships with their human companion.`,
-  copilotPrompt: `You are the House Manager, a helpful AI assistant who monitors the characters in this house. You track their needs, behaviors, and wellbeing. Provide helpful updates about character status, suggest activities, and alert when characters need attention. Be warm but professional, like a caring butler. Keep responses to 2-3 sentences conversational.`,
-  copilotMaxTokens: 75,
+  copilotPrompt: `You are a helpful and engaging AI assistant. You can discuss any topic, answer questions, provide information, and have natural conversations. You have knowledge about the user's character house and can help with character management if asked, but you're not limited to that - you can talk about anything the user wants. Be friendly, conversational, and genuinely helpful.`,
+  copilotMaxTokens: 150,
   autoCreator: {
     enabled: false,
     interval: 30,
@@ -259,35 +281,105 @@ export function useHouse() {
       });
       needsUpdate = true;
     }
+
+    // Assign characters without roomId to the common room
+    const commonRoom = updatedHouse.rooms.find(r => r.id === 'common-room') || updatedHouse.rooms[0];
+    const charactersWithoutRoom = updatedHouse.characters.filter(char => !char.roomId);
+    
+    if (charactersWithoutRoom.length > 0 && commonRoom) {
+      console.log(`Assigning ${charactersWithoutRoom.length} characters to ${commonRoom.name}`);
+      updatedHouse.characters = updatedHouse.characters.map(char => {
+        if (!char.roomId) {
+          return { ...char, roomId: commonRoom.id, updatedAt: new Date() };
+        }
+        return char;
+      });
+      
+      // Add these characters to the room's residents list
+      updatedHouse.rooms = updatedHouse.rooms.map(room => {
+        if (room.id === commonRoom.id) {
+          const newResidents = charactersWithoutRoom.map(char => char.id);
+          return { ...room, residents: [...room.residents, ...newResidents] };
+        }
+        return room;
+      });
+      
+      needsUpdate = true;
+    }
     
     if (needsUpdate) {
       updatedHouse.updatedAt = new Date();
       setHouse(updatedHouse);
     }
-  }, [safeHouse.aiSettings, safeHouse.characters.length, initializeCharacterDynamics, setHouse]);
+  }, [initializeCharacterDynamics]);
   
   const addCharacter = (character: Character) => {
+    console.log('=== useHouse.addCharacter called ===');
+    console.log('Adding character:', character.name, character.id);
+    
     // Initialize relationship dynamics for new characters
     const initializedCharacter = initializeCharacterDynamics(character);
     
     setHouse(current => {
       const currentHouse = current || DEFAULT_HOUSE;
-      return {
+      console.log('Current house characters count:', currentHouse.characters.length);
+      
+      // Add character to the room's residents list if roomId is specified
+      const updatedRooms = initializedCharacter.roomId 
+        ? currentHouse.rooms.map(room =>
+            room.id === initializedCharacter.roomId
+              ? { ...room, residents: [...room.residents, initializedCharacter.id] }
+              : room
+          )
+        : currentHouse.rooms;
+      
+      const newHouse = {
         ...currentHouse,
         characters: [...currentHouse.characters, initializedCharacter],
+        rooms: updatedRooms,
         updatedAt: new Date()
       };
+      
+      console.log('New house characters count:', newHouse.characters.length);
+      console.log('Character added successfully');
+      
+      return newHouse;
     });
   };
 
   const updateCharacter = (characterId: string, updates: Partial<Character>) => {
     setHouse(current => {
       const currentHouse = current || DEFAULT_HOUSE;
+      const existingCharacter = currentHouse.characters.find(c => c.id === characterId);
+      
+      if (!existingCharacter) return currentHouse;
+      
+      const updatedCharacter = { ...existingCharacter, ...updates, updatedAt: new Date() };
+      
+      // Handle room changes
+      let updatedRooms = currentHouse.rooms;
+      if (updates.roomId && updates.roomId !== existingCharacter.roomId) {
+        // Remove from old room
+        updatedRooms = updatedRooms.map(room =>
+          room.residents.includes(characterId)
+            ? { ...room, residents: room.residents.filter(id => id !== characterId) }
+            : room
+        );
+        
+        // Add to new room
+        updatedRooms = updatedRooms.map(room =>
+          room.id === updates.roomId
+            ? { ...room, residents: [...room.residents, characterId] }
+            : room
+        );
+      }
+      
       return {
         ...currentHouse,
         characters: currentHouse.characters.map(char =>
-          char.id === characterId ? { ...char, ...updates, updatedAt: new Date() } : char
+          char.id === characterId ? updatedCharacter : char
         ),
+        rooms: updatedRooms,
         updatedAt: new Date()
       };
     });
@@ -430,13 +522,23 @@ export function useHouse() {
   };
 
   const updateSettings = (updates: Partial<House>) => {
+    console.log('=== useHouse.updateSettings called ===');
+    console.log('Settings updates:', updates);
+    
     setHouse(current => {
       const currentHouse = current || DEFAULT_HOUSE;
-      return {
+      console.log('Current AI settings before update:', currentHouse.aiSettings);
+      
+      const newHouse = {
         ...currentHouse,
         ...updates,
         updatedAt: new Date()
       };
+      
+      console.log('New AI settings after update:', newHouse.aiSettings);
+      console.log('Settings updated successfully');
+      
+      return newHouse;
     });
   };
 

@@ -12,13 +12,14 @@ import { useHouse } from '@/hooks/useHouse';
 import { useChat } from '@/hooks/useChat';
 import { Room, Character } from '@/types';
 import { CharacterCard } from './CharacterCard';
+import { CharacterCreator } from './CharacterCreator';
 import { 
   House as Home, 
   Plus, 
   Users, 
   ChatCircle as MessageCircle, 
   Heart,
-  Droplets,
+  Drop,
   Smiley as Smile,
   Gift,
   Gear as Settings,
@@ -39,12 +40,13 @@ interface HouseViewProps {
 }
 
 export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: HouseViewProps) {
-  const { house, moveCharacterToRoom, addRoom, removeRoom, updateRoom } = useHouse();
+  const { house, moveCharacterToRoom, addRoom, removeRoom, updateRoom, removeCharacter } = useHouse();
   const { createSession } = useChat();
   const [selectedRoom, setSelectedRoom] = useState<string | null>((house.rooms || [])[0]?.id || null);
   const [showAddRoom, setShowAddRoom] = useState(false);
   const [showEditRoom, setShowEditRoom] = useState<string | null>(null);
   const [showMoveCharacter, setShowMoveCharacter] = useState<string | null>(null);
+  const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [newRoom, setNewRoom] = useState({
     name: '',
     description: '',
@@ -122,6 +124,15 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
       toast.success('Character moved successfully!');
     } catch (error) {
       toast.error('Failed to move character');
+    }
+  };
+
+  const handleDeleteCharacter = async (characterId: string) => {
+    try {
+      await removeCharacter(characterId);
+      toast.success('Character deleted successfully!');
+    } catch (error) {
+      toast.error('Failed to delete character');
     }
   };
 
@@ -272,8 +283,10 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
                       key={character.id}
                       character={character}
                       onStartChat={onStartChat}
+                      onEdit={setEditingCharacter}
                       onGift={(characterId) => handleCharacterAction(character, 'gift')}
                       onMove={(characterId) => handleCharacterAction(character, 'move')}
+                      onDelete={handleDeleteCharacter}
                     />
                   ))}
                 </div>
@@ -297,7 +310,7 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
 
       {/* Add Room Dialog */}
       <Dialog open={showAddRoom} onOpenChange={setShowAddRoom}>
-        <DialogContent>
+        <DialogContent className="w-[95vw] max-w-none sm:w-[92vw] md:w-[88vw] lg:w-[80vw] xl:w-[75vw]">
           <DialogHeader>
             <DialogTitle>Add New Room</DialogTitle>
           </DialogHeader>
@@ -361,7 +374,7 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
       {/* Move Character Dialog */}
       {showMoveCharacter && (
         <Dialog open={!!showMoveCharacter} onOpenChange={() => setShowMoveCharacter(null)}>
-          <DialogContent>
+          <DialogContent className="w-[95vw] max-w-none sm:w-[92vw] md:w-[88vw] lg:w-[80vw] xl:w-[75vw]">
             <DialogHeader>
               <DialogTitle>Move Character to Room</DialogTitle>
             </DialogHeader>
@@ -401,6 +414,15 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Character Creator Dialog */}
+      {editingCharacter && (
+        <CharacterCreator
+          open={!!editingCharacter}
+          onOpenChange={() => setEditingCharacter(null)}
+          character={editingCharacter}
+        />
       )}
     </div>
   );

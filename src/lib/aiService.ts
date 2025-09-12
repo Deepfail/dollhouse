@@ -4,7 +4,7 @@ import { simpleStorage } from '@/hooks/useSimpleStorage';
 // Direct OpenRouter service - no reliance on house state getter which might be stale
 export class AIService {
   
-  static async generateResponse(prompt: string, apiKey?: string, model?: string): Promise<string> {
+  static async generateResponse(prompt: string, apiKey?: string, model?: string, options?: { temperature?: number; max_tokens?: number }): Promise<string> {
     console.log('=== AIService.generateResponse called ===');
     console.log('Prompt length:', prompt.length);
     console.log('API Key provided directly:', !!apiKey);
@@ -44,8 +44,8 @@ export class AIService {
       const requestBody = {
         model: finalModel,
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-        max_tokens: 512,
+        temperature: options?.temperature ?? 0.7,
+        max_tokens: options?.max_tokens ?? 512,
         stream: false,
       };
 

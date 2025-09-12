@@ -13,7 +13,8 @@ import {
   Fire, 
   Sparkle,
   TrendUp,
-  Calendar
+  Calendar,
+  Brain
 } from '@phosphor-icons/react';
 import { Character } from '@/types';
 
@@ -101,7 +102,7 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
   };
 
   const getProgressToNextLevel = () => {
-    const current = stats.relationship;
+    const current = stats.love;
     if (current >= 80) return 100;
     if (current >= 60) return ((current - 60) / 20) * 100;
     if (current >= 40) return ((current - 40) / 20) * 100;
@@ -111,7 +112,7 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
   };
 
   const getNextLevelName = () => {
-    const current = stats.relationship;
+    const current = stats.love;
     if (current >= 80) return 'Devoted (Max)';
     if (current >= 60) return 'Devoted';
     if (current >= 40) return 'Lover';
@@ -138,7 +139,7 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
           <div>
             <div className="flex justify-between text-sm mb-1">
               <span>Progress to {getNextLevelName()}</span>
-              <span>{stats.relationship}%</span>
+              <span>{stats.love}%</span>
             </div>
             <Progress value={getProgressToNextLevel()} className="h-2" />
           </div>
@@ -201,7 +202,7 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
                 <div className="mt-2 space-y-1">
                   {Object.entries(nextMilestone.requiredStats).map(([stat, required]) => {
                     let current = 0;
-                    if (stat === 'relationship') current = stats.relationship;
+                    if (stat === 'relationship') current = stats.love;
                     else if (stat === 'wet') current = stats.wet;
                     else if (stat === 'trust') current = relationshipDynamics.trust;
                     else if (stat === 'intimacy') current = relationshipDynamics.intimacy;
@@ -295,45 +296,53 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
         </ScrollArea>
       </Card>
 
-      {/* Unlocked Content */}
+      {/* Character Memories */}
       <Card className="p-4">
         <div className="flex items-center gap-2 mb-3">
-          <Sparkle className="w-5 h-5 text-purple-500" />
-          <h3 className="font-semibold">Unlocked Content</h3>
+          <Brain className="w-5 h-5 text-purple-500" />
+          <h3 className="font-semibold">Memories</h3>
         </div>
         
-        <div className="space-y-3">
-          <div>
-            <div className="text-sm font-medium mb-1">Positions</div>
-            <div className="flex flex-wrap gap-1">
-              {sexualProgression.unlockedPositions?.map((position) => (
-                <Badge key={position} variant="secondary" className="text-xs">{position}</Badge>
-              )) || <span className="text-xs text-muted-foreground">None unlocked</span>}
-            </div>
+        <ScrollArea className="h-32">
+          <div className="space-y-2 pr-2">
+            {character.memories && character.memories.length > 0 ? (
+              character.memories
+                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                .slice(0, 5)
+                .map((memory) => {
+                  const categoryEmoji = {
+                    personal: '👤',
+                    relationship: '❤️',
+                    sexual: '🔥',
+                    preferences: '⭐',
+                    events: '📅'
+                  }[memory.category] || '💭';
+
+                  const importanceColor = {
+                    high: 'border-red-500/20 bg-red-500/5',
+                    medium: 'border-blue-500/20 bg-blue-500/5',
+                    low: 'border-gray-500/20 bg-gray-500/5'
+                  }[memory.importance] || 'border-gray-500/20 bg-gray-500/5';
+
+                  return (
+                    <div key={memory.id} className={`flex items-start gap-3 p-2 rounded border ${importanceColor}`}>
+                      <div className="text-sm mt-0.5">{categoryEmoji}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm">{memory.content}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {new Date(memory.timestamp).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+            ) : (
+              <div className="text-center py-4 text-muted-foreground text-sm">
+                No memories yet. Start chatting to build memories!
+              </div>
+            )}
           </div>
-          
-          <Separator />
-          
-          <div>
-            <div className="text-sm font-medium mb-1">Scenarios</div>
-            <div className="flex flex-wrap gap-1">
-              {sexualProgression.unlockedScenarios?.map((scenario) => (
-                <Badge key={scenario} variant="secondary" className="text-xs">{scenario}</Badge>
-              )) || <span className="text-xs text-muted-foreground">None unlocked</span>}
-            </div>
-          </div>
-          
-          <Separator />
-          
-          <div>
-            <div className="text-sm font-medium mb-1">Features</div>
-            <div className="flex flex-wrap gap-1">
-              {progression.unlockedFeatures?.map((feature) => (
-                <Badge key={feature} variant="outline" className="text-xs">{feature}</Badge>
-              )) || <span className="text-xs text-muted-foreground">None unlocked</span>}
-            </div>
-          </div>
-        </div>
+        </ScrollArea>
       </Card>
     </div>
   );

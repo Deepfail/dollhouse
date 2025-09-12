@@ -44,28 +44,19 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
   
   const session = activeSessions.find(s => s.id === sessionId);
   
-  // Debug logging
-  console.log('SceneInterface render:', {
-    sessionId,
-    sessionFound: !!session,
-    availableSessions: activeSessions.map(s => ({ id: s.id, type: s.type, active: s.active })),
-    sessionDetails: session ? {
-      id: session.id,
-      type: session.type,
-      active: session.active,
-      messageCount: session.messages.length,
-      participants: session.participantIds.length
-    } : null
-  });
-  
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [session?.messages]);
 
+  // Start auto-play when session loads if it's active and auto-play is enabled
+  useEffect(() => {
+    if (session && session.active && session.sceneSettings?.autoPlay && !isProcessing) {
+      console.log('SceneInterface: Starting auto-play for loaded session');
+      startAutoPlay(session.id);
+    }
+  }, [session?.id]); // Only depend on session ID to avoid restarting on every message
+
   if (!session) {
-    console.log('Scene session not found:', sessionId);
-    console.log('Available sessions:', activeSessions.map(s => s.id));
-    
     return (
       <div className="flex-1 flex items-center justify-center bg-background">
         <Card className="max-w-md">
@@ -92,13 +83,20 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
   const isAutoPlaying = session.sceneSettings?.autoPlay && session.active;
   const participatingCharacters = session.participantIds
     .map(id => house.characters?.find(c => c.id === id))
-    .filter(Boolean);
+    .filter((character): character is NonNullable<typeof character> => Boolean(character));
 
   const handleSendMessage = () => {
     if (!userInput.trim()) return;
     
     addUserMessage(sessionId, userInput);
     setUserInput('');
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
   };
 
   const handlePlayPause = () => {
@@ -237,7 +235,7 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
                 placeholder="Add your input to the scene..."
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                onKeyPress={handleKeyPress}
                 disabled={!session.active}
               />
               <Button

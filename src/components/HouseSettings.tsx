@@ -162,8 +162,27 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     console.log('Image API Key present:', !!imageApiKey);
     console.log('Current house AI settings before save:', house.aiSettings);
     
+    // Validation
+    const errors: string[] = [];
+    
     if (!textApiKey.trim()) {
-      toast.error('Please enter an API key');
+      errors.push('API key is required');
+    } else if (textProvider === 'openrouter' && !textApiKey.trim().startsWith('sk-or-')) {
+      errors.push('OpenRouter API key should start with "sk-or-"');
+    } else if (textApiKey.trim().length < 20) {
+      errors.push('API key appears to be too short');
+    }
+    
+    if (!textModel) {
+      errors.push('AI model is required');
+    }
+    
+    if (imageProvider !== 'none' && !imageApiKey.trim()) {
+      errors.push('Image API key is required when image provider is enabled');
+    }
+    
+    if (errors.length > 0) {
+      errors.forEach(error => toast.error(error));
       return;
     }
     
@@ -259,7 +278,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="w-[95vw] max-w-none sm:w-[92vw] md:w-[88vw] lg:w-[80vw] xl:w-[75vw] max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Gear size={20} className="text-primary" />

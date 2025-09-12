@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useQuickActions, QuickAction } from '@/hooks/useQuickActions';
+import { useQuickActions, QuickAction, AVAILABLE_ACTIONS } from '@/hooks/useQuickActions';
 import { toast } from 'sonner';
 import { 
   Plus,
@@ -42,7 +42,8 @@ export function QuickActionsManager() {
     label: '',
     icon: 'Star',
     action: '',
-    enabled: true
+    enabled: true,
+    isCustom: false
   });
 
   const handleAddAction = () => {
@@ -60,7 +61,8 @@ export function QuickActionsManager() {
       label: '',
       icon: 'Star',
       action: '',
-      enabled: true
+      enabled: true,
+      isCustom: false
     });
 
     toast.success('Quick action added successfully');
@@ -97,7 +99,7 @@ export function QuickActionsManager() {
         </Button>
       </DialogTrigger>
       
-      <DialogContent className="max-w-2xl max-h-[80vh]">
+      <DialogContent className="w-[95vw] max-w-none sm:w-[92vw] md:w-[88vw] lg:w-[80vw] xl:w-[75vw] max-h-[80vh]">
         <DialogHeader>
           <DialogTitle>Quick Actions Manager</DialogTitle>
         </DialogHeader>
@@ -205,15 +207,47 @@ export function QuickActionsManager() {
               </div>
               
               <div>
-                <Label htmlFor="new-action">Action Code</Label>
-                <Input
-                  id="new-action"
-                  value={newAction.action}
-                  onChange={(e) => setNewAction(prev => ({ ...prev, action: e.target.value }))}
-                  placeholder="e.g., boostMood or custom JavaScript code"
-                />
+                <Label htmlFor="new-action">Action</Label>
+                <Select 
+                  value={newAction.isCustom ? 'custom' : newAction.action} 
+                  onValueChange={(value) => {
+                    if (value === 'custom') {
+                      setNewAction(prev => ({ ...prev, isCustom: true, action: '' }));
+                    } else {
+                      setNewAction(prev => ({ ...prev, isCustom: false, action: value }));
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an action..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AVAILABLE_ACTIONS.map(action => (
+                      <SelectItem key={action.id} value={action.action}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{action.label}</span>
+                          <span className="text-xs text-muted-foreground">{action.description}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="custom">
+                      <div className="flex flex-col">
+                        <span className="font-medium">Custom Action</span>
+                        <span className="text-xs text-muted-foreground">Enter custom action code</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                {newAction.isCustom && (
+                  <Input
+                    className="mt-2"
+                    value={newAction.action}
+                    onChange={(e) => setNewAction(prev => ({ ...prev, action: e.target.value }))}
+                    placeholder="Enter custom action code..."
+                  />
+                )}
                 <p className="text-xs text-muted-foreground mt-1">
-                  Enter predefined action name or custom code to execute
+                  Choose from predefined actions or select "Custom Action" to enter your own code
                 </p>
               </div>
               
@@ -236,7 +270,7 @@ export function QuickActionsManager() {
         {/* Edit Action Dialog */}
         {editingAction && (
           <Dialog open={!!editingAction} onOpenChange={() => setEditingAction(null)}>
-            <DialogContent>
+            <DialogContent className="w-[95vw] max-w-none sm:w-[92vw] md:w-[88vw] lg:w-[80vw] xl:w-[75vw]">
               <DialogHeader>
                 <DialogTitle>Edit Quick Action</DialogTitle>
               </DialogHeader>
@@ -281,14 +315,51 @@ export function QuickActionsManager() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="edit-action">Action Code</Label>
-                  <Input
-                    id="edit-action"
-                    value={editingAction.action}
-                    onChange={(e) => setEditingAction(prev => 
-                      prev ? { ...prev, action: e.target.value } : null
-                    )}
-                  />
+                  <Label htmlFor="edit-action">Action</Label>
+                  <Select 
+                    value={editingAction.isCustom ? 'custom' : editingAction.action} 
+                    onValueChange={(value) => {
+                      if (value === 'custom') {
+                        setEditingAction(prev => 
+                          prev ? { ...prev, isCustom: true, action: '' } : null
+                        );
+                      } else {
+                        setEditingAction(prev => 
+                          prev ? { ...prev, isCustom: false, action: value } : null
+                        );
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select an action..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AVAILABLE_ACTIONS.map(action => (
+                        <SelectItem key={action.id} value={action.action}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{action.label}</span>
+                            <span className="text-xs text-muted-foreground">{action.description}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom">
+                        <div className="flex flex-col">
+                          <span className="font-medium">Custom Action</span>
+                          <span className="text-xs text-muted-foreground">Enter custom action code</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {editingAction.isCustom && (
+                    <Input
+                      className="mt-2"
+                      value={editingAction.action}
+                      onChange={(e) => setEditingAction(prev => 
+                        prev ? { ...prev, action: e.target.value } : null
+                      )}
+                      placeholder="Enter custom action code..."
+                    />
+                  )}
                 </div>
                 
                 <div className="flex items-center gap-2">

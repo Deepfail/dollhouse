@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useHouse } from '@/hooks/useHouse';
 import { useSceneMode } from '@/hooks/useSceneMode';
+import { AIService } from '@/lib/aiService';
 import { SceneObjective } from '@/types';
 import { FilmStrip, Users, Target, Play, Plus, X } from '@phosphor-icons/react';
 import { toast } from 'sonner';
@@ -77,38 +78,9 @@ Each objective should be 1-2 sentences describing what the character wants to ac
 
     try {
       // Use OpenRouter for objective generation
-      const apiKey = house.aiSettings?.apiKey;
-      if (!apiKey) {
-        throw new Error('OpenRouter API key not configured');
-      }
+      // Let AIService handle API key validation
 
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': window.location.origin,
-          'X-Title': 'Character Creator House'
-        },
-        body: JSON.stringify({
-          model: house.aiSettings.model || 'deepseek/deepseek-chat-v3.1',
-          messages: [
-            {
-              role: 'user',
-              content: objectivePrompt
-            }
-          ],
-          temperature: 0.8,
-          max_tokens: 800
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`OpenRouter API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const responseContent = data.choices[0]?.message?.content;
+      const responseContent = await AIService.generateResponse(objectivePrompt);
       
       if (!responseContent) {
         throw new Error('No response from AI service');

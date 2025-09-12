@@ -3,7 +3,7 @@ import { useRelationshipDynamics } from './useRelationshipDynamics';
 import { Character, ChatMessage } from '@/types';
 
 export function useInteractionSystem() {
-  const { updateRelationshipStats, addRelationshipEvent, addSexualEvent, checkSexualMilestones, updateRelationshipStatus } = useRelationshipDynamics();
+  const { updateRelationshipStats, addRelationshipEvent, addSexualEvent, updateRelationshipStatus } = useRelationshipDynamics();
 
   // Analyze message content for relationship triggers
   const analyzeMessage = useCallback((message: string): {
@@ -127,7 +127,7 @@ export function useInteractionSystem() {
       wetChange += 3;
       intimacyChange += 1;
       // Only positive if relationship is high enough
-      if (stats.relationship > 50) {
+      if (stats.love > 50) {
         relationshipChange += 1;
       } else {
         relationshipChange -= 1;
@@ -137,12 +137,11 @@ export function useInteractionSystem() {
     // Apply changes if they're significant enough
     if (Math.abs(relationshipChange) + Math.abs(happinessChange) + Math.abs(wetChange) > 0) {
       updateRelationshipStats(characterId, {
-        relationship: stats.relationship + relationshipChange,
+        love: stats.love + relationshipChange,
         happiness: stats.happiness + happinessChange,
         wet: stats.wet + wetChange,
         affection: relationshipDynamics.affection + affectionChange,
-        trust: relationshipDynamics.trust + trustChange,
-        intimacy: relationshipDynamics.intimacy + intimacyChange
+        trust: relationshipDynamics.trust + trustChange
       });
     }
     
@@ -155,7 +154,7 @@ export function useInteractionSystem() {
       });
     }
     
-    if (analysis.romantic && stats.relationship > 40 && Math.random() < 0.2) {
+    if (analysis.romantic && stats.love > 40 && Math.random() < 0.2) {
       addRelationshipEvent(characterId, {
         type: 'intimate_moment',
         description: 'Shared a romantic moment together',
@@ -163,7 +162,7 @@ export function useInteractionSystem() {
       });
     }
     
-    if (analysis.sexual && stats.relationship > 60 && Math.random() < 0.15) {
+    if (analysis.sexual && stats.love > 60 && Math.random() < 0.15) {
       addSexualEvent(characterId, {
         type: 'milestone_reached',
         description: 'Explored new levels of intimacy',
@@ -173,10 +172,9 @@ export function useInteractionSystem() {
     }
     
     // Check for milestone unlocks
-    checkSexualMilestones(characterId);
     updateRelationshipStatus(characterId);
     
-  }, [analyzeMessage, updateRelationshipStats, addRelationshipEvent, addSexualEvent, checkSexualMilestones, updateRelationshipStatus]);
+  }, [analyzeMessage, updateRelationshipStats, addRelationshipEvent, addSexualEvent, updateRelationshipStatus]);
 
   // Process character response for additional relationship building
   const processCharacterResponse = useCallback((characterId: string, message: string, character: Character) => {
@@ -262,7 +260,7 @@ export function useInteractionSystem() {
       }
     };
 
-    const relationship = stats.relationship;
+    const relationship = stats.love;
     const intimacy = relationshipDynamics.intimacy;
     const trust = character.relationshipDynamics?.trust || 0;
     

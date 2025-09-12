@@ -28,7 +28,11 @@ export function Layout({ children, onStartChat, onStartGroupChat, onStartScene }
       
       {/* Copilot Sidebar */}
       <div className="w-80 border-l border-border flex-shrink-0">
-        <Copilot />
+        <Copilot 
+          onStartChat={onStartChat}
+          onStartGroupChat={onStartGroupChat}
+          onStartScene={onStartScene}
+        />
       </div>
     </div>
   );

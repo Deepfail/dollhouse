@@ -29,7 +29,8 @@ export const useSceneMode = () => {
   const createSceneSession = async (
     characterIds: string[],
     objectives: SceneObjective[],
-    context?: string
+    context?: string,
+    sceneSettings?: { autoPlay?: boolean; turnDuration?: number; maxTurns?: number }
   ): Promise<string> => {
     const sessionId = `scene_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
     const sceneObjectives: Record<string, string> = {}
@@ -52,9 +53,9 @@ export const useSceneMode = () => {
       active: true,
       sceneObjectives,
       sceneSettings: {
-        autoPlay: true,
-        turnDuration: 5000,
-        maxTurns: 50,
+        autoPlay: sceneSettings?.autoPlay ?? true,
+        turnDuration: sceneSettings?.turnDuration ?? 5000,
+        maxTurns: sceneSettings?.maxTurns ?? 50,
       },
       createdAt: now,
       updatedAt: now,
@@ -63,8 +64,6 @@ export const useSceneMode = () => {
     setActiveSessions((sessions) => [...sessions, newSession])
     toast.success(`Scene session created (${sessionId.slice(0, 12)})`)
 
-    // Kick off autoplay shortly after creation
-    setTimeout(() => startAutoPlay(sessionId), 800)
     return sessionId
   }
 
@@ -184,17 +183,20 @@ export const useSceneMode = () => {
         .join(', ') || 'others'
 
     const characterPrompt = `
-You are ${character.name}.
-Personality: ${character.personality}
-Secret objective: ${objective}
-Scene context: ${currentSession.context || 'A social gathering'}
+You are ${character.name}, engaging in an intimate roleplay scene with the user in their private room.
 
-Participants: ${character.name}, ${others}
+${character.personality ? `Personality: ${character.personality}` : ''}
+
+Your goal: ${objective}
+
+${currentSession.context ? `Scene details: ${currentSession.context}` : 'You are in a private, intimate setting with the user.'}
+
+${others ? `Others present: ${others}` : 'You are alone with the user.'}
 
 Recent conversation:
 ${conversationContext}
 
-Respond as ${character.name}. Work toward your objective subtly. Keep response to 1–2 sentences.
+Respond naturally as ${character.name} in this intimate encounter. Be engaging, responsive to the user's actions, and work toward your goal. Keep your response to 1-2 sentences.
 `.trim()
 
     try {
@@ -257,47 +259,63 @@ Respond as ${character.name}. Work toward your objective subtly. Keep response t
   }
 
   const startAutoPlay = async (sessionId: string) => {
+    // Prevent multiple auto-play loops
+    if (isProcessing) return;
+
     const tick = async () => {
-      const session = getSession(sessionId)
+      // Always get fresh session data
+      const currentSessions = sessionsRef.current;
+      const session = currentSessions.find((s) => s.id === sessionId);
+
       if (!session || !session.active) {
-        setIsProcessing(false)
-        return
+        setIsProcessing(false);
+        return;
       }
 
       if (!session.sceneSettings?.autoPlay) {
-        setIsProcessing(false)
-        return
+        setIsProcessing(false);
+        return;
       }
 
-      const spokenTurns = session.messages.filter((m) => m.characterId).length
-      const maxTurns = session.sceneSettings?.maxTurns ?? 20
+      const spokenTurns = session.messages.filter((m) => m.characterId).length;
+      const maxTurns = session.sceneSettings?.maxTurns ?? 20;
       if (spokenTurns >= maxTurns) {
-        await endScene(sessionId)
-        return
+        await endScene(sessionId);
+        return;
       }
 
       const available = session.participantIds.filter((id) =>
         safeChars.some((c) => c.id === id)
-      )
+      );
       if (available.length === 0) {
-        await endScene(sessionId)
-        return
+        await endScene(sessionId);
+        return;
       }
 
-      const randomId = available[Math.floor(Math.random() * available.length)]
+      const randomId = available[Math.floor(Math.random() * available.length)];
 
       try {
-        await processCharacterTurn(sessionId, randomId)
+        await processCharacterTurn(sessionId, randomId);
+      } catch (error) {
+        console.error('Auto-play turn failed:', error);
       } finally {
-        const fresh = getSession(sessionId)
-        const delay = fresh?.sceneSettings?.turnDuration ?? 5000
-        setTimeout(tick, delay)
-      }
-    }
+        // Schedule next tick only if still auto-playing and active
+        const freshSessions = sessionsRef.current;
+        const freshSession = freshSessions.find((s) => s.id === sessionId);
 
-    setIsProcessing(true)
-    setTimeout(tick, 1000)
-  }
+        if (freshSession?.active && freshSession?.sceneSettings?.autoPlay) {
+          const delay = freshSession.sceneSettings?.turnDuration ?? 5000;
+          setTimeout(tick, delay);
+        } else {
+          setIsProcessing(false);
+        }
+      }
+    };
+
+    setIsProcessing(true);
+    // Start immediately
+    setTimeout(tick, 100);
+  };
 
   return {
     activeSessions,

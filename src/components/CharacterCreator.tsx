@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useHouse } from '@/hooks/useHouse';
 import { Character, AVAILABLE_PERSONALITIES, AVAILABLE_ROLES, AVAILABLE_TRAITS } from '@/types';
-import { Plus, X, FloppyDisk as Save } from '@phosphor-icons/react';
+import { Plus, X, FloppyDisk as Save, DotsThree } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
 interface CharacterCreatorProps {
@@ -24,7 +25,7 @@ const PRESET_CLASSES = [
 ];
 
 export function CharacterCreator({ open, onOpenChange, character }: CharacterCreatorProps) {
-  const { addCharacter, updateCharacter } = useHouse();
+  const { house, addCharacter, updateCharacter } = useHouse();
   const isEditing = !!character;
 
   const [formData, setFormData] = useState({
@@ -42,9 +43,14 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
       background: character?.prompts.background || ''
     },
     stats: {
-      relationship: character?.stats.relationship || 50,
-      wet: character?.stats.wet || 80,
+      love: character?.stats.love || 50,
       happiness: character?.stats.happiness || 70,
+      wet: character?.stats.wet || 80,
+      willing: character?.stats.willing || 50,
+      selfEsteem: character?.stats.selfEsteem || 50,
+      loyalty: character?.stats.loyalty || 50,
+      fight: character?.stats.fight || 20,
+      pain: character?.stats.pain || 30,
       experience: character?.stats.experience || 0,
       level: character?.stats.level || 1
     }
@@ -131,92 +137,151 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
   };
 
   const handleSave = () => {
+    // Validation
+    const errors: string[] = [];
+    
     if (!formData.name.trim()) {
-      toast.error('Character name is required');
+      errors.push('Character name is required');
+    }
+    
+    if (formData.name.trim().length > 50) {
+      errors.push('Character name must be 50 characters or less');
+    }
+    
+    if (!formData.description.trim()) {
+      errors.push('Character description is required');
+    }
+    
+    if (formData.description.trim().length > 500) {
+      errors.push('Character description must be 500 characters or less');
+    }
+    
+    if (!formData.personality.trim()) {
+      errors.push('Character personality is required');
+    }
+    
+    if (formData.personality.trim().length > 1000) {
+      errors.push('Character personality must be 1000 characters or less');
+    }
+    
+    if (formData.personalities.length === 0) {
+      errors.push('At least one personality trait is required');
+    }
+    
+    if (formData.traits.length === 0) {
+      errors.push('At least one trait is required');
+    }
+    
+    // Check for duplicate names (only for new characters)
+    if (!isEditing && house.characters?.some(c => 
+      c.name.toLowerCase() === formData.name.trim().toLowerCase()
+    )) {
+      errors.push('A character with this name already exists');
+    }
+    
+    if (errors.length > 0) {
+      errors.forEach(error => toast.error(error));
       return;
     }
 
-    const characterData: Character = {
-      id: character?.id || `char-${Date.now()}`,
-      name: formData.name.trim(),
-      description: formData.description.trim(),
-      personality: formData.personality.trim(),
-      appearance: formData.appearance.trim(),
-      role: formData.role.trim(),
-      personalities: formData.personalities,
-      traits: formData.traits,
-      classes: formData.classes,
-      rarity: 'common', // Default rarity
-      unlocks: character?.unlocks || [],
-      prompts: formData.prompts,
-      stats: formData.stats,
-      relationshipDynamics: character?.relationshipDynamics || {
-        affection: 50,
-        trust: 50,
-        intimacy: 0,
-        dominance: 50,
-        jealousy: 30,
-        loyalty: 50,
-        possessiveness: 30,
-        relationshipStatus: 'stranger',
-        bonds: {},
-        significantEvents: [],
-        userPreferences: {
-          likes: [],
-          dislikes: [],
-          turnOns: [],
-          turnOffs: []
-        }
-      },
-      sexualProgression: character?.sexualProgression || {
-        arousal: 0,
-        libido: 50,
-        experience: 0,
-        kinks: [],
-        limits: [],
-        fantasies: [],
-        skills: {},
-        unlockedPositions: [],
-        unlockedOutfits: [],
-        unlockedToys: [],
-        unlockedScenarios: [],
-        sexualMilestones: [],
-        compatibility: {
-          overall: 50,
-          kinkAlignment: 50,
-          stylePreference: 50
+    try {
+      // Find the first available room for the new character
+      const availableRoom = house.rooms?.find(room => 
+        room.residents.length < room.capacity && room.unlocked
+      ) || house.rooms?.[0]; // Fallback to first room if none available
+
+      const characterData: Character = {
+        id: character?.id || `char-${Date.now()}`,
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        personality: formData.personality.trim(),
+        appearance: formData.appearance.trim(),
+        role: formData.role.trim(),
+        personalities: formData.personalities,
+        traits: formData.traits,
+        classes: formData.classes,
+        rarity: 'common', // Default rarity
+        unlocks: character?.unlocks || [],
+        prompts: formData.prompts,
+        stats: formData.stats,
+        skills: character?.skills || {
+          hands: 20,
+          mouth: 20,
+          missionary: 20,
+          doggy: 20,
+          cowgirl: 20
         },
-        memorableEvents: []
-      },
-      lastInteraction: character?.lastInteraction,
-      conversationHistory: character?.conversationHistory || [],
-      memories: character?.memories || [],
-      preferences: character?.preferences || {},
-      relationships: character?.relationships || {},
-      progression: character?.progression || {
-        level: 1,
-        nextLevelExp: 100,
-        unlockedFeatures: [],
-        achievements: []
-      },
-      createdAt: character?.createdAt || new Date(),
-      updatedAt: new Date()
-    };
+        roomId: character?.roomId || availableRoom?.id || 'common-room', // Assign to available room
+        relationshipDynamics: character?.relationshipDynamics || {
+          affection: 50,
+          trust: 50,
+          intimacy: 0,
+          dominance: 50,
+          jealousy: 30,
+          possessiveness: 30,
+          relationshipStatus: 'stranger',
+          bonds: {},
+          significantEvents: [],
+          userPreferences: {
+            likes: [],
+            dislikes: [],
+            turnOns: [],
+            turnOffs: []
+          }
+        },
+        sexualProgression: character?.sexualProgression || {
+          arousal: 0,
+          libido: 50,
+          experience: 0,
+          kinks: [],
+          limits: [],
+          fantasies: [],
+          skills: {},
+          unlockedPositions: [],
+          unlockedOutfits: [],
+          unlockedToys: [],
+          unlockedScenarios: [],
+          sexualMilestones: [],
+          compatibility: {
+            overall: 50,
+            kinkAlignment: 50,
+            stylePreference: 50
+          },
+          memorableEvents: []
+        },
+        lastInteraction: character?.lastInteraction,
+        conversationHistory: character?.conversationHistory || [],
+        memories: character?.memories || [],
+        preferences: character?.preferences || {},
+        relationships: character?.relationships || {},
+        progression: character?.progression || {
+          level: 1,
+          nextLevelExp: 100,
+          unlockedFeatures: [],
+          achievements: []
+        },
+        createdAt: character?.createdAt || new Date(),
+        updatedAt: new Date()
+      };
 
-    if (isEditing) {
-      updateCharacter(character.id, characterData);
-      toast.success(`${formData.name} updated successfully!`);
-    } else {
-      addCharacter(characterData);
-      toast.success(`${formData.name} created successfully!`);
+      if (isEditing) {
+        updateCharacter(character.id, characterData);
+        toast.success(`${formData.name} updated successfully!`);
+      } else {
+        addCharacter(characterData);
+        toast.success(`${formData.name} created successfully!`);
+      }
+
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error saving character:', error);
+      toast.error('Failed to save character. Please try again.');
     }
-
-    onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="w-[95vw] max-w-none sm:w-[92vw] md:w-[88vw] lg:w-[80vw] xl:w-[75vw] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? `Edit ${character.name}` : 'Create New Character'}
@@ -299,8 +364,9 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
               {/* Personalities */}
               <div className="space-y-3">
                 <Label>Personalities</Label>
-                <div className="flex flex-wrap gap-2">
-                  {AVAILABLE_PERSONALITIES.map(personality => (
+                <div className="flex flex-wrap gap-2 items-center">
+                  {/* Show first 6 personalities as badges */}
+                  {AVAILABLE_PERSONALITIES.slice(0, 6).map(personality => (
                     <Badge
                       key={personality}
                       variant={formData.personalities.includes(personality) ? "default" : "outline"}
@@ -310,7 +376,35 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                       {personality}
                     </Badge>
                   ))}
+                  
+                  {/* More button with popover */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-6 px-2 text-xs">
+                        <DotsThree size={12} className="mr-1" />
+                        More
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 p-4" align="start">
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">All Personalities</Label>
+                        <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto">
+                          {AVAILABLE_PERSONALITIES.map(personality => (
+                            <Badge
+                              key={personality}
+                              variant={formData.personalities.includes(personality) ? "default" : "outline"}
+                              className="cursor-pointer capitalize text-xs justify-center"
+                              onClick={() => togglePersonality(personality)}
+                            >
+                              {personality}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
+                
                 <div className="flex gap-2">
                   <Input
                     value={customPersonality}
@@ -322,6 +416,7 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                     <Plus size={16} />
                   </Button>
                 </div>
+                
                 {formData.personalities.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {formData.personalities.map(personality => (
@@ -427,19 +522,10 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                 <Label>Initial Stats</Label>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-sm">Relationship: {formData.stats.relationship}%</Label>
+                    <Label className="text-sm">Love: {formData.stats.love}%</Label>
                     <Slider
-                      value={[formData.stats.relationship]}
-                      onValueChange={(value) => updateFormData('stats.relationship', value[0])}
-                      max={100}
-                      step={5}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm">Arousal: {formData.stats.wet}%</Label>
-                    <Slider
-                      value={[formData.stats.wet]}
-                      onValueChange={(value) => updateFormData('stats.wet', value[0])}
+                      value={[formData.stats.love]}
+                      onValueChange={(value) => updateFormData('stats.love', value[0])}
                       max={100}
                       step={5}
                     />
@@ -454,13 +540,57 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm">Level: {formData.stats.level}</Label>
+                    <Label className="text-sm">Wet: {formData.stats.wet}%</Label>
                     <Slider
-                      value={[formData.stats.level]}
-                      onValueChange={(value) => updateFormData('stats.level', value[0])}
-                      min={1}
-                      max={10}
-                      step={1}
+                      value={[formData.stats.wet]}
+                      onValueChange={(value) => updateFormData('stats.wet', value[0])}
+                      max={100}
+                      step={5}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Willing: {formData.stats.willing}%</Label>
+                    <Slider
+                      value={[formData.stats.willing]}
+                      onValueChange={(value) => updateFormData('stats.willing', value[0])}
+                      max={100}
+                      step={5}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Self Esteem: {formData.stats.selfEsteem}%</Label>
+                    <Slider
+                      value={[formData.stats.selfEsteem]}
+                      onValueChange={(value) => updateFormData('stats.selfEsteem', value[0])}
+                      max={100}
+                      step={5}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Loyalty: {formData.stats.loyalty}%</Label>
+                    <Slider
+                      value={[formData.stats.loyalty]}
+                      onValueChange={(value) => updateFormData('stats.loyalty', value[0])}
+                      max={100}
+                      step={5}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Fight: {formData.stats.fight}%</Label>
+                    <Slider
+                      value={[formData.stats.fight]}
+                      onValueChange={(value) => updateFormData('stats.fight', value[0])}
+                      max={100}
+                      step={5}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Pain: {formData.stats.pain}%</Label>
+                    <Slider
+                      value={[formData.stats.pain]}
+                      onValueChange={(value) => updateFormData('stats.pain', value[0])}
+                      max={100}
+                      step={5}
                     />
                   </div>
                 </div>
@@ -562,11 +692,11 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                     
                     <div className="grid grid-cols-3 gap-4 text-sm">
                       <div>
-                        <Label className="text-xs">Relationship</Label>
-                        <div className="font-medium">{formData.stats.relationship}%</div>
+                        <Label className="text-xs">Love</Label>
+                        <div className="font-medium">{formData.stats.love}%</div>
                       </div>
                       <div>
-                        <Label className="text-xs">Arousal</Label>
+                        <Label className="text-xs">Wet</Label>
                         <div className="font-medium">{formData.stats.wet}%</div>
                       </div>
                       <div>

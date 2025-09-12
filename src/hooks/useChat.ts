@@ -6,6 +6,7 @@ import { useInteractionSystem } from './useInteractionSystem';
 import { AIService } from '@/lib/aiService';
 import { storage } from '@/lib/storage';
 import { toast } from 'sonner';
+import { useMemorySystem } from './useMemorySystem';
 
 export function useChat() {
   const [sessions, setSessions] = useSimpleStorage<ChatSession[]>('chat-sessions', []);
@@ -13,6 +14,7 @@ export function useChat() {
   const [forceUpdate] = useSimpleStorage<number>('settings-force-update', 0); // React to settings changes
   const { house } = useHouse();
   const { processUserMessage, processCharacterResponse, triggerMilestoneEvents } = useInteractionSystem();
+  const { processConversationMemories, getMemoryContext } = useMemorySystem();
   
   // Ensure sessions is never undefined
   const safeSessions = sessions || [];
@@ -141,9 +143,9 @@ export function useChat() {
     }
 
     // Check API configuration before sending message
-    if (!house?.aiSettings?.apiKey?.trim()) {
+    if (!house?.aiSettings?.textApiKey && !house?.aiSettings?.apiKey) {
       console.error('No API key configured');
-      toast.error('Please configure your OpenRouter API key in House Settings.');
+      toast.error('Please configure your OpenRouter API key in House Settings before chatting. Get a free key from openrouter.ai');
       return;
     }
 
@@ -263,18 +265,7 @@ export function useChat() {
 
       const provider = house?.aiSettings?.provider || 'openrouter';
 
-      // Check provider configuration
-      if (provider === 'openrouter') {
-        if (!house?.aiSettings?.apiKey?.trim()) {
-          console.error('OpenRouter API key not configured');
-          toast.error('OpenRouter API key is not configured. Please add your API key in House Settings.');
-          return null;
-        }
-      } else {
-        console.error('Unsupported AI provider:', provider, '- Only OpenRouter is supported');
-        toast.error(`Unsupported AI provider: ${provider}. Only OpenRouter is supported.`);
-        return null;
-      }
+      // Let AIService handle provider and API key validation
 
       // Get conversation history for context
       const recentMessages = (session.messages || []).slice(-10);
@@ -320,6 +311,12 @@ Character Details:`;
       // Add world context if available
       if (house?.worldPrompt) {
         characterPrompt += `\n\nWorld Context: ${house.worldPrompt}`;
+      }
+
+      // Add relevant memories for context
+      const memoryContext = getMemoryContext(characterId, userMessage.content);
+      if (memoryContext) {
+        characterPrompt += memoryContext;
       }
 
       if (conversationContext) {
@@ -423,6 +420,17 @@ Respond as ${character.name} would, staying true to your character. Keep respons
   };
 
   const closeSession = (sessionId: string) => {
+    // Process memories for all characters in the session before closing
+    const session = safeSessions.find(s => s.id === sessionId);
+    if (session && session.participantIds.length > 0) {
+      // Process memories asynchronously
+      setTimeout(() => {
+        session.participantIds.forEach(characterId => {
+          processConversationMemories(characterId, session);
+        });
+      }, 1000); // Small delay to ensure all processing is complete
+    }
+
     setSessions(current => {
       const currentSessions = current || [];
       return currentSessions.map(session =>

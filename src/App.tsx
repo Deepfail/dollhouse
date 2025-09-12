@@ -13,7 +13,7 @@ function App() {
   const [currentView, setCurrentView] = useState<'house' | 'chat' | 'scene'>('house');
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const { createSession, sessions, switchToSession, setActiveSessionId: setChatActiveSessionId } = useChat();
-  const { activeSessions, getSession } = useSceneMode();
+  const { activeSessions } = useSceneMode();
   const { house } = useHouse();
 
   // Debug logging with error handling
@@ -63,7 +63,7 @@ function App() {
     } catch (error) {
       console.error('Error in debug logging:', error);
     }
-  }, [house, sessions, activeSessions, currentView, activeSessionId]);
+  }, [currentView, activeSessionId]);
 
   const handleStartChat = async (characterId: string) => {
     console.log('=== handleStartChat called ===');
@@ -147,8 +147,19 @@ function App() {
     console.log('handleStartScene called with sessionId:', sessionId);
     
     try {
-      // Check if the scene session exists
-      const sceneSession = getSession ? getSession(sessionId) : activeSessions?.find(s => s.id === sessionId);
+      // Check if the scene session exists in state first
+      let sceneSession = activeSessions?.find(s => s.id === sessionId);
+      
+      // If not found in state, check localStorage directly (for timing issues)
+      if (!sceneSession) {
+        try {
+          const storedSessions = JSON.parse(localStorage.getItem('scene-sessions') || '[]');
+          sceneSession = storedSessions.find((s: any) => s.id === sessionId);
+          console.log('Scene session found in localStorage:', !!sceneSession);
+        } catch (error) {
+          console.error('Error checking localStorage for scene session:', error);
+        }
+      }
       
       if (!sceneSession) {
         console.error('Scene session not found:', sessionId);

@@ -4,13 +4,12 @@ import { useSimpleStorage } from './useSimpleStorage';
 import { toast } from 'sonner'
 
 // If your alias isn't configured, swap to a relative import:
-// import type { Character, RelationshipEvent, SexualEvent, SexualMilestone, UnlockableContent } from '../lib/types'
+// import type { Character, RelationshipEvent, SexualEvent, SexualMilestone } from '../lib/types'
 import type {
   Character,
   RelationshipEvent,
   SexualEvent,
   SexualMilestone,
-  UnlockableContent,
 } from '@/types'
 
 type Dyn = NonNullable<Character['relationshipDynamics']>
@@ -26,7 +25,6 @@ function ensureDynamics(input: Character['relationshipDynamics']): Dyn {
     intimacy: d.intimacy ?? 0,
     dominance: d.dominance ?? 50,
     jealousy: d.jealousy ?? 0,
-    loyalty: d.loyalty ?? 0,
     possessiveness: d.possessiveness ?? 0,
     relationshipStatus: d.relationshipStatus ?? ('stranger' as Dyn['relationshipStatus']),
     bonds: d.bonds ?? {},
@@ -43,9 +41,14 @@ function ensureDynamics(input: Character['relationshipDynamics']): Dyn {
 function ensureStats(input: Character['stats']): Stats {
   const s: any = input ?? {}
   return {
-    relationship: clamp(s.relationship ?? 0),
+    love: clamp(s.love ?? 0),
     happiness: clamp(s.happiness ?? 50),
     wet: clamp(s.wet ?? 0),
+    willing: clamp(s.willing ?? 50),
+    selfEsteem: clamp(s.selfEsteem ?? 50),
+    loyalty: clamp(s.loyalty ?? 50),
+    fight: clamp(s.fight ?? 20),
+    pain: clamp(s.pain ?? 20),
     experience: s.experience ?? 0,
     level: s.level ?? 1
   }
@@ -53,7 +56,6 @@ function ensureStats(input: Character['stats']): Stats {
 
 export function useRelationshipDynamics() {
   const [characters, setCharacters] = useSimpleStorage<Character[]>('characters', [])
-  const [unlockableContent] = useSimpleStorage<UnlockableContent[]>('unlockable-content', [])
 
   /** Update high-level dynamics + basic stats in one go (all fields optional) */
   const updateRelationshipStats = useCallback(
@@ -65,9 +67,14 @@ export function useRelationshipDynamics() {
           | 'affection'
           | 'trust'
           | 'dominance'
-          | 'relationship'
+          | 'love'
           | 'happiness'
           | 'wet'
+          | 'willing'
+          | 'selfEsteem'
+          | 'loyalty'
+          | 'fight'
+          | 'pain'
           | 'experience'
         >
       >
@@ -84,9 +91,14 @@ export function useRelationshipDynamics() {
           if (updates.dominance !== undefined) dyn.dominance = clamp(updates.dominance)
           // submissiveness property removed
 
-          if (updates.relationship !== undefined) stats.relationship = clamp(updates.relationship)
+          if (updates.love !== undefined) stats.love = clamp(updates.love)
           if (updates.happiness !== undefined) stats.happiness = clamp(updates.happiness)
           if (updates.wet !== undefined) stats.wet = clamp(updates.wet)
+          if (updates.willing !== undefined) stats.willing = clamp(updates.willing)
+          if (updates.selfEsteem !== undefined) stats.selfEsteem = clamp(updates.selfEsteem)
+          if (updates.loyalty !== undefined) stats.loyalty = clamp(updates.loyalty)
+          if (updates.fight !== undefined) stats.fight = clamp(updates.fight)
+          if (updates.pain !== undefined) stats.pain = clamp(updates.pain)
           // Note: intimacy is in relationshipDynamics, not stats
           if (updates.experience !== undefined) stats.experience = Math.max(0, updates.experience)
 
@@ -202,27 +214,6 @@ export function useRelationshipDynamics() {
     [setCharacters]
   )
 
-  /** Return unlockables the character qualifies for (very forgiving, shape-agnostic) */
-  const getCharacterUnlockables = useCallback(
-    (characterId: string): UnlockableContent[] => {
-      const character = characters.find((c) => c.id === characterId)
-      if (!character) return []
-      const dyn = ensureDynamics(character.relationshipDynamics)
-      const stats = ensureStats(character.stats)
-
-      return unlockableContent.filter((content: any) => {
-        if (content.unlocked) return true
-        const req = content.requirements || {}
-        if (req.minAffection != null && dyn.affection < req.minAffection) return false
-        if (req.minTrust != null && dyn.trust < req.minTrust) return false
-        if (req.minIntimacy != null && dyn.intimacy < req.minIntimacy) return false
-        if (req.minRelationship != null && stats.relationship < req.minRelationship) return false
-        return true
-      })
-    },
-    [characters, unlockableContent]
-  )
-
   /** Initialize dynamics/sexualProgression safely for a character (id or all) */
   const initializeCharacterDynamics = useCallback(
     (character: Character): Character => {
@@ -248,7 +239,7 @@ export function useRelationshipDynamics() {
             name: 'First Kiss',
             description: 'Share your first kiss.',
             achieved: false,
-            requiredStats: { relationship: 30, trust: 20 },
+            requiredStats: { love: 30, trust: 20 },
             rewards: { statBoosts: { intimacy: 10 } },
           },
           {
@@ -256,7 +247,7 @@ export function useRelationshipDynamics() {
             name: 'First Intimate Touch',
             description: 'Experience your first intimate touch.',
             achieved: false,
-            requiredStats: { relationship: 50, wet: 30, intimacy: 25 },
+            requiredStats: { love: 50, wet: 30, intimacy: 25 },
             rewards: { statBoosts: { intimacy: 15, wet: 10 } },
           },
           {
@@ -264,7 +255,7 @@ export function useRelationshipDynamics() {
             name: 'First Time',
             description: 'Your first complete intimate experience.',
             achieved: false,
-            requiredStats: { relationship: 70, wet: 60, intimacy: 50 },
+            requiredStats: { love: 70, wet: 60, intimacy: 50 },
             rewards: {
               unlocks: ['advanced_positions'],
               statBoosts: { intimacy: 20, wet: 20 },
@@ -290,7 +281,6 @@ export function useRelationshipDynamics() {
     addRelationshipEvent,
     addSexualEvent,
     updateRelationshipStatus,
-    getCharacterUnlockables,
     initializeCharacterDynamics,
   }
 }

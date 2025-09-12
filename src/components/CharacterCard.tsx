@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
@@ -14,14 +15,14 @@ import {
   Smiley as Smile,
   ChatCircle as MessageCircle,
   Gift,
-  Home,
+  House,
   Trophy,
-  Sparkles,
+  Sparkle,
   Check,
   Clock,
   Crown,
   Lock,
-  Droplets,
+  Drop,
   BookOpen,
   Eye,
   ShieldCheck,
@@ -31,7 +32,9 @@ import {
   Users,
   Calendar,
   TrendUp,
-  Award
+  Medal,
+  Pencil,
+  Trash
 } from '@phosphor-icons/react';
 
 import { Character } from '@/types';
@@ -43,6 +46,8 @@ interface CharacterCardProps {
   onStartChat: (characterId: string) => void;
   onGift?: (characterId: string) => void;
   onMove?: (characterId: string) => void;
+  onEdit?: (character: Character) => void;
+  onDelete?: (characterId: string) => void;
   compact?: boolean;
 }
 
@@ -52,7 +57,7 @@ const getRarityIcon = (rarity?: Character['rarity']) => {
     case 'legendary':
       return <Crown className={cls + ' text-amber-400'} />;
     case 'epic':
-      return <Sparkles className={cls + ' text-purple-400'} />;
+      return <Sparkle className={cls + ' text-purple-400'} />;
     case 'rare':
       return <Trophy className={cls + ' text-blue-400'} />;
     default:
@@ -77,19 +82,34 @@ export function CharacterCard({
   onStartChat,
   onGift,
   onMove,
+  onEdit,
+  onDelete,
   compact = false,
 }: CharacterCardProps) {
   const [showDetails, setShowDetails] = useState(false);
   const { sessions } = useChat();
-  const { updateRelationshipStats, checkSexualMilestones } = useRelationshipDynamics();
+  const { updateRelationshipStats } = useRelationshipDynamics();
 
   // Safely access character properties with defaults
   const stats = character.stats || {
-    relationship: 0,
-    wet: 0,
+    love: 0,
     happiness: 0,
+    wet: 0,
+    willing: 0,
+    selfEsteem: 0,
+    loyalty: 0,
+    fight: 0,
+    pain: 0,
     experience: 0,
     level: 1
+  };
+
+  const skills = character.skills || {
+    hands: 0,
+    mouth: 0,
+    missionary: 0,
+    doggy: 0,
+    cowgirl: 0
   };
 
   const relationshipDynamics = character.relationshipDynamics || {
@@ -190,11 +210,11 @@ export function CharacterCard({
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <Heart size={10} className="text-red-500" />
-                  <Progress value={stats.relationship} className="h-1 flex-1" />
-                  <span className="text-[9px] text-muted-foreground w-6">{stats.relationship}</span>
+                  <Progress value={stats.love} className="h-1 flex-1" />
+                  <span className="text-[9px] text-muted-foreground w-6">{stats.love}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Droplets size={10} className="text-pink-500" />
+                  <Drop size={10} className="text-pink-500" />
                   <Progress value={stats.wet} className="h-1 flex-1" />
                   <span className="text-[9px] text-muted-foreground w-6">{stats.wet}</span>
                 </div>
@@ -203,15 +223,75 @@ export function CharacterCard({
           </div>
           
           <div className="mt-3 pt-2 border-t border-border/50">
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-2">
               <span>Level {stats.level}</span>
               <span>{achievedMilestones}/{totalMilestones} milestones</span>
+            </div>
+            
+            {/* Quick Actions for compact view */}
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 h-6 text-[10px] px-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStartChat(character.id);
+                }}
+              >
+                <MessageCircle size={10} className="mr-1" />
+                Chat
+              </Button>
+              {onEdit && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(character);
+                  }}
+                >
+                  <Pencil size={10} />
+                </Button>
+              )}
+              {onDelete && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="h-6 px-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Trash size={10} />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Character</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete {character.name}? This action cannot be undone and will permanently remove the character from your house, including all their conversations and progress.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={() => onDelete(character.id)}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Delete Character
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </div>
           </div>
         </Card>
 
         <Dialog open={showDetails} onOpenChange={setShowDetails}>
-          <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden">
+          <DialogContent className="w-[95vw] max-w-6xl max-h-[90vh] overflow-hidden">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-3">
                 <Avatar className="w-10 h-10">
@@ -232,10 +312,11 @@ export function CharacterCard({
             </DialogHeader>
 
             <Tabs defaultValue="overview" className="mt-4">
-              <TabsList className="grid w-full grid-cols-6">
+              <TabsList className="grid w-full grid-cols-7">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="relationship">Relationship</TabsTrigger>
                 <TabsTrigger value="sexual">Sexual</TabsTrigger>
+                <TabsTrigger value="skills">Skills</TabsTrigger>
                 <TabsTrigger value="chats">Chats</TabsTrigger>
                 <TabsTrigger value="progress">Progress</TabsTrigger>
                 <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -255,9 +336,20 @@ export function CharacterCard({
                           <p className="text-sm mt-1">{character.description || '—'}</p>
                         </div>
                         <div>
-                          <label className="text-sm font-medium text-muted-foreground">Role</label>
-                          <p className="text-sm mt-1 capitalize">{character.role || '—'}</p>
+                          <label className="text-sm font-medium text-muted-foreground">Rarity</label>
+                          <div className="flex items-center gap-2 mt-1">
+                            {getRarityIcon(character.rarity)}
+                            <Badge variant="outline" className="text-xs capitalize">
+                              {character.rarity || 'common'}
+                            </Badge>
+                          </div>
                         </div>
+                        {character.specialAbility && (
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">Special Ability</label>
+                            <p className="text-sm mt-1 text-amber-600 font-medium">{character.specialAbility}</p>
+                          </div>
+                        )}
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Personalities</label>
                           <div className="flex flex-wrap gap-1 mt-1">
@@ -287,18 +379,18 @@ export function CharacterCard({
                           <div className="flex justify-between text-sm">
                             <span className="flex items-center gap-2">
                               <Heart size={12} className="text-red-500" />
-                              Relationship
+                              Love
                             </span>
-                            <span className="font-medium">{stats.relationship}%</span>
+                            <span className="font-medium">{stats.love}%</span>
                           </div>
-                          <Progress value={stats.relationship} className="h-2" />
+                          <Progress value={stats.love} className="h-2" />
                         </div>
                         
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span className="flex items-center gap-2">
-                              <Droplets size={12} className="text-pink-500" />
-                              Arousal
+                              <Drop size={12} className="text-pink-500" />
+                              Wet
                             </span>
                             <span className="font-medium">{stats.wet}%</span>
                           </div>
@@ -329,6 +421,12 @@ export function CharacterCard({
                         <MessageCircle size={14} className="mr-2" />
                         Start Chat
                       </Button>
+                      {onEdit && (
+                        <Button size="sm" variant="outline" onClick={() => onEdit(character)}>
+                          <Pencil size={14} className="mr-2" />
+                          Edit Character
+                        </Button>
+                      )}
                       {onGift && (
                         <Button size="sm" variant="outline" onClick={() => onGift(character.id)}>
                           <Gift size={14} className="mr-2" />
@@ -337,9 +435,36 @@ export function CharacterCard({
                       )}
                       {onMove && (
                         <Button size="sm" variant="outline" onClick={() => onMove(character.id)}>
-                          <Home size={14} className="mr-2" />
+                          <House size={14} className="mr-2" />
                           Move Room
                         </Button>
+                      )}
+                      {onDelete && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="destructive">
+                              <Trash size={14} className="mr-2" />
+                              Delete Character
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Character</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete {character.name}? This action cannot be undone and will permanently remove the character from your house, including all their conversations and progress.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction 
+                                onClick={() => onDelete(character.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete Character
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                     </div>
                   </Card>
@@ -375,14 +500,6 @@ export function CharacterCard({
                             <span className="font-medium">{relationshipDynamics.intimacy || 0}%</span>
                           </div>
                           <Progress value={relationshipDynamics.intimacy || 0} className="h-2" />
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Loyalty</span>
-                            <span className="font-medium">{relationshipDynamics.loyalty || 0}%</span>
-                          </div>
-                          <Progress value={relationshipDynamics.loyalty || 0} className="h-2" />
                         </div>
                       </div>
                     </Card>
@@ -480,7 +597,7 @@ export function CharacterCard({
 
                     <Card className="p-4">
                       <h4 className="font-semibold mb-3 flex items-center gap-2">
-                        <Award size={16} />
+                        <Medal size={16} />
                         Milestones
                       </h4>
                       <div className="space-y-2">
@@ -525,6 +642,58 @@ export function CharacterCard({
                           {sexualProgression.unlockedScenarios?.map((scenario) => (
                             <Badge key={scenario} variant="secondary" className="text-xs">{scenario}</Badge>
                           )) || <span className="text-sm text-muted-foreground">None</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="skills" className="space-y-4">
+                  <Card className="p-4">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                      <Lightning size={16} />
+                      Sexual Skills
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 gap-4">
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Hands (Handjobs, Stroking)</span>
+                            <span className="font-medium">{skills.hands}%</span>
+                          </div>
+                          <Progress value={skills.hands} className="h-2" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Mouth (Blowjobs, Tongue, Facefucking)</span>
+                            <span className="font-medium">{skills.mouth}%</span>
+                          </div>
+                          <Progress value={skills.mouth} className="h-2" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Missionary</span>
+                            <span className="font-medium">{skills.missionary}%</span>
+                          </div>
+                          <Progress value={skills.missionary} className="h-2" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Doggy</span>
+                            <span className="font-medium">{skills.doggy}%</span>
+                          </div>
+                          <Progress value={skills.doggy} className="h-2" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Cowgirl</span>
+                            <span className="font-medium">{skills.cowgirl}%</span>
+                          </div>
+                          <Progress value={skills.cowgirl} className="h-2" />
                         </div>
                       </div>
                     </div>
@@ -609,13 +778,13 @@ export function CharacterCard({
 
                     <Card className="p-4">
                       <h4 className="font-semibold mb-3 flex items-center gap-2">
-                        <Sparkles size={16} />
+                        <Sparkle size={16} />
                         Achievements
                       </h4>
                       <div className="space-y-2">
                         {progression.achievements?.map((achievement) => (
                           <div key={achievement} className="flex items-center gap-2 p-2 bg-muted/30 rounded">
-                            <Award size={16} className="text-amber-500" />
+                            <Medal size={16} className="text-amber-500" />
                             <span className="text-sm">{achievement}</span>
                           </div>
                         )) || (
@@ -635,7 +804,7 @@ export function CharacterCard({
                     <div className="space-y-2">
                       {progression.unlockedFeatures?.map((feature) => (
                         <div key={feature} className="flex items-center gap-2 p-2 bg-muted/30 rounded">
-                          <Sparkles size={16} className="text-purple-500" />
+                          <Sparkle size={16} className="text-purple-500" />
                           <span className="text-sm">{feature}</span>
                         </div>
                       )) || (
@@ -736,8 +905,8 @@ export function CharacterCard({
       <div className="space-y-2 mb-4">
         <div className="flex items-center gap-2 text-xs">
           <Heart size={12} className="text-red-500" />
-          <Progress value={stats.relationship} className="h-1 flex-1" />
-          <span className="text-muted-foreground w-8">{stats.relationship}%</span>
+          <Progress value={stats.love} className="h-1 flex-1" />
+          <span className="text-muted-foreground w-8">{stats.love}%</span>
         </div>
         <div className="flex items-center gap-2 text-xs">
           <Smile size={12} className="text-yellow-500" />
@@ -745,7 +914,7 @@ export function CharacterCard({
           <span className="text-muted-foreground w-8">{stats.happiness}%</span>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <Droplets size={12} className="text-pink-500" />
+          <Drop size={12} className="text-pink-500" />
           <Progress value={stats.wet} className="h-1 flex-1" />
           <span className="text-muted-foreground w-8">{stats.wet}%</span>
         </div>
@@ -763,6 +932,48 @@ export function CharacterCard({
           <MessageCircle size={14} className="mr-1" />
           Chat
         </Button>
+        {onEdit && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(character);
+            }}
+          >
+            <Pencil size={14} />
+          </Button>
+        )}
+        {onDelete && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Trash size={14} />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Character</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete {character.name}? This action cannot be undone and will permanently remove the character from your house, including all their conversations and progress.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={() => onDelete(character.id)}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Delete Character
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
         <Button
           size="sm"
           variant="outline"
@@ -781,7 +992,7 @@ export function CharacterCard({
             onMove?.(character.id);
           }}
         >
-          <Home size={14} />
+          <House size={14} />
         </Button>
       </div>
     </Card>
