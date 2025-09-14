@@ -42,8 +42,15 @@ export const AutoCharacterCreator: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [localMaxCharacters, setLocalMaxCharacters] = useState(maxCharacters);
   const [localInterval, setLocalInterval] = useState(interval);
+  const [isCreatingNow, setIsCreatingNow] = useState(false);
 
   const handleCreateNow = async () => {
+    if (isCreatingNow) {
+      console.log('Create button clicked while already creating, ignoring...');
+      return;
+    }
+    
+    setIsCreatingNow(true);
     try {
       const character = await createRandomCharacter();
       const rarityIcon = RARITY_CONFIG[character.rarity].icon;
@@ -51,7 +58,10 @@ export const AutoCharacterCreator: React.FC = () => {
         icon: React.createElement(rarityIcon, { size: 16 })
       });
     } catch (error) {
+      console.error('Failed to create character:', error);
       toast.error('Failed to create character');
+    } finally {
+      setIsCreatingNow(false);
     }
   };
 
@@ -144,11 +154,11 @@ export const AutoCharacterCreator: React.FC = () => {
         <div className="flex gap-2">
           <Button 
             onClick={handleCreateNow}
-            disabled={isCreating}
+            disabled={isCreating || isCreatingNow}
             className="flex-1"
           >
             <Plus size={16} />
-            {isCreating ? 'Creating...' : 'Create Now'}
+            {(isCreating || isCreatingNow) ? 'Creating...' : 'Create Now'}
           </Button>
           <Button
             variant="outline"

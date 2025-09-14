@@ -1,10 +1,7 @@
-//import { useKV } from './useLocalKV';src/hooks/useRelationshipDynamics.ts
 import { useCallback } from 'react'
 import { useSimpleStorage } from './useSimpleStorage';
 import { toast } from 'sonner'
 
-// If your alias isn't configured, swap to a relative import:
-// import type { Character, RelationshipEvent, SexualEvent, SexualMilestone } from '../lib/types'
 import type {
   Character,
   RelationshipEvent,
@@ -12,24 +9,44 @@ import type {
   SexualMilestone,
 } from '@/types'
 
-type Dyn = NonNullable<Character['relationshipDynamics']>
+type Progression = NonNullable<Character['progression']>
 type Stats = NonNullable<Character['stats']>
 
 const clamp = (n: number, min = 0, max = 100) => Math.max(min, Math.min(max, n))
 
-function ensureDynamics(input: Character['relationshipDynamics']): Dyn {
-  const d: any = input ?? {}
+function ensureProgression(input: Character['progression']): Progression {
+  const p: any = input ?? {}
   return {
-    affection: d.affection ?? 0,
-    trust: d.trust ?? 0,
-    intimacy: d.intimacy ?? 0,
-    dominance: d.dominance ?? 50,
-    jealousy: d.jealousy ?? 0,
-    possessiveness: d.possessiveness ?? 0,
-    relationshipStatus: d.relationshipStatus ?? ('stranger' as Dyn['relationshipStatus']),
-    bonds: d.bonds ?? {},
-    significantEvents: Array.isArray(d.significantEvents) ? d.significantEvents : [],
-    userPreferences: d.userPreferences ?? {
+    level: p.level ?? 1,
+    nextLevelExp: p.nextLevelExp ?? 1000,
+    unlockedFeatures: Array.isArray(p.unlockedFeatures) ? p.unlockedFeatures : [],
+    achievements: Array.isArray(p.achievements) ? p.achievements : [],
+    relationshipStatus: p.relationshipStatus ?? ('stranger' as Progression['relationshipStatus']),
+    affection: p.affection ?? 0,
+    trust: p.trust ?? 0,
+    intimacy: p.intimacy ?? 0,
+    dominance: p.dominance ?? 50,
+    jealousy: p.jealousy ?? 0,
+    possessiveness: p.possessiveness ?? 0,
+    sexualExperience: p.sexualExperience ?? 0,
+    kinks: Array.isArray(p.kinks) ? p.kinks : [],
+    limits: Array.isArray(p.limits) ? p.limits : [],
+    fantasies: Array.isArray(p.fantasies) ? p.fantasies : [],
+    unlockedPositions: Array.isArray(p.unlockedPositions) ? p.unlockedPositions : [],
+    unlockedOutfits: Array.isArray(p.unlockedOutfits) ? p.unlockedOutfits : [],
+    unlockedToys: Array.isArray(p.unlockedToys) ? p.unlockedToys : [],
+    unlockedScenarios: Array.isArray(p.unlockedScenarios) ? p.unlockedScenarios : [],
+    relationshipMilestones: Array.isArray(p.relationshipMilestones) ? p.relationshipMilestones : [],
+    sexualMilestones: Array.isArray(p.sexualMilestones) ? p.sexualMilestones : [],
+    significantEvents: Array.isArray(p.significantEvents) ? p.significantEvents : [],
+    memorableEvents: Array.isArray(p.memorableEvents) ? p.memorableEvents : [],
+    bonds: p.bonds ?? {},
+    sexualCompatibility: p.sexualCompatibility ?? {
+      overall: 0,
+      kinkAlignment: 0,
+      stylePreference: 0
+    },
+    userPreferences: p.userPreferences ?? {
       likes: [],
       dislikes: [],
       turnOns: [],
@@ -48,6 +65,7 @@ function ensureStats(input: Character['stats']): Stats {
     selfEsteem: clamp(s.selfEsteem ?? 50),
     loyalty: clamp(s.loyalty ?? 50),
     fight: clamp(s.fight ?? 20),
+    stamina: clamp(s.stamina ?? 50),
     pain: clamp(s.pain ?? 20),
     experience: s.experience ?? 0,
     level: s.level ?? 1
@@ -63,7 +81,7 @@ export function useRelationshipDynamics() {
       characterId: string,
       updates: Partial<
         Pick<
-          Dyn & Stats,
+          Progression & Stats,
           | 'affection'
           | 'trust'
           | 'dominance'
@@ -83,13 +101,12 @@ export function useRelationshipDynamics() {
         current.map((c) => {
           if (c.id !== characterId) return c
           const updated: Character = { ...c }
-          const dyn = ensureDynamics(updated.relationshipDynamics)
+          const progression = ensureProgression(updated.progression)
           const stats = ensureStats(updated.stats)
 
-          if (updates.affection !== undefined) dyn.affection = clamp(updates.affection)
-          if (updates.trust !== undefined) dyn.trust = clamp(updates.trust)
-          if (updates.dominance !== undefined) dyn.dominance = clamp(updates.dominance)
-          // submissiveness property removed
+          if (updates.affection !== undefined) progression.affection = clamp(updates.affection)
+          if (updates.trust !== undefined) progression.trust = clamp(updates.trust)
+          if (updates.dominance !== undefined) progression.dominance = clamp(updates.dominance)
 
           if (updates.love !== undefined) stats.love = clamp(updates.love)
           if (updates.happiness !== undefined) stats.happiness = clamp(updates.happiness)
@@ -99,12 +116,11 @@ export function useRelationshipDynamics() {
           if (updates.loyalty !== undefined) stats.loyalty = clamp(updates.loyalty)
           if (updates.fight !== undefined) stats.fight = clamp(updates.fight)
           if (updates.pain !== undefined) stats.pain = clamp(updates.pain)
-          // Note: intimacy is in relationshipDynamics, not stats
           if (updates.experience !== undefined) stats.experience = Math.max(0, updates.experience)
 
-          ;(updated as any).relationshipDynamics = dyn
-          ;(updated as any).stats = stats
-          ;(updated as any).updatedAt = new Date()
+          updated.progression = progression
+          updated.stats = stats
+          updated.updatedAt = new Date()
           return updated
         })
       )
@@ -119,7 +135,7 @@ export function useRelationshipDynamics() {
         current.map((c) => {
           if (c.id !== characterId) return c
           const updated: Character = { ...c }
-          const dyn = ensureDynamics(updated.relationshipDynamics)
+          const progression = ensureProgression(updated.progression)
           const stats = ensureStats(updated.stats)
 
           const newEvent: RelationshipEvent = {
@@ -128,17 +144,16 @@ export function useRelationshipDynamics() {
             ...event,
           }
 
-          // store on dynamics.events (fallback if your type stores elsewhere)
-          ;(dyn as any).events = [...(dyn as any).events, newEvent]
+          progression.significantEvents = [...progression.significantEvents, newEvent]
 
           // simple heuristic bumps (tune as needed)
-          if ((event as any).type === 'trust_gain') dyn.trust = clamp(dyn.trust + 5)
-          if ((event as any).type === 'affection_gain') dyn.affection = clamp(dyn.affection + 5)
-          if ((event as any).type === 'intimate') updated.relationshipDynamics.intimacy = clamp(updated.relationshipDynamics.intimacy + 10)
+          if ((event as any).type === 'trust_gain') progression.trust = clamp(progression.trust + 5)
+          if ((event as any).type === 'affection_gain') progression.affection = clamp(progression.affection + 5)
+          if ((event as any).type === 'intimate') progression.intimacy = clamp(progression.intimacy + 10)
 
-          ;(updated as any).relationshipDynamics = dyn
-          ;(updated as any).stats = stats
-          ;(updated as any).updatedAt = new Date()
+          updated.progression = progression
+          updated.stats = stats
+          updated.updatedAt = new Date()
           return updated
         })
       )
@@ -146,20 +161,15 @@ export function useRelationshipDynamics() {
     [setCharacters]
   )
 
-  /** Append a sexual event; initialize sexualProgression if missing */
+  /** Append a sexual event; initialize progression if missing */
   const addSexualEvent = useCallback(
     (characterId: string, event: Omit<SexualEvent, 'id' | 'timestamp'>) => {
       setCharacters((current) =>
         current.map((c) => {
           if (c.id !== characterId) return c
-          const updated: any = { ...c }
-
-          updated.sexualProgression = updated.sexualProgression ?? {
-            events: [] as SexualEvent[],
-            sexualMilestones: [] as SexualMilestone[],
-            unlockedFeatures: [] as string[],
-            achievements: [] as string[],
-          }
+          const updated: Character = { ...c }
+          const progression = ensureProgression(updated.progression)
+          const stats = ensureStats(updated.stats)
 
           const newEvent: SexualEvent = {
             id: `sex_${Date.now()}`,
@@ -167,46 +177,16 @@ export function useRelationshipDynamics() {
             ...event,
           }
 
-          updated.sexualProgression.events = [
-            ...(updated.sexualProgression.events ?? []),
+          progression.memorableEvents = [
+            ...progression.memorableEvents,
             newEvent,
           ]
 
           // light stat nudge
-          const stats = ensureStats(updated.stats)
-          updated.relationshipDynamics.intimacy = clamp(updated.relationshipDynamics.intimacy + 5)
+          progression.intimacy = clamp(progression.intimacy + 5)
+          updated.progression = progression
           updated.stats = stats
           updated.updatedAt = new Date()
-          return updated as Character
-        })
-      )
-    },
-    [setCharacters]
-  )
-
-  /** Recompute relationshipStatus from current dynamics/stats */
-  const updateRelationshipStatus = useCallback(
-    (characterId: string) => {
-      setCharacters((current) =>
-        current.map((c) => {
-          if (c.id !== characterId) return c
-          const updated: Character = { ...c }
-          const dyn = ensureDynamics(updated.relationshipDynamics)
-          const stats = ensureStats(updated.stats)
-
-          const score =
-            (dyn.affection + dyn.trust + dyn.intimacy) / 3 // simple average
-
-          let status: Dyn['relationshipStatus'] = 'stranger'
-          if (score >= 90) status = 'devoted'
-          else if (score >= 75) status = 'lover'
-          else if (score >= 55) status = 'close_friend'
-          else if (score >= 30) status = 'acquaintance'
-          else status = 'stranger'
-
-          dyn.relationshipStatus = status
-          ;(updated as any).relationshipDynamics = dyn
-          ;(updated as any).updatedAt = new Date()
           return updated
         })
       )
@@ -214,26 +194,46 @@ export function useRelationshipDynamics() {
     [setCharacters]
   )
 
-  /** Initialize dynamics/sexualProgression safely for a character (id or all) */
+  /** Recompute relationshipStatus from current progression/stats */
+  const updateRelationshipStatus = useCallback(
+    (characterId: string) => {
+      setCharacters((current) =>
+        current.map((c) => {
+          if (c.id !== characterId) return c
+          const updated: Character = { ...c }
+          const progression = ensureProgression(updated.progression)
+          const stats = ensureStats(updated.stats)
+
+          const score =
+            (progression.affection + progression.trust + progression.intimacy) / 3 // simple average
+
+          let status: Progression['relationshipStatus'] = 'stranger'
+          if (score >= 90) status = 'devoted'
+          else if (score >= 75) status = 'lover'
+          else if (score >= 55) status = 'close_friend'
+          else if (score >= 30) status = 'acquaintance'
+          else status = 'stranger'
+
+          progression.relationshipStatus = status
+          updated.progression = progression
+          updated.updatedAt = new Date()
+          return updated
+        })
+      )
+    },
+    [setCharacters]
+  )
+
+  /** Initialize progression safely for a character */
   const initializeCharacterDynamics = useCallback(
     (character: Character): Character => {
-      const updated: any = { ...character }
-      updated.relationshipDynamics = ensureDynamics(updated.relationshipDynamics)
+      const updated: Character = { ...character }
+      updated.progression = ensureProgression(updated.progression)
       updated.stats = ensureStats(updated.stats)
 
-      updated.sexualProgression = updated.sexualProgression ?? {
-        arousal: 0,
-        libido: 50,
-        experience: 0,
-        kinks: [],
-        limits: [],
-        fantasies: [],
-        skills: {},
-        unlockedPositions: [],
-        unlockedOutfits: [],
-        unlockedToys: [],
-        unlockedScenarios: [],
-        sexualMilestones: [
+      // Initialize sexual milestones if not present
+      if (updated.progression.sexualMilestones.length === 0) {
+        updated.progression.sexualMilestones = [
           {
             id: 'first_kiss',
             name: 'First Kiss',
@@ -261,17 +261,11 @@ export function useRelationshipDynamics() {
               statBoosts: { intimacy: 20, wet: 20 },
             },
           },
-        ] as SexualMilestone[],
-        compatibility: {
-          overall: 0,
-          kinkAlignment: 0,
-          stylePreference: 0
-        },
-        memorableEvents: []
+        ] as SexualMilestone[]
       }
 
       updated.updatedAt = new Date()
-      return updated as Character
+      return updated
     },
     []
   )

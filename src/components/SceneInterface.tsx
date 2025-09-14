@@ -35,6 +35,7 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
     pauseScene, 
     resumeScene, 
     addUserMessage,
+    loadFromStorage,
     isProcessing 
   } = useSceneMode();
   
@@ -44,17 +45,40 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
   
   const session = activeSessions.find(s => s.id === sessionId);
   
+  // Debug logging
+  useEffect(() => {
+    console.log('SceneInterface Debug:', {
+      sessionId,
+      activeSessionsCount: activeSessions.length,
+      sessionFound: !!session,
+      activeSessionIds: activeSessions.map(s => s.id)
+    });
+  }, [sessionId, activeSessions, session]);
+  
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [session?.messages]);
 
-  // Start auto-play when session loads if it's active and auto-play is enabled
+  // Load session from storage on mount and when session not found
   useEffect(() => {
-    if (session && session.active && session.sceneSettings?.autoPlay && !isProcessing) {
-      console.log('SceneInterface: Starting auto-play for loaded session');
-      startAutoPlay(session.id);
+    // Always load from storage on mount to ensure we have latest data
+    loadFromStorage();
+  }, [loadFromStorage]);
+
+  useEffect(() => {
+    if (!session && sessionId) {
+      // If still not found after loading, check localStorage directly and force reload
+      const stored = JSON.parse(localStorage.getItem('scene-sessions') || '[]');
+      const found = stored.find((s: any) => s.id === sessionId);
+      if (found) {
+        console.log('Scene found in localStorage, reloading sessions:', found);
+        loadFromStorage();
+      } else {
+        console.log('Scene not found in localStorage either, sessionId:', sessionId);
+        console.log('Available sessions in localStorage:', stored.map((s: any) => s.id));
+      }
     }
-  }, [session?.id]); // Only depend on session ID to avoid restarting on every message
+  }, [session, sessionId, loadFromStorage]);
 
   if (!session) {
     return (
@@ -85,10 +109,10 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
     .map(id => house.characters?.find(c => c.id === id))
     .filter((character): character is NonNullable<typeof character> => Boolean(character));
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!userInput.trim()) return;
     
-    addUserMessage(sessionId, userInput);
+    await addUserMessage(sessionId, userInput, !isAutoPlaying);
     setUserInput('');
   };
 
@@ -236,11 +260,11 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                disabled={!session.active}
+                disabled={!session.active || isAutoPlaying}
               />
               <Button
                 onClick={handleSendMessage}
-                disabled={!userInput.trim() || !session.active}
+                disabled={!userInput.trim() || !session.active || isAutoPlaying}
               >
                 <PaperPlaneRight size={16} />
               </Button>

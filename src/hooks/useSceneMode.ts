@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useSimpleStorage } from './useSimpleStorage';
 
 import { ChatSession, Character, ChatMessage, SceneObjective } from '@/types'
@@ -33,6 +33,8 @@ export const useSceneMode = () => {
     sceneSettings?: { autoPlay?: boolean; turnDuration?: number; maxTurns?: number }
   ): Promise<string> => {
     const sessionId = `scene_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
+    console.log('Creating scene session:', { sessionId, characterIds, context: context?.slice(0, 50) });
+    
     const sceneObjectives: Record<string, string> = {}
     for (const obj of objectives) sceneObjectives[obj.characterId] = obj.objective
 
@@ -53,7 +55,7 @@ export const useSceneMode = () => {
       active: true,
       sceneObjectives,
       sceneSettings: {
-        autoPlay: sceneSettings?.autoPlay ?? true,
+        autoPlay: sceneSettings?.autoPlay ?? false,
         turnDuration: sceneSettings?.turnDuration ?? 5000,
         maxTurns: sceneSettings?.maxTurns ?? 50,
       },
@@ -61,8 +63,24 @@ export const useSceneMode = () => {
       updatedAt: now,
     }
 
-    setActiveSessions((sessions) => [...sessions, newSession])
+    console.log('New session created:', { id: newSession.id, type: newSession.type });
+    setActiveSessions((sessions) => {
+      const updated = [...sessions, newSession];
+      console.log('Updated sessions count:', updated.length);
+      console.log('All session IDs:', updated.map(s => s.id));
+      return updated;
+    });
     toast.success(`Scene session created (${sessionId.slice(0, 12)})`)
+
+    // Verify session was stored
+    setTimeout(() => {
+      const stored = JSON.parse(localStorage.getItem('scene-sessions') || '[]');
+      const found = stored.find((s: any) => s.id === sessionId);
+      console.log('Session storage verification:', { sessionId, found: !!found, totalStored: stored.length });
+    }, 100);
+
+    // Generate initial character response for setup
+    await processCharacterTurn(sessionId, characterIds[0])
 
     return sessionId
   }
@@ -104,7 +122,7 @@ export const useSceneMode = () => {
     await startAutoPlay(sessionId)
   }
 
-  const addUserMessage = async (sessionId: string, content: string) => {
+  const addUserMessage = async (sessionId: string, content: string, triggerResponse: boolean = false) => {
     const now = new Date()
     updateSession(sessionId, (s) => ({
       ...s,
@@ -114,6 +132,9 @@ export const useSceneMode = () => {
       ],
       updatedAt: now,
     }))
+    if (triggerResponse) {
+      await triggerCharacterResponse(sessionId)
+    }
   }
 
   const processCharacterTurn = async (sessionId: string, characterId: string): Promise<void> => {
@@ -182,22 +203,33 @@ export const useSceneMode = () => {
         .filter(Boolean)
         .join(', ') || 'others'
 
-    const characterPrompt = `
-You are ${character.name}, engaging in an intimate roleplay scene with the user in their private room.
+    const characterPrompt = `You are ${character.name}, engaging in an intimate roleplay scene.
 
-${character.personality ? `Personality: ${character.personality}` : ''}
+CHARACTER:
+Name: ${character.name}
+Appearance: ${character.appearance}
+Personality: ${character.personality}
+Traits: ${character.traits.join(', ')}
+Background: ${character.prompts?.background || 'No specific background'}
 
-Your goal: ${objective}
+STATS:
+Love: ${character.stats.love}%, Happiness: ${character.stats.happiness}%, Arousal: ${character.stats.wet}%, Willingness: ${character.stats.willing}%
 
-${currentSession.context ? `Scene details: ${currentSession.context}` : 'You are in a private, intimate setting with the user.'}
+EXPERIENCE:
+Sexual: ${character.progression.sexualExperience}%, Kinks: ${(character.progression.kinks || []).slice(0, 3).join(', ') || 'None'}
 
-${others ? `Others present: ${others}` : 'You are alone with the user.'}
+GOAL: ${objective}
 
-Recent conversation:
+${currentSession.context ? `SCENE: ${currentSession.context}` : 'Private intimate setting with user.'}
+
+${others ? `OTHERS: ${others}` : 'Alone with user.'}
+
+RECENT CONVERSATION:
 ${conversationContext}
 
-Respond naturally as ${character.name} in this intimate encounter. Be engaging, responsive to the user's actions, and work toward your goal. Keep your response to 1-2 sentences.
-`.trim()
+MEMORIES: ${(character.memories || []).filter(m => m.importance === 'high').slice(0, 2).map(m => `${m.category}: ${m.content}`).join(' | ') || 'No key memories'}
+
+Respond naturally as ${character.name} with your personality and current state. Reference memories when relevant. Keep response to 1-2 sentences.`.trim()
 
     try {
       const provider = house?.aiSettings?.provider || 'openrouter'
@@ -258,6 +290,34 @@ Respond naturally as ${character.name} in this intimate encounter. Be engaging, 
     }
   }
 
+  const triggerCharacterResponse = async (sessionId: string) => {
+    const session = getSession(sessionId)
+    if (!session || !session.active) return
+
+    const available = session.participantIds.filter((id) =>
+      safeChars.some((c) => c.id === id)
+    );
+    if (available.length === 0) return
+
+    // Find the last character who spoke
+    const characterMessages = session.messages.filter((m) => m.characterId);
+    const lastSpeakerId = characterMessages.length > 0 ? characterMessages[characterMessages.length - 1].characterId : null;
+
+    let nextCharacterId: string;
+    if (!lastSpeakerId) {
+      nextCharacterId = available[0];
+    } else {
+      const lastSpeakerIndex = available.indexOf(lastSpeakerId);
+      if (lastSpeakerIndex === -1) {
+        nextCharacterId = available[0];
+      } else {
+        nextCharacterId = available[(lastSpeakerIndex + 1) % available.length];
+      }
+    }
+
+    await processCharacterTurn(sessionId, nextCharacterId);
+  }
+
   const startAutoPlay = async (sessionId: string) => {
     // Prevent multiple auto-play loops
     if (isProcessing) return;
@@ -292,10 +352,30 @@ Respond naturally as ${character.name} in this intimate encounter. Be engaging, 
         return;
       }
 
-      const randomId = available[Math.floor(Math.random() * available.length)];
+      // Implement proper turn-taking: cycle through characters in order
+      // Find the last character who spoke
+      const characterMessages = session.messages.filter((m) => m.characterId);
+      const lastSpeakerId = characterMessages.length > 0 ? characterMessages[characterMessages.length - 1].characterId : null;
+
+      // Find the next character in the rotation
+      let nextCharacterId: string;
+      if (!lastSpeakerId) {
+        // First turn - start with the first character
+        nextCharacterId = available[0];
+      } else {
+        // Find the index of the last speaker and move to the next one
+        const lastSpeakerIndex = available.indexOf(lastSpeakerId);
+        if (lastSpeakerIndex === -1) {
+          // Last speaker not in available list, start from beginning
+          nextCharacterId = available[0];
+        } else {
+          // Move to next character, wrap around if needed
+          nextCharacterId = available[(lastSpeakerIndex + 1) % available.length];
+        }
+      }
 
       try {
-        await processCharacterTurn(sessionId, randomId);
+        await processCharacterTurn(sessionId, nextCharacterId);
       } catch (error) {
         console.error('Auto-play turn failed:', error);
       } finally {
@@ -317,6 +397,11 @@ Respond naturally as ${character.name} in this intimate encounter. Be engaging, 
     setTimeout(tick, 100);
   };
 
+  const loadFromStorage = useCallback(() => {
+    const stored = JSON.parse(localStorage.getItem('scene-sessions') || '[]');
+    setActiveSessions(stored);
+  }, []);
+
   return {
     activeSessions,
     isProcessing,
@@ -326,5 +411,6 @@ Respond naturally as ${character.name} in this intimate encounter. Be engaging, 
     pauseScene,
     resumeScene,
     addUserMessage,
+    loadFromStorage,
   }
 }

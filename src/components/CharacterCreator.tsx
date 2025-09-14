@@ -11,8 +11,9 @@ import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useHouse } from '@/hooks/useHouse';
 import { Character, AVAILABLE_PERSONALITIES, AVAILABLE_ROLES, AVAILABLE_TRAITS } from '@/types';
-import { Plus, X, FloppyDisk as Save, DotsThree } from '@phosphor-icons/react';
+import { Plus, X, FloppyDisk as Save, DotsThree, Image as ImageIcon, Spinner } from '@phosphor-icons/react';
 import { toast } from 'sonner';
+import { AIService } from '@/lib/aiService';
 
 interface CharacterCreatorProps {
   open: boolean;
@@ -37,6 +38,7 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
     personalities: character?.personalities || [],
     traits: character?.traits || [],
     classes: character?.classes || [],
+    avatar: character?.avatar || '',
     prompts: {
       system: character?.prompts.system || '',
       personality: character?.prompts.personality || '',
@@ -60,6 +62,33 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
   const [customTrait, setCustomTrait] = useState('');
   const [customClass, setCustomClass] = useState('');
   const [activeTab, setActiveTab] = useState('basic');
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+
+  const handleGenerateImage = async () => {
+    if (!formData.appearance.trim()) {
+      toast.error('Please describe the character\'s appearance first');
+      return;
+    }
+
+    setIsGeneratingImage(true);
+    try {
+      const prompt = `Create a portrait image of a ${formData.role || 'young woman'} character: ${formData.appearance}. ${formData.name ? `Name: ${formData.name}.` : ''} Style: realistic, detailed, high quality, character portrait.`;
+      
+      const imageUrl = await AIService.generateImage(prompt);
+      
+      if (imageUrl) {
+        updateFormData('avatar', imageUrl);
+        toast.success('Character image generated successfully!');
+      } else {
+        toast.error('Failed to generate image. Please check your Venice AI settings.');
+      }
+    } catch (error) {
+      console.error('Image generation error:', error);
+      toast.error('Failed to generate image: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
 
   const updateFormData = (field: string, value: any) => {
     if (field.includes('.')) {
@@ -197,13 +226,26 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
         personality: formData.personality.trim(),
         appearance: formData.appearance.trim(),
         role: formData.role.trim(),
+        avatar: formData.avatar,
         personalities: formData.personalities,
         traits: formData.traits,
         classes: formData.classes,
         rarity: 'common', // Default rarity
         unlocks: character?.unlocks || [],
         prompts: formData.prompts,
-        stats: formData.stats,
+        stats: {
+          love: formData.stats.love,
+          happiness: formData.stats.happiness,
+          wet: formData.stats.wet,
+          willing: formData.stats.willing,
+          selfEsteem: formData.stats.selfEsteem,
+          loyalty: formData.stats.loyalty,
+          fight: formData.stats.fight,
+          stamina: 50,
+          pain: formData.stats.pain,
+          experience: 0,
+          level: 1
+        },
         skills: character?.skills || {
           hands: 20,
           mouth: 20,
@@ -212,43 +254,6 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
           cowgirl: 20
         },
         roomId: character?.roomId || availableRoom?.id || 'common-room', // Assign to available room
-        relationshipDynamics: character?.relationshipDynamics || {
-          affection: 50,
-          trust: 50,
-          intimacy: 0,
-          dominance: 50,
-          jealousy: 30,
-          possessiveness: 30,
-          relationshipStatus: 'stranger',
-          bonds: {},
-          significantEvents: [],
-          userPreferences: {
-            likes: [],
-            dislikes: [],
-            turnOns: [],
-            turnOffs: []
-          }
-        },
-        sexualProgression: character?.sexualProgression || {
-          arousal: 0,
-          libido: 50,
-          experience: 0,
-          kinks: [],
-          limits: [],
-          fantasies: [],
-          skills: {},
-          unlockedPositions: [],
-          unlockedOutfits: [],
-          unlockedToys: [],
-          unlockedScenarios: [],
-          sexualMilestones: [],
-          compatibility: {
-            overall: 50,
-            kinkAlignment: 50,
-            stylePreference: 50
-          },
-          memorableEvents: []
-        },
         lastInteraction: character?.lastInteraction,
         conversationHistory: character?.conversationHistory || [],
         memories: character?.memories || [],
@@ -258,7 +263,38 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
           level: 1,
           nextLevelExp: 100,
           unlockedFeatures: [],
-          achievements: []
+          achievements: [],
+          relationshipStatus: 'stranger',
+          affection: 50,
+          trust: 50,
+          intimacy: 0,
+          dominance: 50,
+          jealousy: 30,
+          possessiveness: 30,
+          sexualExperience: 0,
+          kinks: [],
+          limits: [],
+          fantasies: [],
+          unlockedPositions: [],
+          unlockedOutfits: [],
+          unlockedToys: [],
+          unlockedScenarios: [],
+          relationshipMilestones: [],
+          sexualMilestones: [],
+          significantEvents: [],
+          memorableEvents: [],
+          bonds: {},
+          sexualCompatibility: {
+            overall: 50,
+            kinkAlignment: 50,
+            stylePreference: 50
+          },
+          userPreferences: {
+            likes: [],
+            dislikes: [],
+            turnOns: [],
+            turnOffs: []
+          }
         },
         createdAt: character?.createdAt || new Date(),
         updatedAt: new Date()
@@ -357,6 +393,33 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                   placeholder="Physical description and style"
                   rows={3}
                 />
+                <div className="flex gap-2">
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleGenerateImage}
+                    disabled={isGeneratingImage || !formData.appearance.trim()}
+                    className="flex items-center gap-2"
+                  >
+                    {isGeneratingImage ? (
+                      <Spinner size={16} className="animate-spin" />
+                    ) : (
+                      <ImageIcon size={16} />
+                    )}
+                    {isGeneratingImage ? 'Generating...' : 'Generate Image'}
+                  </Button>
+                  {formData.avatar && (
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => updateFormData('avatar', '')}
+                    >
+                      Clear Image
+                    </Button>
+                  )}
+                </div>
               </div>
             </TabsContent>
 
@@ -635,8 +698,21 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
             <TabsContent value="preview" className="space-y-4">
               <Card className="p-6">
                 <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-lg">
-                    {formData.name.slice(0, 2).toUpperCase() || 'CH'}
+                  <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-lg overflow-hidden">
+                    {formData.avatar ? (
+                      <img 
+                        src={formData.avatar} 
+                        alt={formData.name || 'Character'} 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Fallback to initials if image fails to load
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.parentElement!.textContent = formData.name.slice(0, 2).toUpperCase() || 'CH';
+                        }}
+                      />
+                    ) : (
+                      formData.name.slice(0, 2).toUpperCase() || 'CH'
+                    )}
                   </div>
                   
                   <div className="flex-1 space-y-3">

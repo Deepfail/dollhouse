@@ -20,33 +20,36 @@ export function useChat() {
   const safeSessions = sessions || [];
   const activeSession = safeSessions.find(s => s.id === activeSessionId);
 
-  // Debug session finding
+  // Auto-close inactive sessions after 24 hours
   useEffect(() => {
-    const verifyApiSettings = async () => {
-      try {
-        const kvHouse = simpleStorage.get<any>('character-house');
-        const kvApiConfigured = !!(kvHouse?.aiSettings?.apiKey?.trim());
-        const hookApiConfigured = !!(house.aiSettings?.apiKey?.trim());
-        
-        console.log('useChat API verification:', {
-          sessionCount: safeSessions.length,
-          activeSessionId: activeSessionId ? activeSessionId.slice(0, 12) + '...' : null,
-          activeSessionFound: !!activeSession,
-          sessionIds: safeSessions.map(s => s.id.slice(0, 12) + '...'),
-          forceUpdateTrigger: forceUpdate,
-          hookApiConfigured,
-          kvApiConfigured,
-          hookApiKey: house.aiSettings?.apiKey ? `${house.aiSettings.apiKey.slice(0, 8)}...` : 'empty',
-          kvApiKey: kvHouse?.aiSettings?.apiKey ? `${kvHouse.aiSettings.apiKey.slice(0, 8)}...` : 'empty',
-          apiSettingsMatch: hookApiConfigured === kvApiConfigured
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      
+      setSessions(current => {
+        const currentSessions = current || [];
+        const updatedSessions = currentSessions.map(session => {
+          if (session.active && session.updatedAt) {
+            const timeSinceUpdate = now - new Date(session.updatedAt).getTime();
+            if (timeSinceUpdate > oneDayMs) {
+              console.log(`Auto-closing inactive session: ${session.id}`);
+              // Process memories before closing
+              setTimeout(() => {
+                session.participantIds.forEach(characterId => {
+                  processConversationMemories(characterId, session);
+                });
+              }, 1000);
+              return { ...session, active: false };
+            }
+          }
+          return session;
         });
-      } catch (error) {
-        console.error('API verification failed:', error);
-      }
-    };
+        return updatedSessions;
+      });
+    }, 60000); // Check every minute
     
-    verifyApiSettings();
-  }, [safeSessions, activeSessionId, activeSession, forceUpdate, house.aiSettings?.apiKey]);
+    return () => clearInterval(interval);
+  }, [processConversationMemories]);
 
   const createSession = (type: 'individual' | 'group' | 'scene', participantIds: string[], context?: string) => {
     console.log('=== createSession Debug ===');
@@ -277,7 +280,7 @@ export function useChat() {
         return `User: ${msg.content}`;
       }).join('\n');
 
-      // Build character prompt - make it more robust
+      // Build character prompt - make it more robust and detailed
       let characterPrompt = `You are ${character.name}`;
       
       if (character.role) {
@@ -286,27 +289,41 @@ export function useChat() {
       
       characterPrompt += `.
 
-Character Details:`;
+CHARACTER INFORMATION:
+Name: ${character.name}
+Appearance: ${character.appearance}
+Personality: ${character.personality}
+Traits: ${character.traits.join(', ')}
+Background: ${character.prompts?.background || 'No specific background provided'}
+Role: ${character.role}
 
-      if (character.description) {
-        characterPrompt += `\nDescription: ${character.description}`;
-      }
-      
-      if (character.personality) {
-        characterPrompt += `\nPersonality: ${character.personality}`;
-      }
-      
-      if (character.prompts?.background) {
-        characterPrompt += `\nBackground: ${character.prompts.background}`;
-      }
-      
-      if (character.prompts?.system) {
-        characterPrompt += `\nSystem Instructions: ${character.prompts.system}`;
-      }
-      
-      if (character.prompts?.personality) {
-        characterPrompt += `\nPersonality Details: ${character.prompts.personality}`;
-      }
+Current Stats:
+- Love/Relationship: ${character.stats.love}%
+- Happiness: ${character.stats.happiness}%
+- Arousal: ${character.stats.wet}%
+- Willingness: ${character.stats.willing}%
+- Self-Esteem: ${character.stats.selfEsteem}%
+- Loyalty: ${character.stats.loyalty}%
+
+Sexual Experience: ${character.progression.sexualExperience}%
+Kinks: ${(character.progression.kinks || []).join(', ') || 'None specified'}
+Limits: ${(character.progression.limits || []).join(', ') || 'None specified'}
+
+IMPORTANT MEMORIES:
+${(character.memories || []).filter(memory =>
+  (memory.importance === 'high' || memory.importance === 'medium') &&
+  (memory.category === 'relationship' || memory.category === 'sexual' || memory.category === 'events')
+).slice(0, 3).map(memory => `- ${memory.category.toUpperCase()}: ${memory.content}`).join('\n') || 'No significant memories yet'}
+
+SIGNIFICANT EVENTS:
+${(character.progression?.significantEvents || []).slice(0, 2).map(event =>
+  `- ${event.type.replace('_', ' ').toUpperCase()}: ${event.description}`
+).join('\n') || 'No significant events yet'}
+
+MEMORABLE MOMENTS:
+${(character.progression?.memorableEvents || []).filter(event => event.intensity > 50).slice(0, 2).map(event =>
+  `- ${event.type.replace('_', ' ').toUpperCase()}: ${event.description} (Intensity: ${event.intensity}%)`
+).join('\n') || 'No memorable intimate moments yet'}`;
 
       // Add world context if available
       if (house?.worldPrompt) {
@@ -326,7 +343,7 @@ ${conversationContext}`;
 
       characterPrompt += `\n\nUser just said: "${userMessage.content}"
 
-Respond as ${character.name} would, staying true to your character. Keep responses conversational and engaging, typically 1-2 sentences unless the situation calls for more detail.`;
+Respond as ${character.name} would, staying true to your character with your actual personality (${character.personality}), traits (${character.traits.join(', ')}), and current emotional/sexual state. Reference your shared history, memories, and past events when appropriate to maintain continuity. Keep responses conversational and engaging, typically 1-2 sentences unless the situation calls for more detail.`;
 
       console.log(`Generating AI response for ${character.name} using ${provider}...`);
       // Use the new direct API service that gets settings from KV directly

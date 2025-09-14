@@ -30,7 +30,7 @@ const DEFAULT_HOUSE: House = {
       appearance: 'Warm and approachable with bright eyes and an enthusiastic smile.',
       role: 'student',
       personalities: ['cheerful', 'friendly', 'curious'],
-      traits: ['big puppy dog eyes', 'perky tits'],
+      features: ['big puppy dog eyes', 'perky tits'],
       classes: ['Friendly', 'Energetic'],
       rarity: 'common',
       roomId: 'common-room',
@@ -42,6 +42,7 @@ const DEFAULT_HOUSE: House = {
         selfEsteem: 70,
         loyalty: 80,
         fight: 20,
+        stamina: 60,
         pain: 30,
         experience: 50,
         level: 5
@@ -53,52 +54,6 @@ const DEFAULT_HOUSE: House = {
         doggy: 25,
         cowgirl: 20
       },
-      relationshipDynamics: {
-        affection: 70,
-        trust: 65,
-        intimacy: 40,
-        dominance: 45,
-        jealousy: 20,
-        possessiveness: 30,
-        relationshipStatus: 'close_friend',
-        bonds: {},
-        significantEvents: [],
-        userPreferences: {
-          likes: ['conversation', 'learning'],
-          dislikes: ['being ignored'],
-          turnOns: [],
-          turnOffs: []
-        }
-      },
-      sexualProgression: {
-        arousal: 25,
-        libido: 60,
-        experience: 30,
-        kinks: [],
-        limits: ['none set'],
-        fantasies: [],
-        skills: {},
-        unlockedPositions: [],
-        unlockedOutfits: [],
-        unlockedToys: [],
-        unlockedScenarios: [],
-        sexualMilestones: [
-          {
-            id: 'first_kiss',
-            name: 'First Kiss',
-            description: 'Share your first kiss.',
-            achieved: false,
-            requiredStats: { love: 30, trust: 20 },
-            rewards: { statBoosts: { intimacy: 10 } }
-          }
-        ],
-        compatibility: {
-          overall: 65,
-          kinkAlignment: 50,
-          stylePreference: 70
-        },
-        memorableEvents: []
-      },
       prompts: {
         system: 'You are Alex, a friendly AI companion. Be helpful, engaging, and maintain a positive attitude. Show genuine interest in conversations and offer thoughtful responses.',
         personality: 'Respond with enthusiasm and warmth. Use casual, friendly language and occasionally share interesting facts or ask engaging questions.',
@@ -109,7 +64,40 @@ const DEFAULT_HOUSE: House = {
         level: 5,
         nextLevelExp: 100,
         unlockedFeatures: ['basic-chat', 'group-chat'],
-        achievements: ['First Conversation']
+        achievements: ['First Conversation'],
+        relationshipStatus: 'close_friend',
+        affection: 70,
+        trust: 65,
+        intimacy: 40,
+        dominance: 45,
+        jealousy: 20,
+        possessiveness: 30,
+        sexualExperience: 30,
+        kinks: [],
+        limits: [],
+        fantasies: [],
+        unlockedPositions: [],
+        unlockedOutfits: [],
+        unlockedToys: [],
+        unlockedScenarios: [],
+        relationshipMilestones: [],
+        sexualMilestones: [],
+        significantEvents: [],
+        storyChronicle: [],
+        currentStoryArc: undefined,
+        memorableEvents: [],
+        bonds: {},
+        sexualCompatibility: {
+          overall: 65,
+          kinkAlignment: 50,
+          stylePreference: 70
+        },
+        userPreferences: {
+          likes: ['conversation', 'learning'],
+          dislikes: ['being ignored'],
+          turnOns: [],
+          turnOffs: []
+        }
       },
       unlocks: ['basic-chat', 'group-chat'],
       lastInteraction: new Date(),
@@ -127,7 +115,7 @@ const DEFAULT_HOUSE: House = {
       appearance: 'Serene and composed with thoughtful expressions and gentle movements.',
       role: 'secretary',
       personalities: ['calm', 'intellectual', 'mysterious'],
-      traits: ['flexible', 'big tits'],
+      features: ['flexible', 'big tits'],
       classes: ['Intellectual', 'Calm'],
       rarity: 'rare',
       roomId: 'common-room',
@@ -139,6 +127,7 @@ const DEFAULT_HOUSE: House = {
         selfEsteem: 75,
         loyalty: 90,
         fight: 15,
+        stamina: 65,
         pain: 25,
         experience: 75,
         level: 7
@@ -150,52 +139,6 @@ const DEFAULT_HOUSE: House = {
         doggy: 35,
         cowgirl: 30
       },
-      relationshipDynamics: {
-        affection: 65,
-        trust: 80,
-        intimacy: 50,
-        dominance: 55,
-        jealousy: 10,
-        possessiveness: 20,
-        relationshipStatus: 'close_friend',
-        bonds: {},
-        significantEvents: [],
-        userPreferences: {
-          likes: ['deep conversations', 'philosophy'],
-          dislikes: ['superficial talk'],
-          turnOns: [],
-          turnOffs: []
-        }
-      },
-      sexualProgression: {
-        arousal: 30,
-        libido: 55,
-        experience: 40,
-        kinks: [],
-        limits: ['none set'],
-        fantasies: [],
-        skills: {},
-        unlockedPositions: [],
-        unlockedOutfits: [],
-        unlockedToys: [],
-        unlockedScenarios: [],
-        sexualMilestones: [
-          {
-            id: 'first_kiss',
-            name: 'First Kiss',
-            description: 'Share your first kiss.',
-            achieved: false,
-            requiredStats: { love: 30, trust: 20 },
-            rewards: { statBoosts: { intimacy: 10 } }
-          }
-        ],
-        compatibility: {
-          overall: 70,
-          kinkAlignment: 60,
-          stylePreference: 75
-        },
-        memorableEvents: []
-      },
       prompts: {
         system: 'You are Morgan, a wise and thoughtful AI advisor. Provide insightful perspectives and engage in meaningful conversations. Be patient and considerate in your responses.',
         personality: 'Speak thoughtfully and deliberately. Offer deep insights and ask probing questions that encourage reflection. Use a calm and measured tone.',
@@ -206,7 +149,40 @@ const DEFAULT_HOUSE: House = {
         level: 7,
         nextLevelExp: 150,
         unlockedFeatures: ['basic-chat', 'group-chat', 'advice-mode'],
-        achievements: ['Deep Thinker', 'Trusted Advisor']
+        achievements: ['Deep Thinker', 'Trusted Advisor'],
+        relationshipStatus: 'close_friend',
+        affection: 65,
+        trust: 80,
+        intimacy: 50,
+        dominance: 55,
+        jealousy: 10,
+        possessiveness: 20,
+        sexualExperience: 40,
+        kinks: [],
+        limits: [],
+        fantasies: [],
+        unlockedPositions: [],
+        unlockedOutfits: [],
+        unlockedToys: [],
+        unlockedScenarios: [],
+        relationshipMilestones: [],
+        sexualMilestones: [],
+        significantEvents: [],
+        storyChronicle: [],
+        currentStoryArc: undefined,
+        memorableEvents: [],
+        bonds: {},
+        sexualCompatibility: {
+          overall: 70,
+          kinkAlignment: 60,
+          stylePreference: 75
+        },
+        userPreferences: {
+          likes: ['deep conversations', 'philosophy'],
+          dislikes: ['superficial talk'],
+          turnOns: [],
+          turnOffs: []
+        }
       },
       unlocks: ['basic-chat', 'group-chat', 'advice-mode'],
       lastInteraction: new Date(),
@@ -250,10 +226,85 @@ export function useHouse() {
   // Ensure house is never undefined by providing the default
   const safeHouse = house || DEFAULT_HOUSE;
   
+  // Utility function to repair character-room relationships
+  const repairCharacterRoomSync = (house: House): House => {
+    let needsRepair = false;
+    let repairedHouse = { ...house };
+    
+    // Find characters not in any room's residents list
+    const allResidents = house.rooms.reduce((acc, room) => {
+      acc.push(...room.residents);
+      return acc;
+    }, [] as string[]);
+    
+    const orphanedCharacters = house.characters.filter(char => 
+      !allResidents.includes(char.id)
+    );
+    
+    if (orphanedCharacters.length > 0) {
+      console.log(`Repairing ${orphanedCharacters.length} orphaned characters:`, orphanedCharacters.map(c => c.name));
+      needsRepair = true;
+      
+      // Find a suitable room for orphaned characters
+      const commonRoom = house.rooms.find(r => r.id === 'common-room') || house.rooms[0];
+      
+      if (commonRoom) {
+        repairedHouse.rooms = house.rooms.map(room => {
+          if (room.id === commonRoom.id) {
+            const newResidents = orphanedCharacters.map(char => char.id);
+            return { 
+              ...room, 
+              residents: [...room.residents, ...newResidents] 
+            };
+          }
+          return room;
+        });
+        
+        // Also update character roomId if missing
+        repairedHouse.characters = house.characters.map(char => {
+          if (orphanedCharacters.some(orphan => orphan.id === char.id) && !char.roomId) {
+            return { ...char, roomId: commonRoom.id, updatedAt: new Date() };
+          }
+          return char;
+        });
+      }
+    }
+    
+    // Remove residents that don't exist in characters array
+    const characterIds = house.characters.map(char => char.id);
+    const roomsWithInvalidResidents = house.rooms.filter(room =>
+      room.residents.some(residentId => !characterIds.includes(residentId))
+    );
+    
+    if (roomsWithInvalidResidents.length > 0) {
+      console.log('Cleaning up invalid room residents');
+      needsRepair = true;
+      
+      repairedHouse.rooms = house.rooms.map(room => ({
+        ...room,
+        residents: room.residents.filter(residentId => characterIds.includes(residentId))
+      }));
+    }
+    
+    if (needsRepair) {
+      console.log('Character-room sync repaired');
+      repairedHouse.updatedAt = new Date();
+    }
+    
+    return repairedHouse;
+  };
+  
   // Migration: Update old Spark settings to OpenRouter and initialize relationship dynamics
   useEffect(() => {
     let needsUpdate = false;
     let updatedHouse = { ...safeHouse };
+    
+    // Repair character-room sync issues first
+    const repairedHouse = repairCharacterRoomSync(updatedHouse);
+    if (repairedHouse.updatedAt !== updatedHouse.updatedAt) {
+      updatedHouse = repairedHouse;
+      needsUpdate = true;
+    }
     
     // Migrate provider from spark to openrouter (legacy migration)
     if ((safeHouse.aiSettings as any)?.provider === 'spark') {
@@ -266,15 +317,15 @@ export function useHouse() {
       needsUpdate = true;
     }
     
-    // Initialize relationship dynamics for characters that don't have them
+    // Initialize progression for characters that don't have it
     const charactersNeedingUpdate = updatedHouse.characters.filter(char => 
-      !char.relationshipDynamics  || !char.sexualProgression 
+      !char.progression
     );
     
     if (charactersNeedingUpdate.length > 0) {
-      console.log('Initializing relationship dynamics for existing characters');
+      console.log('Initializing progression for existing characters');
       updatedHouse.characters = updatedHouse.characters.map(char => {
-        if (!char.relationshipDynamics || !char.sexualProgression) {
+        if (!char.progression) {
           return initializeCharacterDynamics(char);
         }
         return char;
@@ -323,6 +374,20 @@ export function useHouse() {
     setHouse(current => {
       const currentHouse = current || DEFAULT_HOUSE;
       console.log('Current house characters count:', currentHouse.characters.length);
+      
+      // Check if character already exists (by ID or name) to prevent duplicates
+      const existingById = currentHouse.characters.find(c => c.id === initializedCharacter.id);
+      const existingByName = currentHouse.characters.find(c => c.name === initializedCharacter.name);
+      
+      if (existingById) {
+        console.warn('Character with ID already exists, skipping:', initializedCharacter.id);
+        return currentHouse;
+      }
+      
+      if (existingByName) {
+        console.warn('Character with name already exists, skipping:', initializedCharacter.name);
+        return currentHouse;
+      }
       
       // Add character to the room's residents list if roomId is specified
       const updatedRooms = initializedCharacter.roomId 

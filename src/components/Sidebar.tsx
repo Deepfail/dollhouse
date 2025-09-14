@@ -21,8 +21,11 @@ import {
   Smiley as Smile,
   Sparkle,
   Play,
-  Image as ImageIcon
+  Image as ImageIcon,
+  X,
+  Trash
 } from '@phosphor-icons/react';
+
 import { CharacterCreator } from './CharacterCreator';
 import { AutoCharacterCreator } from './AutoCharacterCreator';
 import { SceneCreator } from './SceneCreator';
@@ -41,7 +44,7 @@ interface SidebarProps {
 
 export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: SidebarProps) {
   const { house } = useHouse();
-  const { createSession, sessions } = useChat();
+  const { createSession, sessions, closeSession, deleteSession, switchToSession } = useChat();
   const [showCreator, setShowCreator] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showImageGallery, setShowImageGallery] = useState(false);
@@ -259,35 +262,223 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
           <ScrollArea className="h-full">
             <div className="space-y-3 pr-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-medium">Active Chats</h3>
-              </div>
-
-              <div className="space-y-2">
-                {sessions.filter(s => s.active).length === 0 ? (
-                  <Card className="p-4 text-center text-muted-foreground">
-                    <p className="text-sm">No active chats</p>
-                    <p className="text-xs">Start a conversation!</p>
-                  </Card>
-                ) : (
-                  sessions.filter(s => s.active).map(session => (
-                    <Card key={session.id} className="p-3 cursor-pointer hover:bg-accent/50">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-medium text-sm">
-                            {session.type === 'group' ? 'Group Chat' : 'Individual Chat'}
-                          </h4>
-                          <p className="text-xs text-muted-foreground">
-                            {session.participantIds.length} participant(s)
-                          </p>
-                        </div>
-                        <Badge variant="outline">
-                          {session.messages.length}
-                        </Badge>
-                      </div>
-                    </Card>
-                  ))
+                <h3 className="font-medium">Chats</h3>
+                {sessions.filter(s => s.active).length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      if (confirm('Are you sure you want to close all active chats? This will end all ongoing conversations.')) {
+                        sessions.filter(s => s.active).forEach(session => {
+                          closeSession(session.id);
+                        });
+                        toast.success('All chats closed');
+                      }
+                    }}
+                    className="text-xs"
+                  >
+                    Close All
+                  </Button>
                 )}
               </div>
+
+              {/* Active Chats */}
+              {sessions.filter(s => s.active).length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-muted-foreground">Active Chats</h4>
+                  {sessions.filter(s => s.active).map(session => (
+                    <Card key={session.id} className="p-3 hover:bg-accent/50">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 cursor-pointer" onClick={() => {
+                          if (onStartChat && session.type === 'individual' && session.participantIds.length === 1) {
+                            // For individual chats, switch to that character
+                            onStartChat(session.participantIds[0]);
+                          } else if (onStartGroupChat && session.type === 'group') {
+                            // For group chats, switch to the session
+                            onStartGroupChat(session.id);
+                          }
+                        }}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <h4 className="font-medium text-sm">
+                                {session.type === 'group' ? 'Group Chat' : 'Individual Chat'}
+                              </h4>
+                              <p className="text-xs text-muted-foreground">
+                                {session.participantIds.length} participant(s) • {session.messages.length} messages
+                              </p>
+                            </div>
+                            <Badge variant="outline">
+                              {session.messages.length}
+                            </Badge>
+                          </div>
+                          
+                          {/* Show participant names */}
+                          <div className="flex flex-wrap gap-1">
+                            {session.participantIds.slice(0, 3).map(id => {
+                              const character = house.characters?.find(c => c.id === id);
+                              return character ? (
+                                <Badge key={id} variant="secondary" className="text-xs">
+                                  {character.name}
+                                </Badge>
+                              ) : null;
+                            })}
+                            {session.participantIds.length > 3 && (
+                              <Badge variant="secondary" className="text-xs">
+                                +{session.participantIds.length - 3}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-1 ml-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onStartChat && session.type === 'individual' && session.participantIds.length === 1) {
+                                onStartChat(session.participantIds[0]);
+                              } else if (onStartGroupChat && session.type === 'group') {
+                                onStartGroupChat(session.id);
+                              }
+                            }}
+                            className="h-8 w-8 p-0"
+                            title="Continue Chat"
+                          >
+                            <MessageCircle size={14} />
+                          </Button>
+                          
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              if (confirm('End this chat session? You can start a new chat later.')) {
+                                closeSession(session.id);
+                                toast.success('Chat ended');
+                              }
+                            }}
+                            className="h-8 w-8 p-0 text-orange-500 hover:text-orange-700"
+                            title="End Chat"
+                          >
+                            <X size={14} />
+                          </Button>
+                          
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              if (confirm('Permanently delete this chat session? This cannot be undone.')) {
+                                deleteSession(session.id);
+                                toast.success('Chat deleted');
+                              }
+                            }}
+                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                            title="Delete Chat"
+                          >
+                            <Trash size={14} />
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {/* Inactive Chats */}
+              {sessions.filter(s => !s.active).length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-muted-foreground">Chat History</h4>
+                  {sessions.filter(s => !s.active).map(session => (
+                    <Card key={session.id} className="p-3 hover:bg-accent/30 opacity-75">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 cursor-pointer" onClick={() => {
+                          if (onStartChat && session.type === 'individual' && session.participantIds.length === 1) {
+                            // For individual chats, restart with that character
+                            onStartChat(session.participantIds[0]);
+                          } else if (onStartGroupChat && session.type === 'group') {
+                            // For group chats, restart the group
+                            onStartGroupChat();
+                          }
+                        }}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <h4 className="font-medium text-sm text-muted-foreground">
+                                {session.type === 'group' ? 'Group Chat' : 'Individual Chat'} (Ended)
+                              </h4>
+                              <p className="text-xs text-muted-foreground">
+                                {session.participantIds.length} participant(s) • {session.messages.length} messages
+                              </p>
+                            </div>
+                            <Badge variant="secondary">
+                              {session.messages.length}
+                            </Badge>
+                          </div>
+                          
+                          {/* Show participant names */}
+                          <div className="flex flex-wrap gap-1">
+                            {session.participantIds.slice(0, 3).map(id => {
+                              const character = house.characters?.find(c => c.id === id);
+                              return character ? (
+                                <Badge key={id} variant="outline" className="text-xs">
+                                  {character.name}
+                                </Badge>
+                              ) : null;
+                            })}
+                            {session.participantIds.length > 3 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{session.participantIds.length - 3}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Action buttons for inactive chats */}
+                        <div className="flex items-center gap-1 ml-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onStartChat && session.type === 'individual' && session.participantIds.length === 1) {
+                                onStartChat(session.participantIds[0]);
+                              } else if (onStartGroupChat && session.type === 'group') {
+                                onStartGroupChat();
+                              }
+                            }}
+                            className="h-8 w-8 p-0"
+                            title="Start New Chat"
+                          >
+                            <MessageCircle size={14} />
+                          </Button>
+                          
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              if (confirm('Permanently delete this chat session? This cannot be undone.')) {
+                                deleteSession(session.id);
+                                toast.success('Chat deleted');
+                              }
+                            }}
+                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                            title="Delete Chat"
+                          >
+                            <Trash size={14} />
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {sessions.length === 0 && (
+                <Card className="p-4 text-center text-muted-foreground">
+                  <p className="text-sm">No chats yet</p>
+                  <p className="text-xs">Start a conversation!</p>
+                </Card>
+              )}
             </div>
           </ScrollArea>
         </TabsContent>

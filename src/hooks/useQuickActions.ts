@@ -502,6 +502,7 @@ export function useQuickActions() {
           selfEsteem: 50,
           loyalty: 50,
           fight: 50,
+          stamina: 50,
           pain: 50,
           experience: 0,
           level: 1

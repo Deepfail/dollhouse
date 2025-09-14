@@ -43,6 +43,7 @@ interface CopilotMessage {
   sender: 'user' | 'copilot';
   content: string;
   timestamp: Date;
+  imageData?: string;
 }
 
 interface CopilotProps {
@@ -68,6 +69,69 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
 
   const safeUpdates = updates || [];
   const safeChatMessages = chatMessages || [];
+
+  // Parse natural language commands for image generation
+  const parseImageGenerationCommand = (message: string): string | null => {
+    // Look for patterns like "send me a pic", "generate an image", "show me a picture of", etc.
+    const imagePatterns = [
+      /send\s+me\s+(?:a\s+)?pic(?:ture)?(?:\s+of\s+)?(.+)/i,
+      /generate\s+(?:a\s+|an\s+)?(?:pic(?:ture)?|image)(?:\s+of\s+)?(.+)/i,
+      /show\s+me\s+(?:a\s+|an\s+)?(?:pic(?:ture)?|image)(?:\s+of\s+)?(.+)/i,
+      /create\s+(?:a\s+|an\s+)?(?:pic(?:ture)?|image)(?:\s+of\s+)?(.+)/i,
+      /draw\s+(?:a\s+|an\s+)?(?:pic(?:ture)?|image)(?:\s+of\s+)?(.+)/i,
+      /make\s+(?:a\s+|an\s+)?(?:pic(?:ture)?|image)(?:\s+of\s+)?(.+)/i,
+      /visualize\s+(.+)/i,
+      /imagine\s+(.+)/i,
+      /picture\s+of\s+(.+)/i,
+      /image\s+of\s+(.+)/i,
+      /pic\s+of\s+(.+)/i,
+      /(?:give\s+me|want)\s+(?:a\s+|an\s+)?(?:pic(?:ture)?|image)(?:\s+of\s+)?(.+)/i
+    ];
+
+    for (const pattern of imagePatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        // If there's a capture group (the description), use it
+        if (match[1] && match[1].trim()) {
+          return match[1].trim();
+        }
+      }
+    }
+
+    return null;
+  };
+
+  // Parse natural language commands for restarting chats
+  const parseRestartChatCommand = (message: string): string | null => {
+    // Look for patterns like "restart chat with [character]", "talk to [character] again", "chat with [character]", etc.
+    const restartPatterns = [
+      /restart\s+chat\s+with\s+(\w+)/i,
+      /talk\s+to\s+(\w+)\s+again/i,
+      /chat\s+with\s+(\w+)/i,
+      /start\s+new\s+chat\s+with\s+(\w+)/i,
+      /begin\s+conversation\s+with\s+(\w+)/i,
+      /speak\s+to\s+(\w+)/i,
+      /message\s+(\w+)/i,
+      /(\w+),\s+let['']?s\s+talk/i,
+      /i\s+want\s+to\s+talk\s+to\s+(\w+)/i,
+      /let\s+me\s+speak\s+to\s+(\w+)/i
+    ];
+
+    for (const pattern of restartPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        let characterName = match[1];
+        const character = house.characters?.find(c =>
+          c.name.toLowerCase() === characterName.toLowerCase()
+        );
+        if (character) {
+          return character.id;
+        }
+      }
+    }
+
+    return null;
+  };
 
   // Parse natural language commands for custom scenes
   const parseCustomSceneCommand = async (message: string): Promise<{ characterId: string; action: string; context: string; customPrompt?: string } | null> => {
@@ -441,6 +505,52 @@ Stay in character as ${character.name}. Respond naturally and immersively to con
     setIsTyping(true);
 
     try {
+      // Check if this is a restart chat command
+      const restartCharacterId = parseRestartChatCommand(userMessage.content);
+      if (restartCharacterId) {
+        if (onStartChat) {
+          onStartChat(restartCharacterId);
+          toast.success('Started new chat!');
+        } else {
+          toast.error('Unable to start chat - navigation not available');
+        }
+        setIsTyping(false);
+        return;
+      }
+
+      // Check if this is an image generation command
+      const imagePrompt = parseImageGenerationCommand(userMessage.content);
+      if (imagePrompt) {
+        try {
+          const imageResult = await AIService.generateImage(imagePrompt);
+          if (imageResult) {
+            const imageMessage: CopilotMessage = {
+              id: `image-${Date.now()}`,
+              sender: 'copilot',
+              content: `Here's the image you requested: "${imagePrompt}"`,
+              imageData: imageResult,
+              timestamp: new Date()
+            };
+            setChatMessages(current => [...(current || []), imageMessage]);
+            toast.success('Image generated successfully!');
+          } else {
+            throw new Error('No image data returned');
+          }
+        } catch (imageError) {
+          console.error('Error generating image:', imageError);
+          const errorMessage: CopilotMessage = {
+            id: `error-${Date.now()}`,
+            sender: 'copilot',
+            content: "I apologize, but I couldn't generate that image right now. Please check your Venice AI settings and try again.",
+            timestamp: new Date()
+          };
+          setChatMessages(current => [...(current || []), errorMessage]);
+          toast.error('Failed to generate image');
+        }
+        setIsTyping(false);
+        return;
+      }
+
       // Check if this is a custom scene command
       const sceneCommand = await parseCustomSceneCommand(userMessage.content);
       if (sceneCommand) {
@@ -1085,6 +1195,16 @@ Respond naturally and conversationally. Don't force house-related topics unless 
                           : 'bg-muted text-muted-foreground'
                       }`}
                     >
+                      {message.imageData && (
+                        <div className="mb-2">
+                          <img
+                            src={message.imageData}
+                            alt="Generated image"
+                            className="max-w-full h-auto rounded-lg border border-border"
+                            style={{ maxHeight: '300px' }}
+                          />
+                        </div>
+                      )}
                       <p className="text-sm">{message.content}</p>
                       <p className="text-xs opacity-70 mt-1">
                         {new Date(message.timestamp).toLocaleTimeString()}

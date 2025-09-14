@@ -7,7 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 
 import {
@@ -65,7 +65,7 @@ const getRarityIcon = (rarity?: Character['rarity']) => {
   }
 };
 
-const getRelationshipStatusColor = (status: Character['relationshipDynamics']['relationshipStatus']) => {
+const getRelationshipStatusColor = (status: Character['progression']['relationshipStatus']) => {
   switch (status) {
     case 'devoted': return 'text-pink-500';
     case 'lover': return 'text-red-500';
@@ -99,6 +99,7 @@ export function CharacterCard({
     selfEsteem: 0,
     loyalty: 0,
     fight: 0,
+    stamina: 0,
     pain: 0,
     experience: 0,
     level: 1
@@ -112,51 +113,42 @@ export function CharacterCard({
     cowgirl: 0
   };
 
-  const relationshipDynamics = character.relationshipDynamics || {
+  const progression = character.progression || {
+    level: stats.level,
+    nextLevelExp: 1000,
+    unlockedFeatures: [],
+    achievements: [],
+    relationshipStatus: 'stranger' as const,
     affection: 0,
     trust: 0,
     intimacy: 0,
     dominance: 50,
     jealousy: 0,
-    loyalty: 0,
     possessiveness: 0,
-    relationshipStatus: 'stranger' as const,
-    bonds: {},
+    sexualExperience: 0,
+    kinks: [],
+    limits: [],
+    fantasies: [],
+    unlockedPositions: [],
+    unlockedOutfits: [],
+    unlockedToys: [],
+    unlockedScenarios: [],
+    relationshipMilestones: [],
+    sexualMilestones: [],
     significantEvents: [],
+    memorableEvents: [],
+    bonds: {},
+    sexualCompatibility: {
+      overall: 0,
+      kinkAlignment: 0,
+      stylePreference: 0
+    },
     userPreferences: {
       likes: [],
       dislikes: [],
       turnOns: [],
       turnOffs: []
     }
-  };
-
-  const sexualProgression = character.sexualProgression || {
-    arousal: 0,
-    libido: 50,
-    experience: 0,
-    kinks: [],
-    limits: [],
-    fantasies: [],
-    skills: {},
-    unlockedPositions: [],
-    unlockedOutfits: [],
-    unlockedToys: [],
-    unlockedScenarios: [],
-    sexualMilestones: [],
-    compatibility: {
-      overall: 0,
-      kinkAlignment: 0,
-      stylePreference: 0
-    },
-    memorableEvents: []
-  };
-
-  const progression = character.progression || {
-    level: stats.level,
-    nextLevelExp: 1000,
-    unlockedFeatures: [],
-    achievements: []
   };
 
   const characterSessions = useMemo(
@@ -173,9 +165,9 @@ export function CharacterCard({
     ? new Date(character.lastInteraction).toLocaleDateString()
     : 'Never';
 
-  const relationshipStatus = relationshipDynamics.relationshipStatus;
-  const achievedMilestones = sexualProgression.sexualMilestones.filter(m => m.achieved).length;
-  const totalMilestones = sexualProgression.sexualMilestones.length;
+  const relationshipStatus = progression.relationshipStatus || 'stranger';
+  const achievedMilestones = (progression.sexualMilestones || []).filter(m => m.achieved).length;
+  const totalMilestones = (progression.sexualMilestones || []).length;
 
   // Compact card variant for sidebar
   if (compact) {
@@ -187,6 +179,7 @@ export function CharacterCard({
         >
           <div className="flex items-center gap-3">
             <Avatar className="w-12 h-12 border-2 border-primary/20">
+              <AvatarImage src={character.avatar} alt={character.name} />
               <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
                 {character.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
@@ -295,6 +288,7 @@ export function CharacterCard({
             <DialogHeader>
               <DialogTitle className="flex items-center gap-3">
                 <Avatar className="w-10 h-10">
+                  <AvatarImage src={character.avatar} alt={character.name} />
                   <AvatarFallback className="bg-primary text-primary-foreground">
                     {character.name.slice(0, 2).toUpperCase()}
                   </AvatarFallback>
@@ -312,13 +306,11 @@ export function CharacterCard({
             </DialogHeader>
 
             <Tabs defaultValue="overview" className="mt-4">
-              <TabsList className="grid w-full grid-cols-7">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="relationship">Relationship</TabsTrigger>
-                <TabsTrigger value="sexual">Sexual</TabsTrigger>
-                <TabsTrigger value="skills">Skills</TabsTrigger>
-                <TabsTrigger value="chats">Chats</TabsTrigger>
                 <TabsTrigger value="progress">Progress</TabsTrigger>
+                <TabsTrigger value="chats">Chats</TabsTrigger>
+                <TabsTrigger value="memories">Memories</TabsTrigger>
                 <TabsTrigger value="settings">Settings</TabsTrigger>
               </TabsList>
 
@@ -470,236 +462,6 @@ export function CharacterCard({
                   </Card>
                 </TabsContent>
 
-                <TabsContent value="relationship" className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Card className="p-4">
-                      <h4 className="font-semibold mb-3 flex items-center gap-2">
-                        <Heart size={16} />
-                        Relationship Dynamics
-                      </h4>
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Affection</span>
-                            <span className="font-medium">{relationshipDynamics.affection || 0}%</span>
-                          </div>
-                          <Progress value={relationshipDynamics.affection || 0} className="h-2" />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Trust</span>
-                            <span className="font-medium">{relationshipDynamics.trust || 0}%</span>
-                          </div>
-                          <Progress value={relationshipDynamics.trust || 0} className="h-2" />
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Intimacy</span>
-                            <span className="font-medium">{relationshipDynamics.intimacy || 0}%</span>
-                          </div>
-                          <Progress value={relationshipDynamics.intimacy || 0} className="h-2" />
-                        </div>
-                      </div>
-                    </Card>
-
-                    <Card className="p-4">
-                      <h4 className="font-semibold mb-3 flex items-center gap-2">
-                        <Star size={16} />
-                        Relationship Status
-                      </h4>
-                      <div className="space-y-3">
-                        <div className="text-center p-4 bg-muted/50 rounded-lg">
-                          <div className={`text-2xl font-bold ${getRelationshipStatusColor(relationshipStatus)}`}>
-                            {relationshipStatus.replace('_', ' ').toUpperCase()}
-                          </div>
-                          <div className="text-sm text-muted-foreground mt-1">Current Status</div>
-                        </div>
-                        
-                        <Separator />
-                        
-                        <div>
-                          <h5 className="font-medium mb-2">Preferences</h5>
-                          <div className="space-y-2">
-                            <div>
-                              <span className="text-sm text-green-600">Likes: </span>
-                              <span className="text-sm">{relationshipDynamics.userPreferences.likes.join(', ') || 'None yet'}</span>
-                            </div>
-                            <div>
-                              <span className="text-sm text-red-600">Dislikes: </span>
-                              <span className="text-sm">{relationshipDynamics.userPreferences.dislikes.join(', ') || 'None yet'}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  </div>
-
-                  <Card className="p-4">
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
-                      <Calendar size={16} />
-                      Recent Events
-                    </h4>
-                    <div className="space-y-2">
-                      {relationshipDynamics.significantEvents?.slice(0, 5).map((event) => (
-                        <div key={event.id} className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
-                          <div className="w-2 h-2 bg-primary rounded-full mt-2" />
-                          <div className="flex-1">
-                            <div className="text-sm font-medium">{event.description}</div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {new Date(event.timestamp).toLocaleDateString()}
-                            </div>
-                          </div>
-                        </div>
-                      )) || (
-                        <div className="text-center py-8 text-muted-foreground">
-                          No relationship events yet
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="sexual" className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Card className="p-4">
-                      <h4 className="font-semibold mb-3 flex items-center gap-2">
-                        <Fire size={16} />
-                        Sexual Stats
-                      </h4>
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Arousal</span>
-                            <span className="font-medium">{sexualProgression.arousal || 0}%</span>
-                          </div>
-                          <Progress value={sexualProgression.arousal || 0} className="h-2" />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Libido</span>
-                            <span className="font-medium">{sexualProgression.libido || 0}%</span>
-                          </div>
-                          <Progress value={sexualProgression.libido || 0} className="h-2" />
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Experience</span>
-                            <span className="font-medium">{sexualProgression.experience || 0}%</span>
-                          </div>
-                          <Progress value={sexualProgression.experience || 0} className="h-2" />
-                        </div>
-                      </div>
-                    </Card>
-
-                    <Card className="p-4">
-                      <h4 className="font-semibold mb-3 flex items-center gap-2">
-                        <Medal size={16} />
-                        Milestones
-                      </h4>
-                      <div className="space-y-2">
-                        {sexualProgression.sexualMilestones?.map((milestone) => (
-                          <div key={milestone.id} className="flex items-center gap-3 p-2 bg-muted/30 rounded">
-                            {milestone.achieved ? (
-                              <Check size={16} className="text-green-500" />
-                            ) : (
-                              <Lock size={16} className="text-muted-foreground" />
-                            )}
-                            <div className="flex-1">
-                              <div className="text-sm font-medium">{milestone.name}</div>
-                              <div className="text-xs text-muted-foreground">{milestone.description}</div>
-                            </div>
-                          </div>
-                        )) || (
-                          <div className="text-center py-4 text-muted-foreground">
-                            No milestones defined
-                          </div>
-                        )}
-                      </div>
-                    </Card>
-                  </div>
-
-                  <Card className="p-4">
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
-                      <Lightning size={16} />
-                      Unlocked Content
-                    </h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <h5 className="font-medium mb-2">Positions</h5>
-                        <div className="flex flex-wrap gap-1">
-                          {sexualProgression.unlockedPositions?.map((position) => (
-                            <Badge key={position} variant="secondary" className="text-xs">{position}</Badge>
-                          )) || <span className="text-sm text-muted-foreground">None</span>}
-                        </div>
-                      </div>
-                      <div>
-                        <h5 className="font-medium mb-2">Scenarios</h5>
-                        <div className="flex flex-wrap gap-1">
-                          {sexualProgression.unlockedScenarios?.map((scenario) => (
-                            <Badge key={scenario} variant="secondary" className="text-xs">{scenario}</Badge>
-                          )) || <span className="text-sm text-muted-foreground">None</span>}
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="skills" className="space-y-4">
-                  <Card className="p-4">
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
-                      <Lightning size={16} />
-                      Sexual Skills
-                    </h4>
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 gap-4">
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Hands (Handjobs, Stroking)</span>
-                            <span className="font-medium">{skills.hands}%</span>
-                          </div>
-                          <Progress value={skills.hands} className="h-2" />
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Mouth (Blowjobs, Tongue, Facefucking)</span>
-                            <span className="font-medium">{skills.mouth}%</span>
-                          </div>
-                          <Progress value={skills.mouth} className="h-2" />
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Missionary</span>
-                            <span className="font-medium">{skills.missionary}%</span>
-                          </div>
-                          <Progress value={skills.missionary} className="h-2" />
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Doggy</span>
-                            <span className="font-medium">{skills.doggy}%</span>
-                          </div>
-                          <Progress value={skills.doggy} className="h-2" />
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Cowgirl</span>
-                            <span className="font-medium">{skills.cowgirl}%</span>
-                          </div>
-                          <Progress value={skills.cowgirl} className="h-2" />
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                </TabsContent>
-
                 <TabsContent value="chats" className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <Card className="p-4 text-center">
@@ -751,6 +513,7 @@ export function CharacterCard({
                 </TabsContent>
 
                 <TabsContent value="progress" className="space-y-4">
+                  {/* Level and Experience */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Card className="p-4">
                       <h4 className="font-semibold mb-3 flex items-center gap-2">
@@ -796,22 +559,232 @@ export function CharacterCard({
                     </Card>
                   </div>
 
+                  {/* Relationship Dynamics */}
                   <Card className="p-4">
                     <h4 className="font-semibold mb-3 flex items-center gap-2">
-                      <Check size={16} />
-                      Unlocked Features
+                      <Heart size={16} />
+                      Relationship Dynamics
                     </h4>
-                    <div className="space-y-2">
-                      {progression.unlockedFeatures?.map((feature) => (
-                        <div key={feature} className="flex items-center gap-2 p-2 bg-muted/30 rounded">
-                          <Sparkle size={16} className="text-purple-500" />
-                          <span className="text-sm">{feature}</span>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Affection</span>
+                          <span className="font-medium">{progression.affection || 0}%</span>
                         </div>
-                      )) || (
-                        <div className="text-center py-4 text-muted-foreground">
-                          No special features unlocked yet
+                        <Progress value={progression.affection || 0} className="h-2" />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Trust</span>
+                          <span className="font-medium">{progression.trust || 0}%</span>
                         </div>
-                      )}
+                        <Progress value={progression.trust || 0} className="h-2" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Intimacy</span>
+                          <span className="font-medium">{progression.intimacy || 0}%</span>
+                        </div>
+                        <Progress value={progression.intimacy || 0} className="h-2" />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t">
+                      <div className="text-center p-4 bg-muted/50 rounded-lg">
+                        <div className={`text-2xl font-bold ${getRelationshipStatusColor(relationshipStatus)}`}>
+                          {relationshipStatus.replace('_', ' ').toUpperCase()}
+                        </div>
+                        <div className="text-sm text-muted-foreground mt-1">Current Status</div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Sexual Progression */}
+                  <Card className="p-4">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                      <Fire size={16} />
+                      Sexual Progression
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Experience</span>
+                          <span className="font-medium">{progression.sexualExperience || 0}%</span>
+                        </div>
+                        <Progress value={progression.sexualExperience || 0} className="h-2" />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Willingness</span>
+                          <span className="font-medium">{stats.willing || 0}%</span>
+                        </div>
+                        <Progress value={stats.willing || 0} className="h-2" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Self Esteem</span>
+                          <span className="font-medium">{stats.selfEsteem || 0}%</span>
+                        </div>
+                        <Progress value={stats.selfEsteem || 0} className="h-2" />
+                      </div>
+                    </div>
+
+                    {/* Sexual Skills */}
+                    <div className="border-t pt-4">
+                      <h5 className="font-medium mb-3 flex items-center gap-2">
+                        <Lightning size={16} />
+                        Sexual Skills
+                      </h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Hands (Handjobs, Stroking)</span>
+                            <span className="font-medium">{skills.hands}%</span>
+                          </div>
+                          <Progress value={skills.hands} className="h-2" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Mouth (Blowjobs, Tongue)</span>
+                            <span className="font-medium">{skills.mouth}%</span>
+                          </div>
+                          <Progress value={skills.mouth} className="h-2" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Missionary</span>
+                            <span className="font-medium">{skills.missionary}%</span>
+                          </div>
+                          <Progress value={skills.missionary} className="h-2" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Doggy</span>
+                            <span className="font-medium">{skills.doggy}%</span>
+                          </div>
+                          <Progress value={skills.doggy} className="h-2" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Cowgirl</span>
+                            <span className="font-medium">{skills.cowgirl}%</span>
+                          </div>
+                          <Progress value={skills.cowgirl} className="h-2" />
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Milestones and Events */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Card className="p-4">
+                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                        <Medal size={16} />
+                        Milestones
+                      </h4>
+                      <div className="space-y-2">
+                        {progression.relationshipMilestones?.concat(progression.sexualMilestones || []).map((milestone) => (
+                          <div key={milestone.id} className="flex items-center gap-3 p-2 bg-muted/30 rounded">
+                            {milestone.achieved ? (
+                              <Check size={16} className="text-green-500" />
+                            ) : (
+                              <Lock size={16} className="text-muted-foreground" />
+                            )}
+                            <div className="flex-1">
+                              <div className="text-sm font-medium">{milestone.name}</div>
+                              <div className="text-xs text-muted-foreground">{milestone.description}</div>
+                            </div>
+                          </div>
+                        )) || (
+                          <div className="text-center py-4 text-muted-foreground">
+                            No milestones defined
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+
+                    <Card className="p-4">
+                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                        <Calendar size={16} />
+                        Recent Events
+                      </h4>
+                      <div className="space-y-2">
+                        {progression.significantEvents?.slice(0, 5).map((event) => (
+                          <div key={event.id} className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+                            <div className="w-2 h-2 bg-primary rounded-full mt-2" />
+                            <div className="flex-1">
+                              <div className="text-sm font-medium">{event.description}</div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {new Date(event.timestamp).toLocaleDateString()}
+                              </div>
+                            </div>
+                          </div>
+                        )) || (
+                          <div className="text-center py-8 text-muted-foreground">
+                            No significant events yet
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* Unlocked Content */}
+                  <Card className="p-4">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                      <Lightning size={16} />
+                      Unlocked Content
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <h5 className="font-medium mb-2">Positions</h5>
+                        <div className="flex flex-wrap gap-1">
+                          {progression.unlockedPositions?.map((position) => (
+                            <Badge key={position} variant="secondary" className="text-xs">{position}</Badge>
+                          )) || <span className="text-sm text-muted-foreground">None</span>}
+                        </div>
+                      </div>
+                      <div>
+                        <h5 className="font-medium mb-2">Scenarios</h5>
+                        <div className="flex flex-wrap gap-1">
+                          {progression.unlockedScenarios?.map((scenario) => (
+                            <Badge key={scenario} variant="secondary" className="text-xs">{scenario}</Badge>
+                          )) || <span className="text-sm text-muted-foreground">None</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* User Preferences */}
+                  <Card className="p-4">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                      <Star size={16} />
+                      User Preferences
+                    </h4>
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-sm text-green-600 font-medium">Likes: </span>
+                        <span className="text-sm">{progression.userPreferences?.likes?.join(', ') || 'None yet'}</span>
+                      </div>
+                      <div>
+                        <span className="text-sm text-red-600 font-medium">Dislikes: </span>
+                        <span className="text-sm">{progression.userPreferences?.dislikes?.join(', ') || 'None yet'}</span>
+                      </div>
+                      <div>
+                        <span className="text-sm text-purple-600 font-medium">Turn-ons: </span>
+                        <span className="text-sm">{progression.userPreferences?.turnOns?.join(', ') || 'None yet'}</span>
+                      </div>
+                      <div>
+                        <span className="text-sm text-orange-600 font-medium">Turn-offs: </span>
+                        <span className="text-sm">{progression.userPreferences?.turnOffs?.join(', ') || 'None yet'}</span>
+                      </div>
                     </div>
                   </Card>
                 </TabsContent>
@@ -850,8 +823,8 @@ export function CharacterCard({
                       Character Relationships
                     </h4>
                     <div className="space-y-2">
-                      {relationshipDynamics.bonds && Object.keys(relationshipDynamics.bonds).length > 0 ? (
-                        Object.entries(relationshipDynamics.bonds).map(([charId, bond]) => (
+                      {progression.bonds && Object.keys(progression.bonds).length > 0 ? (
+                        Object.entries(progression.bonds).map(([charId, bond]) => (
                           <div key={charId} className="flex justify-between items-center p-2 bg-muted/30 rounded">
                             <div>
                               <span className="text-sm font-medium">{charId.slice(0, 8)}...</span>
@@ -881,6 +854,7 @@ export function CharacterCard({
     <Card className="p-4 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setShowDetails(true)}>
       <div className="flex items-start gap-3 mb-4">
         <Avatar className="w-12 h-12">
+          <AvatarImage src={character.avatar} alt={character.name} />
           <AvatarFallback className="bg-primary text-primary-foreground">
             {character.name.slice(0, 2).toUpperCase()}
           </AvatarFallback>

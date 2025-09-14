@@ -52,6 +52,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   
   // Image Generation Settings - completely separate
   const [imageProvider, setImageProvider] = useState(house.aiSettings?.imageProvider || 'none');
+  const [imageModel, setImageModel] = useState(house.aiSettings?.imageModel || 'venice-sd35');
   const [imageApiKey, setImageApiKey] = useState(house.aiSettings?.imageApiKey || '');
   const [imageApiUrl, setImageApiUrl] = useState(house.aiSettings?.imageApiUrl || '');
 
@@ -102,6 +103,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       setTextApiKey(house.aiSettings?.textApiKey || house.aiSettings?.apiKey || '');
       setTextApiUrl(house.aiSettings?.textApiUrl || '');
       setImageProvider(house.aiSettings?.imageProvider || 'none');
+      setImageModel(house.aiSettings?.imageModel || 'venice-sd35');
       setImageApiKey(house.aiSettings?.imageApiKey || '');
       setImageApiUrl(house.aiSettings?.imageApiUrl || '');
       setAutoEnabled(house.autoCreator?.enabled || false);
@@ -205,6 +207,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
         textApiKey: textApiKey.trim(),
         textApiUrl,
         imageProvider: imageProvider as 'venice' | 'openai' | 'stability' | 'none',
+        imageModel,
         imageApiKey: imageApiKey.trim(),
         imageApiUrl
       };
@@ -489,19 +492,40 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                       </div>
 
                       {imageProvider === 'venice' && (
-                        <div className="space-y-2">
-                          <Label htmlFor="image-api-key">Venice AI API Key</Label>
-                          <Input
-                            id="image-api-key"
-                            type="password"
-                            value={imageApiKey}
-                            onChange={(e) => setImageApiKey(e.target.value)}
-                            placeholder="Your Venice AI API key..."
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Get your API key from <a href="https://venice.ai" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">venice.ai</a>
-                          </p>
-                        </div>
+                        <>
+                          <div className="space-y-2">
+                            <Label htmlFor="image-model">Venice AI Model</Label>
+                            <Select
+                              value={imageModel}
+                              onValueChange={setImageModel}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select image model" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="venice-sd35">Venice SD3.5 - Default high quality</SelectItem>
+                                <SelectItem value="hidream">HiDream I1 - High quality</SelectItem>
+                                <SelectItem value="qwen-image">Qwen Image - Highest quality</SelectItem>
+                                <SelectItem value="lustify-sdxl">Lustify SDXL - Uncensored</SelectItem>
+                                <SelectItem value="wai-Illustrious">WAI Illustrious - Anime</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="image-api-key">Venice AI API Key</Label>
+                            <Input
+                              id="image-api-key"
+                              type="password"
+                              value={imageApiKey}
+                              onChange={(e) => setImageApiKey(e.target.value)}
+                              placeholder="Your Venice AI API key..."
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Get your API key from <a href="https://venice.ai" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">venice.ai</a>
+                            </p>
+                          </div>
+                        </>
                       )}
                     </CardContent>
                   </Card>

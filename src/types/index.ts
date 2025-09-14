@@ -224,6 +224,16 @@ export interface SignificantEvent {
   timestamp: Date;
 }
 
+export interface SexualEvent {
+  id: string;
+  type: 'first_kiss' | 'first_touch' | 'first_time' | 'new_position' | 'fantasy_fulfilled' | 'milestone_reached' | 'special_moment';
+  description: string;
+  intensity: number; // 0-100
+  satisfaction: number; // 0-100
+  timestamp: Date;
+  unlocks?: string[];
+}
+
 export interface MemorableEvent {
   id: string;
   type: 'first_kiss' | 'first_touch' | 'first_time' | 'new_position' | 'fantasy_fulfilled' | 'milestone_reached' | 'special_moment';
@@ -333,6 +343,7 @@ export interface House {
     
     // Image Generation Provider (separate)
     imageProvider: 'venice' | 'openai' | 'stability' | 'none';
+    imageModel?: string; // Model for image generation
     imageApiKey?: string;
     imageApiUrl?: string; // Custom API endpoint
     

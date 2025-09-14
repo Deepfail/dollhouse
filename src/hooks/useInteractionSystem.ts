@@ -56,24 +56,43 @@ export function useInteractionSystem() {
   const processUserMessage = useCallback((characterId: string, message: string, character: Character) => {
     // Safely access character properties with defaults
     const stats = character.stats || {
-      relationship: 0,
+      love: 0,
       wet: 0,
       happiness: 0,
       experience: 0,
       level: 1
     };
 
-    const relationshipDynamics = character.relationshipDynamics || {
+    const progression = character.progression || {
+      level: stats.level,
+      nextLevelExp: 1000,
+      unlockedFeatures: [],
+      achievements: [],
+      relationshipStatus: 'stranger' as const,
       affection: 0,
       trust: 0,
       intimacy: 0,
       dominance: 50,
       jealousy: 0,
-      loyalty: 0,
       possessiveness: 0,
-      relationshipStatus: 'stranger' as const,
-      bonds: {},
+      sexualExperience: 0,
+      kinks: [],
+      limits: [],
+      fantasies: [],
+      unlockedPositions: [],
+      unlockedOutfits: [],
+      unlockedToys: [],
+      unlockedScenarios: [],
+      relationshipMilestones: [],
+      sexualMilestones: [],
       significantEvents: [],
+      memorableEvents: [],
+      bonds: {},
+      sexualCompatibility: {
+        overall: 0,
+        kinkAlignment: 0,
+        stylePreference: 0
+      },
       userPreferences: {
         likes: [],
         dislikes: [],
@@ -140,8 +159,8 @@ export function useInteractionSystem() {
         love: stats.love + relationshipChange,
         happiness: stats.happiness + happinessChange,
         wet: stats.wet + wetChange,
-        affection: relationshipDynamics.affection + affectionChange,
-        trust: relationshipDynamics.trust + trustChange
+        affection: progression.affection + affectionChange,
+        trust: progression.trust + trustChange
       });
     }
     
@@ -234,24 +253,43 @@ export function useInteractionSystem() {
   const triggerMilestoneEvents = useCallback((characterId: string, character: Character) => {
     // Safely access character properties with defaults
     const stats = character.stats || {
-      relationship: 0,
+      love: 0,
       wet: 0,
       happiness: 0,
       experience: 0,
       level: 1
     };
 
-    const relationshipDynamics = character.relationshipDynamics || {
+    const progression = character.progression || {
+      level: stats.level,
+      nextLevelExp: 1000,
+      unlockedFeatures: [],
+      achievements: [],
+      relationshipStatus: 'stranger' as const,
       affection: 0,
       trust: 0,
       intimacy: 0,
       dominance: 50,
       jealousy: 0,
-      loyalty: 0,
       possessiveness: 0,
-      relationshipStatus: 'stranger' as const,
-      bonds: {},
+      sexualExperience: 0,
+      kinks: [],
+      limits: [],
+      fantasies: [],
+      unlockedPositions: [],
+      unlockedOutfits: [],
+      unlockedToys: [],
+      unlockedScenarios: [],
+      relationshipMilestones: [],
+      sexualMilestones: [],
       significantEvents: [],
+      memorableEvents: [],
+      bonds: {},
+      sexualCompatibility: {
+        overall: 0,
+        kinkAlignment: 0,
+        stylePreference: 0
+      },
       userPreferences: {
         likes: [],
         dislikes: [],
@@ -261,12 +299,12 @@ export function useInteractionSystem() {
     };
 
     const relationship = stats.love;
-    const intimacy = relationshipDynamics.intimacy;
-    const trust = character.relationshipDynamics?.trust || 0;
+    const intimacy = progression.intimacy;
+    const trust = progression.trust;
     
     // First kiss milestone
     if (relationship > 25 && trust > 20 && intimacy > 15 && Math.random() < 0.1) {
-      const firstKissMilestone = character.sexualProgression?.sexualMilestones.find(m => m.id === 'first_kiss');
+      const firstKissMilestone = progression.sexualMilestones.find(m => m.id === 'first_kiss');
       if (firstKissMilestone && !firstKissMilestone.achieved) {
         addSexualEvent(characterId, {
           type: 'first_kiss',
@@ -280,7 +318,7 @@ export function useInteractionSystem() {
     
     // Intimate touch milestone  
     if (relationship > 40 && trust > 35 && intimacy > 30 && stats.wet > 50 && Math.random() < 0.05) {
-      const intimateMilestone = character.sexualProgression?.sexualMilestones.find(m => m.id === 'first_intimate_touch');
+      const intimateMilestone = progression.sexualMilestones.find(m => m.id === 'first_intimate_touch');
       if (intimateMilestone && !intimateMilestone.achieved) {
         addSexualEvent(characterId, {
           type: 'first_touch',
