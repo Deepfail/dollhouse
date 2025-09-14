@@ -20,7 +20,8 @@ import {
   Drop, 
   Smiley as Smile,
   Sparkle,
-  Play
+  Play,
+  Image as ImageIcon
 } from '@phosphor-icons/react';
 import { CharacterCreator } from './CharacterCreator';
 import { AutoCharacterCreator } from './AutoCharacterCreator';
@@ -30,6 +31,7 @@ import { CharacterCard } from './CharacterCard';
 import { GiftManager } from './GiftManager';
 import { DataManager } from './DataManager';
 import { PersistenceDebugger } from './PersistenceDebugger';
+import { ImageGallery } from './ImageGallery';
 
 interface SidebarProps {
   onStartChat?: (characterId: string) => void;
@@ -42,6 +44,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
   const { createSession, sessions } = useChat();
   const [showCreator, setShowCreator] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showImageGallery, setShowImageGallery] = useState(false);
   const [selectedTab, setSelectedTab] = useState('characters');
   const [selectedCharacterForGift, setSelectedCharacterForGift] = useState<string | null>(null);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
@@ -319,6 +322,15 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
           <Settings size={16} className="mr-2" />
           House Settings
         </Button>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="w-full justify-start"
+          onClick={() => setShowImageGallery(true)}
+        >
+          <ImageIcon size={16} className="mr-2" />
+          Image Gallery
+        </Button>
         <div className="flex gap-2">
           <DataManager />
           <PersistenceDebugger />
@@ -347,6 +359,14 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
         <HouseSettings
           open={showSettings}
           onOpenChange={setShowSettings}
+        />
+      )}
+
+      {/* Image Gallery Modal */}
+      {showImageGallery && (
+        <ImageGallery
+          open={showImageGallery}
+          onOpenChange={setShowImageGallery}
         />
       )}
 

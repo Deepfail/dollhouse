@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useHouse } from '@/hooks/useHouse';
 import { useSimpleStorage, simpleStorage } from '@/hooks/useSimpleStorage';
 import { AVAILABLE_MODELS } from '@/types';
@@ -19,7 +20,9 @@ import {
   House as Home,
   Gear,
   Key,
-  Image
+  Image,
+  CaretDown,
+  CaretUp
 } from '@phosphor-icons/react';
 
 interface HouseSettingsProps {
@@ -56,6 +59,9 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   const [autoEnabled, setAutoEnabled] = useState(house.autoCreator?.enabled || false);
   const [autoInterval, setAutoInterval] = useState(house.autoCreator?.interval || 60);
   const [autoMaxChars, setAutoMaxChars] = useState(house.autoCreator?.maxCharacters || 10);
+
+  // Debug panel state
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
 
   // Watch for house updates to sync success
   useEffect(() => {
@@ -373,36 +379,38 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Debug Info */}
-                  <div className="p-3 bg-muted rounded-lg text-sm">
-                    <div className="text-muted-foreground mb-2">Debug Info:</div>
-                    <div>Form Text API Key: {textApiKey ? `${textApiKey.slice(0, 8)}... (${textApiKey.length} chars)` : 'empty'}</div>
-                    <div>House Text API Key: {(house.aiSettings?.textApiKey || house.aiSettings?.apiKey) ? `${(house.aiSettings?.textApiKey || house.aiSettings?.apiKey)?.slice(0, 8)}... (${(house.aiSettings?.textApiKey || house.aiSettings?.apiKey)?.length} chars)` : 'empty'}</div>
-                    <div>Form Text Provider: {textProvider}</div>
-                    <div>House Text Provider: {house.aiSettings?.textProvider || house.aiSettings?.provider || 'none'}</div>
-                    <div>Form Text Model: {textModel}</div>
-                    <div>House Text Model: {house.aiSettings?.textModel || house.aiSettings?.model || 'none'}</div>
-                    <div>Form Trimmed Length: {textApiKey.trim().length}</div>
-                    <div>House Trimmed Length: {(house.aiSettings?.textApiKey || house.aiSettings?.apiKey)?.trim().length || 0}</div>
-                    <div>Values Match: {textApiKey.trim() === ((house.aiSettings?.textApiKey || house.aiSettings?.apiKey)?.trim() || '') ? 'YES' : 'NO'}</div>
-                    <div>Valid Check: {(() => {
-                      const key = house.aiSettings?.textApiKey || house.aiSettings?.apiKey;
-                      return key && key.trim().length > 0 ? 'VALID' : 'INVALID';
-                    })()}</div>
-                    <div>Force Update: #{forceUpdate || 0}</div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={async () => {
-                        const kvData = simpleStorage.get('character-house');
-                        console.log('Raw KV Data:', kvData);
-                        toast.info('KV data logged to console');
-                      }}
-                      className="mt-2"
-                    >
-                      Check KV Storage
-                    </Button>
-                  </div>
+                  {/* Collapsible Debug Info */}
+                  <Collapsible open={showDebugInfo} onOpenChange={setShowDebugInfo}>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="sm" className="w-full justify-between">
+                        <span className="text-xs text-muted-foreground">Developer Debug Info</span>
+                        {showDebugInfo ? <CaretUp className="h-4 w-4" /> : <CaretDown className="h-4 w-4" />}
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-2">
+                      <div className="p-3 bg-muted rounded-lg text-xs space-y-1">
+                        <div className="font-medium text-muted-foreground mb-2">API Configuration Status:</div>
+                        <div>Text API Key: {textApiKey ? `configured (${textApiKey.length} chars)` : 'not configured'}</div>
+                        <div>Image API Key: {imageApiKey ? `configured (${imageApiKey.length} chars)` : 'not configured'}</div>
+                        <div>Text Provider: {textProvider}</div>
+                        <div>Image Provider: {imageProvider}</div>
+                        <div>Model: {textModel}</div>
+                        <div>Sync Status: {textApiKey.trim() === ((house.aiSettings?.textApiKey || house.aiSettings?.apiKey)?.trim() || '') ? 'synced' : 'pending'}</div>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={async () => {
+                            const kvData = simpleStorage.get('character-house');
+                            console.log('Storage data:', kvData);
+                            toast.info('Storage data logged to console');
+                          }}
+                          className="mt-2 h-7 text-xs"
+                        >
+                          Inspect Storage
+                        </Button>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                   
                   <div className="space-y-2">
                     <Label htmlFor="provider">AI Provider</Label>
