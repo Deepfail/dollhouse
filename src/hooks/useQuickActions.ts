@@ -26,21 +26,31 @@ export const AVAILABLE_ACTIONS = [
   { id: 'randomize-locations', label: 'Shuffle Locations', icon: 'House', action: 'randomizeLocations', description: 'Move all characters to random rooms' },
   { id: 'reset-stats', label: 'Reset All Stats', icon: 'ChartBar', action: 'resetStats', description: 'Reset all character stats to default values' },
 
+  // Image & Creative Actions
+  { id: 'generate-profile-images', label: 'Generate Profile Images', icon: 'Image', action: 'generateProfileImages', description: 'Generate profile images for all characters using AI' },
+  { id: 'create-scene-image', label: 'Create Scene Image', icon: 'Camera', action: 'createSceneImage', description: 'Generate an image depicting current house scene' },
+  { id: 'character-portrait', label: 'Character Portrait', icon: 'User', action: 'generatePortrait', description: 'Generate a detailed portrait of a selected character' },
+
   // House Management
   { id: 'add-currency-100', label: 'Add 100 Currency', icon: 'Gift', action: 'addCurrency100', description: 'Add 100 currency to house funds' },
   { id: 'add-currency-500', label: 'Add 500 Currency', icon: 'Gift', action: 'addCurrency500', description: 'Add 500 currency to house funds' },
   { id: 'add-currency-1000', label: 'Add 1000 Currency', icon: 'Gift', action: 'addCurrency1000', description: 'Add 1000 currency to house funds' },
 
-  // AI & System
+  // AI & System Enhancement
   { id: 'test-api', label: 'Test API Connection', icon: 'Shield', action: 'testApiConnection', description: 'Test the current AI API connection' },
+  { id: 'enhance-personalities', label: 'Enhance Personalities', icon: 'Brain', action: 'enhancePersonalities', description: 'Improve AI personality responsiveness for all characters' },
+  { id: 'memory-analysis', label: 'Memory Analysis', icon: 'Clock', action: 'memoryAnalysis', description: 'Analyze and optimize character memory systems' },
+  { id: 'relationship-report', label: 'Relationship Report', icon: 'Users', action: 'relationshipReport', description: 'Generate detailed relationship analysis report' },
   { id: 'clear-updates', label: 'Clear All Updates', icon: 'Trash', action: 'clearAllUpdates', description: 'Clear all copilot monitoring updates' },
   { id: 'export-data', label: 'Export House Data', icon: 'Download', action: 'exportHouseData', description: 'Export all house data to JSON file' },
+  { id: 'backup-gallery', label: 'Backup Image Gallery', icon: 'Archive', action: 'backupGallery', description: 'Export all generated images and gallery data' },
 
   // Custom Actions
   { id: 'custom-scene', label: 'Custom Scene', icon: 'Sparkle', action: 'customScene', description: 'Create a custom scene chat with a character based on natural language commands' },
   { id: 'rest-all', label: 'Rest All', icon: 'Bed', action: 'restAll', description: 'Increase arousal for all characters who need it' },
   { id: 'feed-all', label: 'Feed All', icon: 'Heart', action: 'feedAll', description: 'Increase happiness and relationship for all characters' },
-  { id: 'check-status', label: 'Check Status', icon: 'ChartBar', action: 'checkStatus', description: 'Check the status of all characters' }
+  { id: 'check-status', label: 'Check Status', icon: 'ChartBar', action: 'checkStatus', description: 'Check the status of all characters' },
+  { id: 'group-activity', label: 'Group Activity', icon: 'Users', action: 'groupActivity', description: 'Start a group activity that all characters can participate in' }
 ];
 
 const DEFAULT_ACTIONS: QuickAction[] = [
@@ -154,6 +164,30 @@ export function useQuickActions() {
         break;
       case 'customScene':
         await createCustomScene();
+        break;
+      case 'generateProfileImages':
+        await generateProfileImages();
+        break;
+      case 'createSceneImage':
+        await createSceneImage();
+        break;
+      case 'generatePortrait':
+        await generatePortrait();
+        break;
+      case 'enhancePersonalities':
+        await enhancePersonalities();
+        break;
+      case 'memoryAnalysis':
+        await memoryAnalysis();
+        break;
+      case 'relationshipReport':
+        await relationshipReport();
+        break;
+      case 'backupGallery':
+        await backupGallery();
+        break;
+      case 'groupActivity':
+        await groupActivity();
         break;
       default:
         await executeCustomAction(action.action);
@@ -501,6 +535,219 @@ export function useQuickActions() {
   const createCustomScene = async () => {
     // This action shows instructions for using custom scene commands
     toast.info('To create custom scenes, chat with the copilot using commands like "send Sasha into my room"');
+  };
+
+  const generateProfileImages = async () => {
+    if (house.characters.length === 0) {
+      toast.error('No characters available to generate images for');
+      return;
+    }
+
+    toast.info('Generating profile images for all characters...');
+    
+    for (const character of house.characters) {
+      try {
+        const prompt = `Create a portrait image of ${character.name}. ${character.appearance}. ${character.personality}. Style: detailed digital art, professional character portrait`;
+        const imageUrl = await AIService.generateImage(prompt);
+        
+        if (imageUrl) {
+          // Store the image in the gallery
+          const images = JSON.parse(localStorage.getItem('generated-images') || '[]');
+          const newImage = {
+            id: crypto.randomUUID(),
+            prompt,
+            imageUrl,
+            createdAt: new Date(),
+            characterId: character.id,
+            tags: ['portrait', 'character', character.name.toLowerCase()]
+          };
+          images.unshift(newImage);
+          localStorage.setItem('generated-images', JSON.stringify(images));
+        }
+      } catch (error) {
+        console.error(`Error generating image for ${character.name}:`, error);
+      }
+    }
+    
+    toast.success('Profile image generation completed!');
+  };
+
+  const createSceneImage = async () => {
+    const prompt = `Create an image of the ${house.name}. A cozy character house interior with ${house.characters.length} characters. ${house.description}. Style: warm, inviting, detailed digital art`;
+    
+    try {
+      toast.info('Generating house scene image...');
+      const imageUrl = await AIService.generateImage(prompt);
+      
+      if (imageUrl) {
+        const images = JSON.parse(localStorage.getItem('generated-images') || '[]');
+        const newImage = {
+          id: crypto.randomUUID(),
+          prompt,
+          imageUrl,
+          createdAt: new Date(),
+          tags: ['scene', 'house', 'interior']
+        };
+        images.unshift(newImage);
+        localStorage.setItem('generated-images', JSON.stringify(images));
+        toast.success('House scene image generated!');
+      }
+    } catch (error) {
+      console.error('Error generating scene image:', error);
+      toast.error('Failed to generate scene image');
+    }
+  };
+
+  const generatePortrait = async () => {
+    if (house.characters.length === 0) {
+      toast.error('No characters available');
+      return;
+    }
+
+    const character = house.characters[0]; // For simplicity, use first character
+    const prompt = `High quality detailed portrait of ${character.name}. ${character.appearance}. ${character.personality}. Professional portrait photography style, detailed, beautiful lighting`;
+    
+    try {
+      toast.info(`Generating detailed portrait of ${character.name}...`);
+      const imageUrl = await AIService.generateImage(prompt);
+      
+      if (imageUrl) {
+        const images = JSON.parse(localStorage.getItem('generated-images') || '[]');
+        const newImage = {
+          id: crypto.randomUUID(),
+          prompt,
+          imageUrl,
+          createdAt: new Date(),
+          characterId: character.id,
+          tags: ['portrait', 'detailed', character.name.toLowerCase()]
+        };
+        images.unshift(newImage);
+        localStorage.setItem('generated-images', JSON.stringify(images));
+        toast.success(`Detailed portrait of ${character.name} generated!`);
+      }
+    } catch (error) {
+      console.error('Error generating portrait:', error);
+      toast.error('Failed to generate portrait');
+    }
+  };
+
+  const enhancePersonalities = async () => {
+    toast.info('Enhancing AI personality systems...');
+    
+    // Update all characters with enhanced prompts
+    for (const character of house.characters) {
+      const enhancedPrompts = {
+        ...character.prompts,
+        system: `${character.prompts.system} ENHANCED PERSONALITY: Respond authentically as ${character.name}. Your personality (${character.personality}) should shine through every response. Stay true to your character traits: ${character.traits.join(', ')}. Be more expressive, emotional, and true to your nature.`,
+        personality: `${character.prompts.personality} Focus on being authentic and responsive. Let your personality guide your responses naturally. React emotionally and personally to conversations.`
+      };
+      
+      await updateCharacter(character.id, {
+        ...character,
+        prompts: enhancedPrompts
+      });
+    }
+    
+    toast.success('Character personalities enhanced for better responsiveness!');
+  };
+
+  const memoryAnalysis = async () => {
+    if (house.characters.length === 0) {
+      toast.error('No characters to analyze');
+      return;
+    }
+
+    toast.info('Analyzing character memory systems...');
+    
+    const analysis = house.characters.map(character => {
+      const memoryCount = character.memories?.length || 0;
+      const conversationCount = character.conversationHistory?.length || 0;
+      const relationshipEvents = character.progression?.significantEvents?.length || 0;
+      
+      return {
+        name: character.name,
+        memories: memoryCount,
+        conversations: conversationCount,
+        events: relationshipEvents,
+        level: character.stats.level
+      };
+    });
+    
+    const totalMemories = analysis.reduce((sum, char) => sum + char.memories, 0);
+    const avgMemories = totalMemories / analysis.length;
+    
+    toast.success(`Memory Analysis Complete: ${totalMemories} total memories, ${avgMemories.toFixed(1)} average per character`);
+  };
+
+  const relationshipReport = async () => {
+    if (house.characters.length === 0) {
+      toast.error('No characters to analyze');
+      return;
+    }
+
+    const avgLove = house.characters.reduce((sum, char) => sum + char.stats.love, 0) / house.characters.length;
+    const avgHappiness = house.characters.reduce((sum, char) => sum + char.stats.happiness, 0) / house.characters.length;
+    const avgTrust = house.characters.reduce((sum, char) => sum + (char.progression?.trust || 0), 0) / house.characters.length;
+    
+    const report = `Relationship Analysis:
+• Average Love: ${avgLove.toFixed(1)}%
+• Average Happiness: ${avgHappiness.toFixed(1)}%
+• Average Trust: ${avgTrust.toFixed(1)}%
+• Total Characters: ${house.characters.length}`;
+    
+    toast.success('Relationship report generated! Check console for details.');
+    console.log(report);
+  };
+
+  const backupGallery = async () => {
+    try {
+      const images = JSON.parse(localStorage.getItem('generated-images') || '[]');
+      const backup = {
+        images,
+        exportDate: new Date().toISOString(),
+        totalImages: images.length
+      };
+      
+      const dataStr = JSON.stringify(backup, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `image-gallery-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast.success(`Gallery backup created! ${images.length} images exported.`);
+    } catch (error) {
+      console.error('Error backing up gallery:', error);
+      toast.error('Failed to backup gallery');
+    }
+  };
+
+  const groupActivity = async () => {
+    if (house.characters.length < 2) {
+      toast.error('Need at least 2 characters for group activity');
+      return;
+    }
+
+    // Boost all characters' happiness and relationships
+    for (const character of house.characters) {
+      const newStats = {
+        ...character.stats,
+        happiness: Math.min(100, character.stats.happiness + 15),
+        love: Math.min(100, character.stats.love + 5)
+      };
+      
+      await updateCharacter(character.id, {
+        ...character,
+        stats: newStats
+      });
+    }
+    
+    toast.success(`Group activity completed! All ${house.characters.length} characters participated and gained happiness and relationship points.`);
   };
 
   const executeCustomAction = async (actionCode: string) => {
