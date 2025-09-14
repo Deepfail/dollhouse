@@ -5,13 +5,15 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useSimpleStorage, simpleStorage } from '@/hooks/useSimpleStorage';
 import { useChat } from '@/hooks/useChat';
 import { useHouse } from '@/hooks/useHouse';
 import { ChatMessage } from '@/types';
-import { PaperPlaneTilt as Send, ChatCircle as MessageCircle, Users, Camera, Warning, ArrowLeft } from '@phosphor-icons/react';
+import { PaperPlaneTilt as Send, ChatCircle as MessageCircle, Users, Camera, Warning, ArrowLeft, Image as ImageIcon, MagicWand } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { AIService } from '@/lib/aiService';
 
 interface ChatInterfaceProps {
   sessionId: string | null;
@@ -25,6 +27,9 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
   const { house } = useHouse();
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState<string[]>([]);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [showImageDialog, setShowImageDialog] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState('');
   const [forceUpdate] = useSimpleStorage<number>('settings-force-update', 0); // React to settings changes
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -74,6 +79,59 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
         setIsTyping([]);
       }, 2000);
     }
+  };
+
+  const handleGenerateImage = async () => {
+    if (!imagePrompt.trim()) {
+      toast.error('Please enter a prompt for image generation');
+      return;
+    }
+
+    if (!currentSession) {
+      toast.error('No active chat session');
+      return;
+    }
+
+    setIsGeneratingImage(true);
+    try {
+      const imageUrl = await AIService.generateImage(imagePrompt.trim());
+      
+      if (imageUrl) {
+        // Add the image as a message from the user
+        const imageMessage = `🖼️ Generated Image: "${imagePrompt.trim()}"`;
+        await sendMessage(imageMessage);
+        
+        // Store the generated image in the gallery
+        const images = simpleStorage.get<any[]>('generated-images') || [];
+        const newImage = {
+          id: crypto.randomUUID(),
+          prompt: imagePrompt.trim(),
+          imageUrl,
+          createdAt: new Date(),
+          characterId: currentSession.participantIds[0], // Associate with first character in chat
+          tags: extractTagsFromPrompt(imagePrompt)
+        };
+        images.unshift(newImage);
+        simpleStorage.set('generated-images', images);
+        
+        setImagePrompt('');
+        setShowImageDialog(false);
+        toast.success('Image generated and added to chat!');
+      } else {
+        toast.error('Failed to generate image');
+      }
+    } catch (error) {
+      console.error('Image generation error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to generate image');
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+  const extractTagsFromPrompt = (prompt: string): string[] => {
+    const keywords = prompt.toLowerCase().split(/\s+/);
+    const commonTags = ['portrait', 'landscape', 'anime', 'realistic', 'fantasy', 'character', 'scene', 'art'];
+    return commonTags.filter(tag => keywords.some(word => word.includes(tag)));
   };
 
   const getCharacter = (characterId: string) => {
@@ -522,11 +580,71 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
             className="flex-1"
             autoFocus
           />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowImageDialog(true)}
+            disabled={!house.aiSettings?.imageApiKey || house.aiSettings?.imageProvider === 'none'}
+            title={!house.aiSettings?.imageApiKey ? 'Configure Venice AI in House Settings to generate images' : 'Generate Image'}
+          >
+            <ImageIcon size={16} />
+          </Button>
           <Button type="submit" disabled={!message.trim()}>
             <Send size={16} />
           </Button>
         </form>
       </div>
+
+      {/* Image Generation Dialog */}
+      <Dialog open={showImageDialog} onOpenChange={setShowImageDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MagicWand className="w-5 h-5" />
+              Generate Image for Chat
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Image Prompt</label>
+              <Input
+                value={imagePrompt}
+                onChange={(e) => setImagePrompt(e.target.value)}
+                placeholder="Describe the image you want to generate..."
+                onKeyDown={(e) => e.key === 'Enter' && !isGeneratingImage && handleGenerateImage()}
+                disabled={isGeneratingImage}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowImageDialog(false)}
+                disabled={isGeneratingImage}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleGenerateImage}
+                disabled={isGeneratingImage || !imagePrompt.trim()}
+                className="flex-1"
+              >
+                {isGeneratingImage ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <MagicWand className="w-4 h-4 mr-2" />
+                    Generate
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -173,10 +173,96 @@ export class AIService {
     }
   }
 
-  static async generateImage(prompt: string): Promise<string | null> {
-    // TODO: implement Venice AI image generation
-    console.log('Image generation requested but not implemented yet');
-    return null;
+  static async generateImage(prompt: string, apiKey?: string): Promise<string | null> {
+    console.log('=== AIService.generateImage called ===');
+    console.log('Prompt:', prompt);
+    console.log('API Key provided directly:', !!apiKey);
+    
+    // Try to get API settings directly from KV if not provided
+    let finalApiKey = apiKey;
+    
+    if (!finalApiKey) {
+      try {
+        const house = simpleStorage.get<House>('character-house');
+        console.log('Retrieved house from localStorage for image generation:', !!house);
+        console.log('House Image settings:', house?.aiSettings?.imageProvider, !!house?.aiSettings?.imageApiKey);
+        
+        if (house?.aiSettings?.imageProvider === 'venice' && house?.aiSettings?.imageApiKey) {
+          finalApiKey = house.aiSettings.imageApiKey.trim();
+          console.log('Using localStorage Venice AI Key:', !!finalApiKey);
+        }
+      } catch (error) {
+        console.error('Failed to get house settings from localStorage:', error);
+      }
+    }
+    
+    if (!finalApiKey || finalApiKey.length === 0) {
+      throw new Error('Venice AI API key is required. Please configure it in House Settings.');
+    }
+
+    try {
+      const requestBody = {
+        prompt: prompt,
+        width: 512,
+        height: 512,
+        steps: 20,
+        cfg_scale: 7.5,
+        sampler: 'DPM++ 2M',
+        seed: -1
+      };
+
+      console.log('Making Venice AI request with prompt:', prompt);
+
+      const response = await fetch('https://api.venice.ai/api/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${finalApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('Venice AI response status:', response.status);
+
+      if (!response.ok) {
+        const raw = await response.text();
+        console.error('Venice AI error response:', raw);
+        
+        if (response.status === 401) throw new Error('401 Unauthorized: Invalid Venice AI API key.');
+        if (response.status === 403) throw new Error('403 Forbidden: API key not permitted.');
+        if (response.status === 429) throw new Error('429 Rate limit exceeded.');
+        if (response.status === 400) {
+          let msg = '400 Bad Request';
+          try { msg = (JSON.parse(raw)?.error?.message) || msg; } catch {}
+          throw new Error(msg);
+        }
+        if (response.status >= 500) throw new Error(`Venice AI server error (${response.status}).`);
+        throw new Error(`Venice AI error ${response.status}: ${raw}`);
+      }
+
+      const data = await response.json();
+      console.log('Venice AI response data keys:', Object.keys(data));
+      
+      // Venice AI typically returns the image as base64 or URL
+      const imageUrl = data?.data?.[0]?.url || data?.images?.[0]?.url || data?.url;
+      const imageBase64 = data?.data?.[0]?.b64_json || data?.images?.[0]?.b64_json || data?.b64_json;
+      
+      if (imageUrl) {
+        console.log('Image URL generated successfully');
+        return imageUrl;
+      } else if (imageBase64) {
+        console.log('Image base64 generated successfully');
+        return `data:image/png;base64,${imageBase64}`;
+      } else {
+        console.error('Invalid response structure:', data);
+        throw new Error('Invalid response from Venice AI API');
+      }
+      
+    } catch (err) {
+      console.error('Venice AI image generation error:', err);
+      if (err instanceof Error) throw err;
+      throw new Error(String(err));
+    }
   }
 }
 
@@ -206,6 +292,8 @@ export class AIServiceLegacy {
   }
 
   async generateImage(prompt: string): Promise<string | null> {
-    return AIService.generateImage(prompt);
+    const house = this.getHouse();
+    const imageApiKey = house.aiSettings?.imageApiKey;
+    return AIService.generateImage(prompt, imageApiKey);
   }
 }
