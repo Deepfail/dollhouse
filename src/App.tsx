@@ -175,11 +175,7 @@ function App() {
         onStartScene={handleStartScene}
       >
         {currentView === 'house' ? (
-          <HouseView 
-            onStartChat={handleStartChat}
-            onStartGroupChat={handleStartGroupChat}
-            onStartScene={handleStartScene}
-          />
+          <HouseView />
         ) : currentView === 'chat' ? (
           <ChatInterface 
             sessionId={activeSessionId} 

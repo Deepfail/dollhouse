@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
@@ -14,6 +15,7 @@ import { Character, AVAILABLE_PERSONALITIES, AVAILABLE_ROLES, AVAILABLE_TRAITS }
 import { Plus, X, FloppyDisk as Save, DotsThree, Image as ImageIcon, Spinner } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { AIService } from '@/lib/aiService';
+import { generatePersonality, generateBackground, generateFeatures, generateSystemPrompt } from '@/lib/characterGenerator';
 
 interface CharacterCreatorProps {
   open: boolean;
@@ -34,9 +36,10 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
     description: character?.description || '',
     personality: character?.personality || '',
     appearance: character?.appearance || '',
+    imageDescription: character?.imageDescription || '',
     role: character?.role || '',
     personalities: character?.personalities || [],
-    traits: character?.traits || [],
+    features: character?.features || [],
     classes: character?.classes || [],
     avatar: character?.avatar || '',
     prompts: {
@@ -63,6 +66,8 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
   const [customClass, setCustomClass] = useState('');
   const [activeTab, setActiveTab] = useState('basic');
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isGeneratingImagePrompt, setIsGeneratingImagePrompt] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState<string | null>(null);
 
   const handleGenerateImage = async () => {
     if (!formData.appearance.trim()) {
@@ -78,7 +83,22 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
       
       if (imageUrl) {
         updateFormData('avatar', imageUrl);
-        toast.success('Character image generated successfully!');
+        
+        // Also save to image gallery
+        const existingImages = JSON.parse(localStorage.getItem('generated-images') || '[]');
+        const newImage = {
+          id: crypto.randomUUID(),
+          prompt: prompt,
+          imageUrl,
+          createdAt: new Date(),
+          characterId: character?.id || 'new-character',
+          tags: ['character', 'portrait', formData.role || 'character'].filter(Boolean)
+        };
+        
+        const updatedImages = [newImage, ...existingImages];
+        localStorage.setItem('generated-images', JSON.stringify(updatedImages));
+        
+        toast.success('Character image generated and saved to gallery!');
       } else {
         toast.error('Failed to generate image. Please check your Venice AI settings.');
       }
@@ -87,6 +107,127 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
       toast.error('Failed to generate image: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setIsGeneratingImage(false);
+    }
+  };
+
+  const handleGenerateImagePrompt = async () => {
+    setIsGeneratingImagePrompt(true);
+    try {
+      // Build comprehensive character context for prompt generation
+      const characterContext = {
+        name: formData.name,
+        role: formData.role,
+        personalities: formData.personalities,
+        features: formData.features,
+        appearance: formData.appearance,
+        description: formData.description
+      };
+
+      const promptInstructions = `Generate a detailed image prompt for AI image generation based on this character's attributes. Focus ONLY on physical features, style, and visual characteristics. Do not include age references, personality traits, or story elements.
+
+Character Details:
+${formData.name ? `Name: ${formData.name}` : ''}
+${formData.role ? `Role: ${formData.role}` : ''}
+${formData.personalities.length > 0 ? `Personalities: ${formData.personalities.join(', ')}` : ''}
+${formData.features.length > 0 ? `Physical Features: ${formData.features.join(', ')}` : ''}
+${formData.appearance ? `Current Appearance Description: ${formData.appearance}` : ''}
+
+Create a concise, optimized prompt (under 150 words) that includes:
+- Specific physical characteristics (hair color, eye color, build, etc.)
+- Clothing style or outfit description
+- Overall aesthetic and visual style
+- Camera angle or composition notes if relevant
+
+Return only the image prompt, nothing else.`;
+
+      const generatedPrompt = await AIService.generateResponse(promptInstructions, undefined, undefined, {
+        temperature: 0.8,
+        max_tokens: 300
+      });
+
+      if (generatedPrompt?.trim()) {
+        updateFormData('imageDescription', generatedPrompt.trim());
+        toast.success('Image prompt generated successfully!');
+      } else {
+        toast.error('Failed to generate image prompt');
+      }
+    } catch (error) {
+      console.error('Error generating image prompt:', error);
+      toast.error('Failed to generate image prompt');
+    } finally {
+      setIsGeneratingImagePrompt(false);
+    }
+  };
+
+  const handleRegeneratePersonality = async () => {
+    if (!formData.name) {
+      toast.error('Please enter a character name first');
+      return;
+    }
+
+    setIsRegenerating('personality');
+    try {
+      const attributes = [...formData.personalities, ...formData.features];
+      const newPersonality = await generatePersonality(formData.name, formData.role || 'character', attributes);
+      updateFormData('personality', newPersonality);
+      toast.success('Personality regenerated!');
+    } catch (error) {
+      console.error('Error regenerating personality:', error);
+      toast.error('Failed to regenerate personality');
+    } finally {
+      setIsRegenerating(null);
+    }
+  };
+
+  const handleRegeneratePrompt = async (field: string, promptType: string) => {
+    if (!formData.name) {
+      toast.error('Please enter a character name first');
+      return;
+    }
+
+    setIsRegenerating(field);
+    try {
+      const attributes = [...formData.personalities, ...formData.features];
+      let newPrompt = '';
+      
+      switch (promptType) {
+        case 'background':
+          newPrompt = await generateBackground(formData.name, formData.role || 'character', attributes);
+          break;
+        case 'system':
+          newPrompt = await generateSystemPrompt(formData.name, formData.personality, formData.description, attributes);
+          break;
+        default:
+          throw new Error('Unknown prompt type');
+      }
+      
+      updateFormData(`prompts.${promptType}`, newPrompt);
+      toast.success(`${promptType.charAt(0).toUpperCase() + promptType.slice(1)} prompt regenerated!`);
+    } catch (error) {
+      console.error(`Error regenerating ${promptType}:`, error);
+      toast.error(`Failed to regenerate ${promptType} prompt`);
+    } finally {
+      setIsRegenerating(null);
+    }
+  };
+
+  const handleRegenerateFeatures = async () => {
+    if (!formData.name) {
+      toast.error('Please enter a character name first');
+      return;
+    }
+
+    setIsRegenerating('features');
+    try {
+      const attributes = [...formData.personalities];
+      const newFeatures = await generateFeatures(formData.name, formData.role || 'character', attributes);
+      updateFormData('features', newFeatures);
+      toast.success('Features regenerated!');
+    } catch (error) {
+      console.error('Error regenerating features:', error);
+      toast.error('Failed to regenerate features');
+    } finally {
+      setIsRegenerating(null);
     }
   };
 
@@ -130,17 +271,17 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
   const toggleTrait = (trait: string) => {
     setFormData(prev => ({
       ...prev,
-      traits: prev.traits.includes(trait)
-        ? prev.traits.filter(s => s !== trait)
-        : [...prev.traits, trait]
+      features: prev.features.includes(trait)
+        ? prev.features.filter(s => s !== trait)
+        : [...prev.features, trait]
     }));
   };
 
   const addCustomTrait = () => {
-    if (customTrait.trim() && !formData.traits.includes(customTrait.trim())) {
+    if (customTrait.trim() && !formData.features.includes(customTrait.trim())) {
       setFormData(prev => ({
         ...prev,
-        traits: [...prev.traits, customTrait.trim()]
+        features: [...prev.features, customTrait.trim()]
       }));
       setCustomTrait('');
     }
@@ -181,8 +322,8 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
       errors.push('Character description is required');
     }
     
-    if (formData.description.trim().length > 500) {
-      errors.push('Character description must be 500 characters or less');
+    if (formData.description.trim().length > 1000) {
+      errors.push('Character description must be 1000 characters or less');
     }
     
     if (!formData.personality.trim()) {
@@ -197,8 +338,8 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
       errors.push('At least one personality trait is required');
     }
     
-    if (formData.traits.length === 0) {
-      errors.push('At least one trait is required');
+    if (formData.features.length === 0) {
+      errors.push('At least one feature is required');
     }
     
     // Check for duplicate names (only for new characters)
@@ -225,10 +366,11 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
         description: formData.description.trim(),
         personality: formData.personality.trim(),
         appearance: formData.appearance.trim(),
+        imageDescription: formData.imageDescription.trim(),
         role: formData.role.trim(),
         avatar: formData.avatar,
         personalities: formData.personalities,
-        traits: formData.traits,
+        features: formData.features,
         classes: formData.classes,
         rarity: 'common', // Default rarity
         unlocks: character?.unlocks || [],
@@ -282,6 +424,8 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
           relationshipMilestones: [],
           sexualMilestones: [],
           significantEvents: [],
+          storyChronicle: [],
+          currentStoryArc: undefined,
           memorableEvents: [],
           bonds: {},
           sexualCompatibility: {
@@ -347,18 +491,16 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
 
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
-                  <Input
-                    id="role"
-                    value={formData.role}
-                    onChange={(e) => updateFormData('role', e.target.value)}
-                    placeholder="e.g., nurse, student, secretary"
-                    list="preset-roles"
-                  />
-                  <datalist id="preset-roles">
-                    {AVAILABLE_ROLES.map(role => (
-                      <option key={role} value={role} />
-                    ))}
-                  </datalist>
+                  <Select value={formData.role} onValueChange={(value) => updateFormData('role', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="good girl">Good Girl</SelectItem>
+                      <SelectItem value="bad girl">Bad Girl</SelectItem>
+                      <SelectItem value="in timeout">In Timeout</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -374,7 +516,24 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="personality">Personality</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="personality">Personality</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRegeneratePersonality}
+                    disabled={isRegenerating === 'personality' || !formData.name}
+                    className="text-xs"
+                  >
+                    {isRegenerating === 'personality' ? (
+                      <Spinner size={12} className="animate-spin mr-1" />
+                    ) : (
+                      <Plus size={12} className="mr-1" />
+                    )}
+                    Regenerate
+                  </Button>
+                </div>
                 <Textarea
                   id="personality"
                   value={formData.personality}
@@ -417,6 +576,44 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                       onClick={() => updateFormData('avatar', '')}
                     >
                       Clear Image
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="imageDescription">Image Prompt</Label>
+                <Textarea
+                  id="imageDescription"
+                  value={formData.imageDescription}
+                  onChange={(e) => updateFormData('imageDescription', e.target.value)}
+                  placeholder="Optimized prompt for AI image generation - describe physical features, style, and visual characteristics"
+                  rows={3}
+                />
+                <div className="flex gap-2">
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleGenerateImagePrompt}
+                    disabled={isGeneratingImagePrompt}
+                    className="flex items-center gap-2"
+                  >
+                    {isGeneratingImagePrompt ? (
+                      <Spinner size={16} className="animate-spin" />
+                    ) : (
+                      <Plus size={16} />
+                    )}
+                    {isGeneratingImagePrompt ? 'Generating...' : 'Generate Prompt'}
+                  </Button>
+                  {formData.imageDescription && (
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => updateFormData('imageDescription', '')}
+                    >
+                      Clear Prompt
                     </Button>
                   )}
                 </div>
@@ -488,7 +685,11 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                         <X 
                           size={12} 
                           className="cursor-pointer hover:text-destructive"
-                          onClick={() => togglePersonality(personality)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            togglePersonality(personality);
+                          }}
                         />
                       </Badge>
                     ))}
@@ -496,14 +697,31 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                 )}
               </div>
 
-              {/* Traits */}
+              {/* Features */}
               <div className="space-y-3">
-                <Label>Traits</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Features</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRegenerateFeatures}
+                    disabled={isRegenerating === 'features' || !formData.name}
+                    className="text-xs"
+                  >
+                    {isRegenerating === 'features' ? (
+                      <Spinner size={12} className="animate-spin mr-1" />
+                    ) : (
+                      <Plus size={12} className="mr-1" />
+                    )}
+                    Regenerate
+                  </Button>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {AVAILABLE_TRAITS.map(trait => (
                     <Badge
                       key={trait}
-                      variant={formData.traits.includes(trait) ? "default" : "outline"}
+                      variant={formData.features.includes(trait) ? "default" : "outline"}
                       className="cursor-pointer capitalize"
                       onClick={() => toggleTrait(trait)}
                     >
@@ -515,22 +733,26 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                   <Input
                     value={customTrait}
                     onChange={(e) => setCustomTrait(e.target.value)}
-                    placeholder="Add custom trait"
+                    placeholder="Add custom feature"
                     onKeyDown={(e) => e.key === 'Enter' && addCustomTrait()}
                   />
                   <Button size="sm" onClick={addCustomTrait}>
                     <Plus size={16} />
                   </Button>
                 </div>
-                {formData.traits.length > 0 && (
+                {formData.features.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {formData.traits.map(trait => (
+                    {formData.features.map(trait => (
                       <Badge key={trait} variant="secondary" className="gap-1 capitalize">
                         {trait}
                         <X 
                           size={12} 
                           className="cursor-pointer hover:text-destructive"
-                          onClick={() => toggleTrait(trait)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleTrait(trait);
+                          }}
                         />
                       </Badge>
                     ))}
@@ -662,7 +884,24 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
 
             <TabsContent value="prompts" className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="system-prompt">System Prompt</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="system-prompt">System Prompt</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRegeneratePrompt('system', 'system')}
+                    disabled={isRegenerating === 'system' || !formData.name}
+                    className="text-xs"
+                  >
+                    {isRegenerating === 'system' ? (
+                      <Spinner size={12} className="animate-spin mr-1" />
+                    ) : (
+                      <Plus size={12} className="mr-1" />
+                    )}
+                    Regenerate
+                  </Button>
+                </div>
                 <Textarea
                   id="system-prompt"
                   value={formData.prompts.system}
@@ -684,7 +923,24 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="background-prompt">Background Prompt</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="background-prompt">Background Prompt</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRegeneratePrompt('background', 'background')}
+                    disabled={isRegenerating === 'background' || !formData.name}
+                    className="text-xs"
+                  >
+                    {isRegenerating === 'background' ? (
+                      <Spinner size={12} className="animate-spin mr-1" />
+                    ) : (
+                      <Plus size={12} className="mr-1" />
+                    )}
+                    Regenerate
+                  </Button>
+                </div>
                 <Textarea
                   id="background-prompt"
                   value={formData.prompts.background}
@@ -740,11 +996,11 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
                       </div>
                     )}
                     
-                    {formData.traits.length > 0 && (
+                    {formData.features.length > 0 && (
                       <div>
-                        <Label className="text-sm font-medium">Traits:</Label>
+                        <Label className="text-sm font-medium">Features:</Label>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {formData.traits.map(trait => (
+                          {formData.features.map(trait => (
                             <Badge key={trait} variant="secondary" className="text-xs capitalize">
                               {trait}
                             </Badge>

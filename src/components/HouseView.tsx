@@ -1,429 +1,220 @@
-import { useState } from 'react';
-import { Card } from '@/components/ui/card';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Progress } from '@/components/ui/progress';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { CharacterCard } from './CharacterCard';
+import { ChatInterface } from './ChatInterface';
+import { SceneInterface } from './SceneInterface';
+import { HouseMap } from './HouseMap';
+import { DesktopUI } from './DesktopUI';
 import { useHouse } from '@/hooks/useHouse';
 import { useChat } from '@/hooks/useChat';
-import { Room, Character } from '@/types';
-import { CharacterCard } from './CharacterCard';
-import { CharacterCreator } from './CharacterCreator';
+import { useSceneMode } from '@/hooks/useSceneMode';
+import { Character } from '@/types';
 import { 
-  House as Home, 
   Plus, 
   Users, 
-  ChatCircle as MessageCircle, 
-  Heart,
-  Drop,
-  Smiley as Smile,
-  Gift,
-  Gear as Settings,
-  Bed,
-  Coffee,
-  BookOpen,
-  GameController as Gamepad2,
-  Trash,
-  Pencil
+  ChatCircle as MessageCircle,
+  Camera,
+  MapPin as Map,
+  List,
+  Monitor as Desktop
 } from '@phosphor-icons/react';
-import { motion } from 'framer-motion';
-import { toast } from 'sonner';
 
-interface HouseViewProps {
-  onStartChat: (characterId: string) => void;
-  onStartGroupChat?: (sessionId?: string) => void;
-  onStartScene: (sessionId: string) => void;
-}
-
-export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: HouseViewProps) {
-  const { house, moveCharacterToRoom, addRoom, removeRoom, updateRoom, removeCharacter } = useHouse();
+export function HouseView() {
+  const { house, removeCharacter } = useHouse();
   const { createSession } = useChat();
-  const [selectedRoom, setSelectedRoom] = useState<string | null>((house.rooms || [])[0]?.id || null);
-  const [showAddRoom, setShowAddRoom] = useState(false);
-  const [showEditRoom, setShowEditRoom] = useState<string | null>(null);
-  const [showMoveCharacter, setShowMoveCharacter] = useState<string | null>(null);
-  const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
-  const [newRoom, setNewRoom] = useState({
-    name: '',
-    description: '',
-    type: 'shared' as 'private' | 'shared' | 'facility',
-    capacity: 2
-  });
+  const { createSceneSession } = useSceneMode();
+  const [activeChat, setActiveChat] = useState<string | null>(null);
+  const [activeScene, setActiveScene] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'map' | 'list' | 'desktop'>('map');
 
-  const selectedRoomData = (house.rooms || []).find(r => r.id === selectedRoom);
-  const roomCharacters = selectedRoomData
-    ? (house.characters || []).filter(c => selectedRoomData.residents.includes(c.id))
-    : [];
-
-  const getRoomIcon = (type: string) => {
-    switch (type) {
-      case 'private': return <Bed size={16} />;
-      case 'facility': return <Coffee size={16} />;
-      default: return <Home size={16} />;
-    }
+  const handleStartChat = (characterId: string) => {
+    setActiveChat(characterId);
+    createSession('individual', [characterId]);
   };
 
-  const getFacilityIcon = (facility: string) => {
-    switch (facility) {
-      case 'chat': return <MessageCircle size={14} />;
-      case 'games': return <Gamepad2 size={14} />;
-      case 'library': return <BookOpen size={14} />;
-      case 'kitchen': return <Coffee size={14} />;
-      default: return <Settings size={14} />;
-    }
+  const handleStartGroupChat = (sessionId?: string) => {
+    setActiveChat('group');
+    // Group chat logic here
   };
 
-  const handleCharacterAction = (character: Character, action: 'chat' | 'gift' | 'move') => {
-    switch (action) {
-      case 'chat':
-        onStartChat(character.id);
-        break;
-      case 'gift':
-        toast.info('Gift system coming soon!');
-        break;
-      case 'move':
-        setShowMoveCharacter(character.id);
-        break;
-    }
+  const handleStartScene = (sessionId: string) => {
+    setActiveScene(sessionId);
+    // createSceneSession logic here
   };
 
-  const handleAddRoom = async () => {
-    if (!newRoom.name.trim()) {
-      toast.error('Room name is required');
-      return;
-    }
-
-    try {
-      const roomData: Room = {
-        id: `room-${Date.now()}`,
-        ...newRoom,
-        residents: [],
-        facilities: [],
-        decorations: [],
-        unlocked: true,
-        createdAt: new Date()
-      };
-      
-      await addRoom(roomData);
-      setShowAddRoom(false);
-      setNewRoom({ name: '', description: '', type: 'shared', capacity: 2 });
-      toast.success('Room added successfully!');
-    } catch (error) {
-      toast.error('Failed to add room');
-    }
+  const handleDeleteCharacter = (characterId: string) => {
+    removeCharacter(characterId);
   };
 
-  const handleMoveCharacter = async (characterId: string, roomId: string) => {
-    try {
-      await moveCharacterToRoom(characterId, roomId);
-      setShowMoveCharacter(null);
-      toast.success('Character moved successfully!');
-    } catch (error) {
-      toast.error('Failed to move character');
-    }
-  };
+  if (activeChat) {
+    return (
+      <ChatInterface 
+        sessionId={activeChat}
+        onBack={() => setActiveChat(null)}
+      />
+    );
+  }
 
-  const handleDeleteCharacter = async (characterId: string) => {
-    try {
-      await removeCharacter(characterId);
-      toast.success('Character deleted successfully!');
-    } catch (error) {
-      toast.error('Failed to delete character');
-    }
-  };
+  if (activeScene) {
+    return (
+      <SceneInterface 
+        sessionId={activeScene}
+        onClose={() => setActiveScene(null)}
+      />
+    );
+  }
 
   return (
-    <div className="flex-1 flex flex-col bg-background">
-      {/* House Header */}
-      <div className="border-b border-border p-6 bg-card">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-3">
-              <Home size={32} className="text-primary" />
-              {house.name}
-            </h1>
-            <p className="text-muted-foreground mt-1">{house.description}</p>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <div className="text-2xl font-bold text-primary">${house.currency}</div>
-              <div className="text-sm text-muted-foreground">House Funds</div>
-            </div>
-            <Button onClick={() => setShowAddRoom(true)}>
-              <Plus size={16} className="mr-2" />
-              Add Room
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b bg-white/50 backdrop-blur-sm dark:bg-gray-800/50">
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold">{house.name}</h1>
+          <Badge variant="outline">
+            {house.characters?.length || 0} Characters
+          </Badge>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {/* View Mode Toggle */}
+          <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            <Button
+              variant={viewMode === 'map' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('map')}
+              className="flex items-center gap-2"
+            >
+              <Map size={16} />
+              Map
+            </Button>
+            <Button
+              variant={viewMode === 'desktop' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('desktop')}
+              className="flex items-center gap-2"
+            >
+              <Desktop size={16} />
+              Desktop
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+              className="flex items-center gap-2"
+            >
+              <List size={16} />
+              List
             </Button>
           </div>
-        </div>
-
-        {/* Room Navigation */}
-        <div className="flex gap-2 mt-6 overflow-x-auto">
-          {(house.rooms || []).map(room => (
-            <div key={room.id} className="flex items-center gap-1">
-              <Button
-                variant={selectedRoom === room.id ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedRoom(room.id)}
-                className="flex-shrink-0"
-              >
-                {getRoomIcon(room.type)}
-                <span className="ml-2">{room.name}</span>
-                {room.residents.length > 0 && (
-                  <Badge variant="secondary" className="ml-2 text-xs">
-                    {room.residents.length}
-                  </Badge>
-                )}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowEditRoom(room.id)}
-                className="px-2"
-              >
-                <Pencil size={14} />
-              </Button>
-            </div>
-          ))}
+          
+          <Button>
+            <Plus size={16} className="mr-2" />
+            Add Character
+          </Button>
         </div>
       </div>
 
-      {/* Room View */}
-      <div className="flex-1 p-6">
-        {selectedRoomData ? (
-          <div className="space-y-6">
-            {/* Room Info */}
-            <Card className="p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    {getRoomIcon(selectedRoomData.type)}
-                    <h2 className="text-xl font-semibold">{selectedRoomData.name}</h2>
-                    <Badge variant={selectedRoomData.type === 'private' ? 'default' : 'secondary'}>
-                      {selectedRoomData.type}
-                    </Badge>
-                  </div>
-                  <p className="text-muted-foreground">{selectedRoomData.description}</p>
-                </div>
-                
-                <div className="text-right">
-                  <div className="text-sm text-muted-foreground">Capacity</div>
-                  <div className="flex items-center gap-2">
-                    <Progress 
-                      value={(selectedRoomData.residents.length / selectedRoomData.capacity) * 100} 
-                      className="w-16 h-2" 
-                    />
-                    <span className="text-sm font-medium">
-                      {selectedRoomData.residents.length}/{selectedRoomData.capacity}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Facilities */}
-              {selectedRoomData.facilities.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Facilities:</span>
-                  <div className="flex gap-1">
-                    {selectedRoomData.facilities.map(facility => (
-                      <Badge key={facility} variant="outline" className="text-xs">
-                        {getFacilityIcon(facility)}
-                        <span className="ml-1">{facility}</span>
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </Card>
-
-            {/* Characters in Room */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">
-                  Characters in {selectedRoomData.name}
-                </h3>
-                {roomCharacters.length > 1 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (onStartGroupChat) {
-                        onStartGroupChat();
-                      } else {
-                        const sessionId = createSession('group', roomCharacters.map(c => c.id));
-                        // Navigate to chat - fallback
-                      }
-                    }}
-                  >
-                    <Users size={16} className="mr-2" />
-                    Group Chat
-                  </Button>
-                )}
-              </div>
-
-              {roomCharacters.length === 0 ? (
-                <Card className="p-8 text-center">
-                  <Home size={48} className="mx-auto text-muted-foreground mb-4" />
-                  <h4 className="font-medium mb-2">Empty Room</h4>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    No characters are currently in this room.
-                  </p>
-                  <Button variant="outline" size="sm">
-                    Invite Character
-                  </Button>
-                </Card>
-              ) : (
+      {/* Main Content */}
+      <div className="flex-1">
+        {viewMode === 'map' ? (
+          <HouseMap
+            onStartChat={handleStartChat}
+            onStartGroupChat={handleStartGroupChat}
+            onStartScene={handleStartScene}
+          />
+        ) : viewMode === 'desktop' ? (
+          <DesktopUI />
+        ) : (
+          <div className="p-6">
+            <Tabs defaultValue="rooms" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="rooms">Rooms</TabsTrigger>
+                <TabsTrigger value="characters">Characters</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="rooms" className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {roomCharacters.map(character => (
+                  {house.rooms?.map((room) => {
+                    const charactersInRoom = house.characters?.filter(c => 
+                      room.residents.includes(c.id)
+                    ) || [];
+                    
+                    return (
+                      <Card key={room.id} className="hover:shadow-lg transition-shadow">
+                        <CardHeader>
+                          <CardTitle className="flex items-center justify-between">
+                            <span>{room.name}</span>
+                            <Badge variant="outline">{room.type}</Badge>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {room.description && (
+                            <p className="text-sm text-muted-foreground mb-3">
+                              {room.description}
+                            </p>
+                          )}
+                          
+                          <div className="flex items-center gap-2 mb-3">
+                            <Users size={16} />
+                            <span className="text-sm">{charactersInRoom.length} residents</span>
+                          </div>
+                          
+                          {charactersInRoom.length > 0 && (
+                            <div className="flex -space-x-2 mb-3">
+                              {charactersInRoom.slice(0, 4).map((character) => (
+                                <Avatar key={character.id} className="w-8 h-8 border-2 border-white">
+                                  <AvatarImage src={character.avatar} alt={character.name} />
+                                  <AvatarFallback className="text-xs">
+                                    {character.name.slice(0, 2)}
+                                  </AvatarFallback>
+                                </Avatar>
+                              ))}
+                              {charactersInRoom.length > 4 && (
+                                <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full border-2 border-white flex items-center justify-center text-xs">
+                                  +{charactersInRoom.length - 4}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" className="flex-1">
+                              <MessageCircle size={14} className="mr-1" />
+                              Chat
+                            </Button>
+                            <Button size="sm" variant="outline" className="flex-1">
+                              <Camera size={14} className="mr-1" />
+                              Scene
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="characters" className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {house.characters?.map((character) => (
                     <CharacterCard
                       key={character.id}
                       character={character}
-                      onStartChat={onStartChat}
-                      onEdit={setEditingCharacter}
-                      onGift={(characterId) => handleCharacterAction(character, 'gift')}
-                      onMove={(characterId) => handleCharacterAction(character, 'move')}
+                      onStartChat={handleStartChat}
                       onDelete={handleDeleteCharacter}
+                      compact
                     />
                   ))}
                 </div>
-              )}
-            </div>
+              </TabsContent>
+            </Tabs>
           </div>
-        ) : (
-          <Card className="p-8 text-center">
-            <Home size={48} className="mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-xl font-semibold mb-2">No Rooms Available</h3>
-            <p className="text-muted-foreground mb-4">
-              Create your first room to house your characters.
-            </p>
-            <Button onClick={() => setShowAddRoom(true)}>
-              <Plus size={16} className="mr-2" />
-              Create Room
-            </Button>
-          </Card>
         )}
       </div>
-
-      {/* Add Room Dialog */}
-      <Dialog open={showAddRoom} onOpenChange={setShowAddRoom}>
-        <DialogContent className="w-[95vw] max-w-none sm:w-[92vw] md:w-[88vw] lg:w-[80vw] xl:w-[75vw]">
-          <DialogHeader>
-            <DialogTitle>Add New Room</DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Room Name</label>
-              <Input
-                value={newRoom.name}
-                onChange={(e) => setNewRoom(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Enter room name"
-              />
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium">Description</label>
-              <Textarea
-                value={newRoom.description}
-                onChange={(e) => setNewRoom(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Describe this room"
-              />
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium">Room Type</label>
-              <Select value={newRoom.type} onValueChange={(value: any) => setNewRoom(prev => ({ ...prev, type: value }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="private">Private</SelectItem>
-                  <SelectItem value="shared">Shared</SelectItem>
-                  <SelectItem value="facility">Facility</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium">Capacity</label>
-              <Input
-                type="number"
-                value={newRoom.capacity}
-                onChange={(e) => setNewRoom(prev => ({ ...prev, capacity: parseInt(e.target.value) || 1 }))}
-                min={1}
-                max={10}
-              />
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddRoom(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddRoom}>
-              Add Room
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Move Character Dialog */}
-      {showMoveCharacter && (
-        <Dialog open={!!showMoveCharacter} onOpenChange={() => setShowMoveCharacter(null)}>
-          <DialogContent className="w-[95vw] max-w-none sm:w-[92vw] md:w-[88vw] lg:w-[80vw] xl:w-[75vw]">
-            <DialogHeader>
-              <DialogTitle>Move Character to Room</DialogTitle>
-            </DialogHeader>
-            
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Select a room to move this character to:
-              </p>
-              
-              <div className="space-y-2">
-                {house.rooms.map(room => (
-                  <Button
-                    key={room.id}
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => handleMoveCharacter(showMoveCharacter, room.id)}
-                    disabled={room.residents.length >= room.capacity}
-                  >
-                    <div className="flex items-center gap-3">
-                      {getRoomIcon(room.type)}
-                      <div>
-                        <div className="font-medium">{room.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {room.residents.length}/{room.capacity} residents
-                        </div>
-                      </div>
-                    </div>
-                  </Button>
-                ))}
-              </div>
-            </div>
-            
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowMoveCharacter(null)}>
-                Cancel
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Character Creator Dialog */}
-      {editingCharacter && (
-        <CharacterCreator
-          open={!!editingCharacter}
-          onOpenChange={() => setEditingCharacter(null)}
-          character={editingCharacter}
-        />
-      )}
     </div>
   );
 }

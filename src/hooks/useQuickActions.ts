@@ -501,16 +501,64 @@ export function useQuickActions() {
           willing: 50,
           selfEsteem: 50,
           loyalty: 50,
-          fight: 50,
+          fight: 20,
           stamina: 50,
-          pain: 50,
+          pain: 20,
           experience: 0,
           level: 1
-        }
+        },
+        skills: {
+          hands: 0,
+          mouth: 0,
+          missionary: 0,
+          doggy: 0,
+          cowgirl: 0
+        },
+        progression: {
+          level: 1,
+          nextLevelExp: 100,
+          unlockedFeatures: [],
+          achievements: [],
+          relationshipStatus: 'stranger' as const,
+          affection: 50,
+          trust: 50,
+          intimacy: 0,
+          dominance: 50,
+          jealousy: 0,
+          possessiveness: 0,
+          sexualExperience: 0,
+          kinks: [],
+          limits: [],
+          fantasies: [],
+          unlockedPositions: [],
+          unlockedOutfits: [],
+          unlockedToys: [],
+          unlockedScenarios: [],
+          relationshipMilestones: [],
+          sexualMilestones: [],
+          significantEvents: [],
+          storyChronicle: [],
+          currentStoryArc: undefined,
+          memorableEvents: [],
+          bonds: {},
+          sexualCompatibility: {
+            overall: 50,
+            kinkAlignment: 50,
+            stylePreference: 50
+          },
+          userPreferences: {
+            likes: [],
+            dislikes: [],
+            turnOns: [],
+            turnOffs: []
+          }
+        },
+        memories: [],
+        conversationHistory: []
       });
     }
 
-    toast.success('All character stats have been reset');
+    toast.success('All characters have been completely reset to default values');
   };
 
   const addCurrency = async (amount: number) => {
@@ -639,7 +687,7 @@ export function useQuickActions() {
     for (const character of house.characters) {
       const enhancedPrompts = {
         ...character.prompts,
-        system: `${character.prompts.system} ENHANCED PERSONALITY: Respond authentically as ${character.name}. Your personality (${character.personality}) should shine through every response. Stay true to your character traits: ${character.traits.join(', ')}. Be more expressive, emotional, and true to your nature.`,
+        system: `${character.prompts.system} ENHANCED PERSONALITY: Respond authentically as ${character.name}. Your personality (${character.personality}) should shine through every response. Stay true to your character traits: ${character.features.join(', ')}. Be more expressive, emotional, and true to your nature.`,
         personality: `${character.prompts.personality} Focus on being authentic and responsive. Let your personality guide your responses naturally. React emotionally and personally to conversations.`
       };
       

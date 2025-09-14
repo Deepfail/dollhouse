@@ -33,13 +33,24 @@ export interface Character {
   
   // Customizable attributes
   role: string;
+  job?: string; // Job field for grown, male, and college types
   personalities: string[]; // multiple personality traits
-  traits: string[]; // physical/behavioral traits  
+  features: string[]; // physical features/traits  
   classes: string[];
   unlocks: string[];
   rarity: 'common' | 'rare' | 'legendary' | 'epic';
   specialAbility?: string; // rarity-based special ability
   preferredRoomType?: string; // preferred room type based on rarity
+  imageDescription?: string; // optimized physical description for image generation
+  
+  // Physical Stats for detailed character info
+  physicalStats?: {
+    hairColor: string;
+    eyeColor: string;
+    height: string;
+    weight: string;
+    skinTone: string;
+  };
   
   // AI Configuration
   prompts: {
@@ -89,6 +100,10 @@ export interface Character {
     relationshipMilestones: RelationshipMilestone[];
     sexualMilestones: SexualMilestone[];
     significantEvents: SignificantEvent[];
+    
+    // Story continuity and narrative memory
+    storyChronicle: StoryEntry[];
+    currentStoryArc?: string;
     memorableEvents: MemorableEvent[];
 
     // Special bonds and compatibility
@@ -232,6 +247,25 @@ export interface SexualEvent {
   satisfaction: number; // 0-100
   timestamp: Date;
   unlocks?: string[];
+}
+
+export interface StoryEntry {
+  id: string;
+  timestamp: Date;
+  eventType: 'conversation' | 'interaction' | 'milestone' | 'gift' | 'conflict' | 'intimate' | 'achievement' | 'custom';
+  title: string;
+  summary: string; // AI-generated summary of what happened
+  details: string; // Full narrative description for AI context
+  participants: string[]; // Character IDs involved
+  location?: string;
+  emotions: {
+    before: Record<string, number>; // emotional state before event
+    after: Record<string, number>; // emotional state after event
+  };
+  storyArc?: string; // Optional story arc this belongs to
+  significance: 'low' | 'medium' | 'high' | 'pivotal'; // How important this event is
+  tags: string[]; // For filtering and searching
+  relatedEvents?: string[]; // IDs of related story entries
 }
 
 export interface MemorableEvent {

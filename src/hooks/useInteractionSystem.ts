@@ -3,7 +3,53 @@ import { useRelationshipDynamics } from './useRelationshipDynamics';
 import { Character, ChatMessage } from '@/types';
 
 export function useInteractionSystem() {
-  const { updateRelationshipStats, addRelationshipEvent, addSexualEvent, updateRelationshipStatus } = useRelationshipDynamics();
+  const { updateRelationshipStats, updateSkills, addRelationshipEvent, addSexualEvent, updateRelationshipStatus } = useRelationshipDynamics();
+
+  // Analyze message content for sexual skill mentions
+  const analyzeSkillMentions = useCallback((message: string): {
+    hands: boolean;
+    mouth: boolean;
+    missionary: boolean;
+    doggy: boolean;
+    cowgirl: boolean;
+  } => {
+    const lowerMessage = message.toLowerCase();
+    
+    return {
+      hands: /hand|stroke|touch|finger|caress|massage/.test(lowerMessage),
+      mouth: /mouth|kiss|lip|tongue|oral|blow|suck/.test(lowerMessage),
+      missionary: /missionary|on top|face to face|looking into/.test(lowerMessage),
+      doggy: /doggy|behind|from behind|bend over/.test(lowerMessage),
+      cowgirl: /cowgirl|ride|on top|straddle/.test(lowerMessage)
+    };
+  }, []);
+
+  // Update sexual skills based on practice/mention
+  const processSkillUpdates = useCallback((characterId: string, character: Character, skillMentions: any) => {
+    const currentSkills = character.skills || {
+      hands: 0,
+      mouth: 0,
+      missionary: 0,
+      doggy: 0,
+      cowgirl: 0
+    };
+
+    const updatedSkills: any = {};
+    let hasUpdates = false;
+
+    // Each skill starts at 0% and increases when mentioned/practiced
+    Object.keys(skillMentions).forEach(skill => {
+      if (skillMentions[skill] && currentSkills[skill] < 100) {
+        const increase = Math.floor(Math.random() * 3) + 1; // 1-3 point increase
+        updatedSkills[skill] = Math.min(100, currentSkills[skill] + increase);
+        hasUpdates = true;
+      }
+    });
+
+    if (hasUpdates) {
+      updateSkills(characterId, updatedSkills);
+    }
+  }, [updateSkills]);
 
   // Analyze message content for relationship triggers
   const analyzeMessage = useCallback((message: string): {
@@ -102,6 +148,10 @@ export function useInteractionSystem() {
     };
 
     const analysis = analyzeMessage(message);
+    const skillMentions = analyzeSkillMentions(message);
+    
+    // Process skill improvements based on conversation content
+    processSkillUpdates(characterId, character, skillMentions);
     
     // Base stat changes
     let relationshipChange = 0;

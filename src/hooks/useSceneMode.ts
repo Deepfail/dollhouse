@@ -209,7 +209,7 @@ CHARACTER:
 Name: ${character.name}
 Appearance: ${character.appearance}
 Personality: ${character.personality}
-Traits: ${character.traits.join(', ')}
+Traits: ${character.features.join(', ')}
 Background: ${character.prompts?.background || 'No specific background'}
 
 STATS:

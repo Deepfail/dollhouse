@@ -39,6 +39,8 @@ function ensureProgression(input: Character['progression']): Progression {
     relationshipMilestones: Array.isArray(p.relationshipMilestones) ? p.relationshipMilestones : [],
     sexualMilestones: Array.isArray(p.sexualMilestones) ? p.sexualMilestones : [],
     significantEvents: Array.isArray(p.significantEvents) ? p.significantEvents : [],
+    storyChronicle: Array.isArray(p.storyChronicle) ? p.storyChronicle : [],
+    currentStoryArc: p.currentStoryArc,
     memorableEvents: Array.isArray(p.memorableEvents) ? p.memorableEvents : [],
     bonds: p.bonds ?? {},
     sexualCompatibility: p.sexualCompatibility ?? {
@@ -92,6 +94,7 @@ export function useRelationshipDynamics() {
           | 'selfEsteem'
           | 'loyalty'
           | 'fight'
+          | 'stamina'
           | 'pain'
           | 'experience'
         >
@@ -115,6 +118,7 @@ export function useRelationshipDynamics() {
           if (updates.selfEsteem !== undefined) stats.selfEsteem = clamp(updates.selfEsteem)
           if (updates.loyalty !== undefined) stats.loyalty = clamp(updates.loyalty)
           if (updates.fight !== undefined) stats.fight = clamp(updates.fight)
+          if (updates.stamina !== undefined) stats.stamina = clamp(updates.stamina)
           if (updates.pain !== undefined) stats.pain = clamp(updates.pain)
           if (updates.experience !== undefined) stats.experience = Math.max(0, updates.experience)
 
@@ -270,8 +274,50 @@ export function useRelationshipDynamics() {
     []
   )
 
+  /** Update sexual skills */
+  const updateSkills = useCallback(
+    (
+      characterId: string,
+      skillUpdates: Partial<{
+        hands: number;
+        mouth: number;
+        missionary: number;
+        doggy: number;
+        cowgirl: number;
+      }>
+    ) => {
+      setCharacters((current) =>
+        current.map((c) => {
+          if (c.id !== characterId) return c
+          const updated: Character = { ...c }
+          const currentSkills = updated.skills || {
+            hands: 0,
+            mouth: 0,
+            missionary: 0,
+            doggy: 0,
+            cowgirl: 0
+          }
+
+          // Apply skill updates with clamping
+          const newSkills = { ...currentSkills }
+          if (skillUpdates.hands !== undefined) newSkills.hands = clamp(skillUpdates.hands)
+          if (skillUpdates.mouth !== undefined) newSkills.mouth = clamp(skillUpdates.mouth)
+          if (skillUpdates.missionary !== undefined) newSkills.missionary = clamp(skillUpdates.missionary)
+          if (skillUpdates.doggy !== undefined) newSkills.doggy = clamp(skillUpdates.doggy)
+          if (skillUpdates.cowgirl !== undefined) newSkills.cowgirl = clamp(skillUpdates.cowgirl)
+
+          updated.skills = newSkills
+          updated.updatedAt = new Date()
+          return updated
+        })
+      )
+    },
+    [setCharacters]
+  )
+
   return {
     updateRelationshipStats,
+    updateSkills,
     addRelationshipEvent,
     addSexualEvent,
     updateRelationshipStatus,

@@ -46,7 +46,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   
   // AI Settings state - properly separated  
   const [textProvider, setTextProvider] = useState(house.aiSettings?.textProvider || house.aiSettings?.provider || 'openrouter');
-  const [textModel, setTextModel] = useState(house.aiSettings?.textModel || house.aiSettings?.model || 'deepseek/deepseek-chat-v3.1');
+  const [textModel, setTextModel] = useState(house.aiSettings?.textModel || house.aiSettings?.model || (house.aiSettings?.textProvider === 'venice' ? 'llama-3.3-70b' : 'deepseek/deepseek-chat-v3.1'));
   const [textApiKey, setTextApiKey] = useState(house.aiSettings?.textApiKey || house.aiSettings?.apiKey || '');
   const [textApiUrl, setTextApiUrl] = useState(house.aiSettings?.textApiUrl || '');
   
@@ -198,11 +198,11 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       // Create the complete AI settings object with current form values
       const newApiSettings = {
         // Legacy fields for backward compatibility
-        provider: textProvider as 'openrouter',
+        provider: textProvider as 'openrouter' | 'venice',
         model: textModel,
         apiKey: textApiKey.trim(),
         // New structured fields
-        textProvider: textProvider as 'openrouter',
+        textProvider: textProvider as 'openrouter' | 'venice',
         textModel,
         textApiKey: textApiKey.trim(),
         textApiUrl,
@@ -419,13 +419,14 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                     <Label htmlFor="provider">AI Provider</Label>
                     <Select
                       value={textProvider}
-                      onValueChange={(value) => setTextProvider(value as 'openrouter')}
+                      onValueChange={(value) => setTextProvider(value as 'openrouter' | 'venice')}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select AI provider" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="openrouter">OpenRouter</SelectItem>
+                        <SelectItem value="venice">Venice AI</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -463,6 +464,63 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                             ))}
                           </SelectContent>
                         </Select>
+                      </div>
+                    </>
+                  )}
+
+                  {textProvider === 'venice' && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="venice-api-key">Venice AI API Key</Label>
+                        <Input
+                          id="venice-api-key"
+                          type="password"
+                          value={textApiKey}
+                          onChange={(e) => setTextApiKey(e.target.value)}
+                          placeholder="Your Venice AI API key..."
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Get your API key from <a href="https://venice.ai" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">venice.ai</a>
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="venice-model">Venice AI Model</Label>
+                        <Select
+                          value={textModel}
+                          onValueChange={setTextModel}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select Venice AI model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="llama-3.3-70b">Llama 3.3 70B - Balanced ($0.70/$2.80) [default]</SelectItem>
+                            <SelectItem value="qwen3-4b">Venice Small - Fast/Cheap ($0.05/$0.15)</SelectItem>
+                            <SelectItem value="qwen3-235b">Venice Large 1.1 - Most Powerful ($0.90/$4.50)</SelectItem>
+                            <SelectItem value="venice-uncensored">Venice Uncensored 1.1 - No Filtering ($0.20/$0.90)</SelectItem>
+                            <SelectItem value="mistral-31-24b">Venice Medium 3.1 - Vision + Functions ($0.50/$2.00)</SelectItem>
+                            <SelectItem value="llama-3.2-3b">Llama 3.2 3B - Fastest ($0.15/$0.60)</SelectItem>
+                            <SelectItem value="qwen-2.5-qwq-32b">Venice Reasoning - Advanced Reasoning ($0.50/$2.00)</SelectItem>
+                            <SelectItem value="llama-3.1-405b">Llama 3.1 405B - Most Intelligent ($1.50/$6.00)</SelectItem>
+                            <SelectItem value="dolphin-2.9.2-qwen2-72b">Dolphin 72B - Most Uncensored ($0.70/$2.80)</SelectItem>
+                            <SelectItem value="deepseek-r1-671b">DeepSeek R1 671B - Default Reasoning ($3.50/$14.00)</SelectItem>
+                            <SelectItem value="qwen-2.5-coder-32b">Qwen 2.5 Coder 32B - Default Code ($0.50/$2.00)</SelectItem>
+                            <SelectItem value="deepseek-coder-v2-lite">DeepSeek Coder V2 Lite ($0.50/$2.00)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="venice-api-url">Venice AI API URL (Optional)</Label>
+                        <Input
+                          id="venice-api-url"
+                          value={textApiUrl}
+                          onChange={(e) => setTextApiUrl(e.target.value)}
+                          placeholder="https://api.venice.ai/api/v1 (default)"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Leave empty to use the default Venice AI endpoint
+                        </p>
                       </div>
                     </>
                   )}

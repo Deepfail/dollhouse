@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 
 import {
   Heart,
@@ -34,12 +35,30 @@ import {
   TrendUp,
   Medal,
   Pencil,
-  Trash
+  Trash,
+  Image as ImageIcon,
+  Download,
+  Plus
 } from '@phosphor-icons/react';
 
 import { Character } from '@/types';
+import { useSimpleStorage } from '@/hooks/useSimpleStorage';
 import { useChat } from '@/hooks/useChat';
 import { useRelationshipDynamics } from '@/hooks/useRelationshipDynamics';
+import { useStorySystem } from '@/hooks/useStorySystem';
+import { generatePersonality, generateBackground, generateFeatures, generateSystemPrompt } from '@/lib/characterGenerator';
+import { toast } from 'sonner';
+
+interface GeneratedImage {
+  id: string;
+  prompt: string;
+  imageUrl: string;
+  createdAt: Date;
+  liked?: boolean;
+  characterId?: string;
+  tags?: string[];
+  caption?: string; // Add caption field for Instagram-like posts
+}
 
 interface CharacterCardProps {
   character: Character;
@@ -87,25 +106,59 @@ export function CharacterCard({
   compact = false,
 }: CharacterCardProps) {
   const [showDetails, setShowDetails] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
+  const [showCreateImage, setShowCreateImage] = useState(false);
+  const [newImagePrompt, setNewImagePrompt] = useState('');
+  const [isCreatingImage, setIsCreatingImage] = useState(false);
+  const [isGeneratingImagePrompt, setIsGeneratingImagePrompt] = useState(false);
+  
+  // Integrated chat state for DMs tab
+  const [dmMessages, setDmMessages] = useState<any[]>([]);
+  const [dmInput, setDmInput] = useState('');
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  
   const { sessions } = useChat();
   const { updateRelationshipStats } = useRelationshipDynamics();
+  const { getRecentStoryContext, analyzeEmotionalJourney } = useStorySystem();
 
-  // Safely access character properties with defaults
-  const stats = character.stats || {
+  // Image handling
+  const [images] = useSimpleStorage<GeneratedImage[]>('generated-images', []);
+  const characterImages = images.filter(img => img.characterId === character.id);
+
+  // Safely access character properties with defaults - ensure no NaN values
+  const stats = character.stats ? {
+    love: Math.max(0, Math.min(100, character.stats.love || 0)),
+    happiness: Math.max(0, Math.min(100, character.stats.happiness || 50)),
+    wet: Math.max(0, Math.min(100, character.stats.wet || 0)),
+    willing: Math.max(0, Math.min(100, character.stats.willing || 50)),
+    selfEsteem: Math.max(0, Math.min(100, character.stats.selfEsteem || 50)),
+    loyalty: Math.max(0, Math.min(100, character.stats.loyalty || 50)),
+    fight: Math.max(0, Math.min(100, character.stats.fight || 20)),
+    stamina: Math.max(0, Math.min(100, character.stats.stamina || 50)),
+    pain: Math.max(0, Math.min(100, character.stats.pain || 20)),
+    experience: Math.max(0, character.stats.experience || 0),
+    level: Math.max(1, character.stats.level || 1)
+  } : {
     love: 0,
-    happiness: 0,
+    happiness: 50,
     wet: 0,
-    willing: 0,
-    selfEsteem: 0,
-    loyalty: 0,
-    fight: 0,
-    stamina: 0,
-    pain: 0,
+    willing: 50,
+    selfEsteem: 50,
+    loyalty: 50,
+    fight: 20,
+    stamina: 50,
+    pain: 20,
     experience: 0,
     level: 1
   };
 
-  const skills = character.skills || {
+  const skills = character.skills ? {
+    hands: Math.max(0, Math.min(100, character.skills.hands || 0)),
+    mouth: Math.max(0, Math.min(100, character.skills.mouth || 0)),
+    missionary: Math.max(0, Math.min(100, character.skills.missionary || 0)),
+    doggy: Math.max(0, Math.min(100, character.skills.doggy || 0)),
+    cowgirl: Math.max(0, Math.min(100, character.skills.cowgirl || 0))
+  } : {
     hands: 0,
     mouth: 0,
     missionary: 0,
@@ -168,6 +221,198 @@ export function CharacterCard({
   const relationshipStatus = progression.relationshipStatus || 'stranger';
   const achievedMilestones = (progression.sexualMilestones || []).filter(m => m.achieved).length;
   const totalMilestones = (progression.sexualMilestones || []).length;
+
+  // Image handling functions
+  const handleDownloadImage = async (image: GeneratedImage) => {
+    try {
+      const response = await fetch(image.imageUrl);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `character-image-${image.id}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      // Could add toast notification here if available
+    } catch (error) {
+      console.error('Download error:', error);
+    }
+  };
+
+  // Integrated DM chat functions
+  const handleSendDmMessage = async () => {
+    if (!dmInput.trim() || isSendingMessage) return;
+
+    const userMessage = {
+      id: Date.now(),
+      content: dmInput.trim(),
+      timestamp: new Date().toISOString(),
+      characterId: null // User message
+    };
+
+    setDmMessages(prev => [...prev, userMessage]);
+    setDmInput('');
+    setIsSendingMessage(true);
+
+    try {
+      // Import AIService dynamically to avoid circular dependencies
+      const { AIService } = await import('@/lib/aiService');
+      
+      // Generate character response
+      const systemPrompt = character.prompts?.system || `You are ${character.name}. Respond to messages in character.`;
+      const conversationHistory = [...dmMessages, userMessage].slice(-10); // Keep last 10 messages
+      
+      const prompt = `${systemPrompt}\n\nConversation:\n${conversationHistory.map(msg => 
+        `${msg.characterId ? character.name : 'User'}: ${msg.content}`
+      ).join('\n')}\n\n${character.name}:`;
+
+      const response = await AIService.generateResponse(prompt);
+      
+      if (response) {
+        const characterMessage = {
+          id: Date.now() + 1,
+          content: response.trim(),
+          timestamp: new Date().toISOString(),
+          characterId: character.id
+        };
+        
+        setDmMessages(prev => [...prev, characterMessage]);
+        
+        // Update relationship stats
+        updateRelationshipStats(character.id, {
+          love: 1,
+          happiness: 1,
+          loyalty: 0.5
+        });
+      }
+    } catch (error) {
+      console.error('Error sending DM:', error);
+      toast.error('Failed to send message');
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
+  const handleCreateImage = async () => {
+    if (!newImagePrompt.trim()) return;
+
+    setIsCreatingImage(true);
+    try {
+      // Create enhanced prompt with character's image description
+      const characterContext = character.imageDescription || 
+        `${character.personalities?.[0] || 'person'} with ${character.features?.slice(0, 3).join(', ') || 'distinctive'} features`.trim();
+      
+      const enhancedPrompt = `${newImagePrompt.trim()}. Character appearance: ${characterContext}`;
+      
+      // Import AIService dynamically to avoid circular dependencies
+      const { AIService } = await import('@/lib/aiService');
+      const imageUrl = await AIService.generateImage(enhancedPrompt);
+      
+      if (imageUrl) {
+        const newImage: GeneratedImage = {
+          id: crypto.randomUUID(),
+          prompt: newImagePrompt.trim(),
+          imageUrl,
+          createdAt: new Date(),
+          characterId: character.id,
+          tags: ['character', 'portrait', character.role || 'character'].filter(Boolean),
+          caption: generateImageCaption(character, newImagePrompt.trim())
+        };
+
+        // Save to localStorage
+        const existingImages = JSON.parse(localStorage.getItem('generated-images') || '[]');
+        const updatedImages = [newImage, ...existingImages];
+        localStorage.setItem('generated-images', JSON.stringify(updatedImages));
+
+        setNewImagePrompt('');
+        setShowCreateImage(false);
+        // Could add toast notification here
+      }
+    } catch (error) {
+      console.error('Image creation error:', error);
+    } finally {
+      setIsCreatingImage(false);
+    }
+  };
+
+  const generateImageCaption = (character: Character, prompt: string): string => {
+    // Generate a simple caption based on the character and prompt
+    const captions = [
+      `Just feeling myself today 💕 #${character.name}`,
+      `New look, same amazing me ✨`,
+      `When you wake up feeling cute 😘`,
+      `Living my best life 💖`,
+      `Just a girl and her thoughts 💭`,
+      `Feeling beautiful inside and out 🌸`,
+      `Embracing my vibe 💫`,
+      `Confidence level: Expert 💪`,
+      `Just being me 💕`,
+      `Love this energy ✨`
+    ];
+    return captions[Math.floor(Math.random() * captions.length)];
+  };
+
+  const handleGenerateImagePrompt = async () => {
+    setIsGeneratingImagePrompt(true);
+    try {
+      // Build comprehensive character context for prompt generation
+      const characterContext = {
+        name: character.name,
+        role: character.role,
+        personalities: character.personalities,
+        features: character.features,
+        appearance: character.appearance,
+        description: character.description,
+        physicalStats: character.physicalStats
+      };
+
+      const promptInstructions = `Generate a detailed image prompt for AI image generation based on this character's attributes. Focus ONLY on physical features, style, and visual characteristics. Do not include age references, personality traits, or story elements.
+
+Character Details:
+${character.name ? `Name: ${character.name}` : ''}
+${character.role ? `Role: ${character.role}` : ''}
+${character.personalities?.length > 0 ? `Personalities: ${character.personalities.join(', ')}` : ''}
+${character.features?.length > 0 ? `Physical Features: ${character.features.join(', ')}` : ''}
+${character.appearance ? `Current Appearance Description: ${character.appearance}` : ''}
+${character.physicalStats ? `Physical Stats: Hair: ${character.physicalStats.hairColor}, Eyes: ${character.physicalStats.eyeColor}, Skin: ${character.physicalStats.skinTone}` : ''}
+
+Create a concise, optimized prompt (under 150 words) that includes:
+- Specific physical characteristics (hair color, eye color, build, etc.)
+- Clothing style or outfit description
+- Overall aesthetic and visual style
+- Camera angle or composition notes if relevant
+
+Return only the image prompt, nothing else.`;
+
+      const { AIService } = await import('@/lib/aiService');
+      const generatedPrompt = await AIService.generateResponse(promptInstructions, undefined, undefined, {
+        temperature: 0.8,
+        max_tokens: 300
+      });
+
+      if (generatedPrompt?.trim()) {
+        // For CharacterCard, we'll need to update the character via onEdit callback
+        if (onEdit) {
+          const updatedCharacter = {
+            ...character,
+            imageDescription: generatedPrompt.trim()
+          };
+          onEdit(updatedCharacter);
+        }
+        // Could add toast notification here if available
+      } else {
+        console.error('Failed to generate image prompt');
+      }
+    } catch (error) {
+      console.error('Error generating image prompt:', error);
+    } finally {
+      setIsGeneratingImagePrompt(false);
+    }
+  };
 
   // Compact card variant for sidebar
   if (compact) {
@@ -284,145 +529,216 @@ export function CharacterCard({
         </Card>
 
         <Dialog open={showDetails} onOpenChange={setShowDetails}>
-          <DialogContent className="w-[95vw] max-w-6xl max-h-[90vh] overflow-hidden">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-3">
-                <Avatar className="w-10 h-10">
-                  <AvatarImage src={character.avatar} alt={character.name} />
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    {character.name.slice(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="flex items-center gap-2">
-                    {character.name}
-                    {getRarityIcon(character.rarity)}
+          <DialogContent className="w-full h-full md:w-[90vw] md:max-w-[1200px] md:max-h-[85vh] md:rounded-3xl overflow-hidden p-0 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 md:border-4 border-gray-300 dark:border-gray-600 shadow-2xl">
+            <DialogHeader className="sr-only">
+              <DialogTitle>{character.name} - Character Interface</DialogTitle>
+            </DialogHeader>
+            {/* iPad-like Device Frame */}
+            <div className="h-full flex flex-col bg-black md:rounded-3xl md:p-1">
+              {/* Screen Area */}
+              <div className="flex-1 bg-white dark:bg-gray-900 md:rounded-[20px] overflow-hidden relative">
+                {/* Status Bar with Navigation */}
+                <div className="h-12 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 flex items-center justify-between px-4 text-xs font-medium text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    <span className="font-semibold">{character.name}</span>
+                    <Badge variant="outline" className="text-xs">
+                      {relationshipStatus.replace('_', ' ')}
+                    </Badge>
                   </div>
-                  <div className="text-sm text-muted-foreground font-normal">
-                    {relationshipStatus.replace('_', ' ')} • Level {stats.level}
+                  <div className="flex items-center gap-3">
+                    <Button size="sm" variant="ghost" className="h-8 px-2">
+                      <House size={14} />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-8 px-2">
+                      <Users size={14} />
+                    </Button>
+                    <span>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <div className="flex gap-0.5">
+                      <div className="w-1 h-2 bg-green-500 rounded-sm"></div>
+                      <div className="w-1 h-2 bg-green-500 rounded-sm"></div>
+                      <div className="w-1 h-2 bg-green-400 rounded-sm"></div>
+                    </div>
                   </div>
                 </div>
-              </DialogTitle>
-            </DialogHeader>
 
-            <Tabs defaultValue="overview" className="mt-4">
-              <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="progress">Progress</TabsTrigger>
-                <TabsTrigger value="chats">Chats</TabsTrigger>
-                <TabsTrigger value="memories">Memories</TabsTrigger>
-                <TabsTrigger value="settings">Settings</TabsTrigger>
-              </TabsList>
+                <Tabs defaultValue="overview" className="flex-1 flex flex-col">
+                  {/* Enhanced Tab Bar with Character Images */}
+                  <TabsList className="grid grid-cols-6 bg-gray-50 dark:bg-gray-800 m-0 rounded-none border-b border-gray-200 dark:border-gray-700 h-20 p-2">
+                    <TabsTrigger value="overview" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-blue-100 data-[state=active]:text-blue-600 rounded-lg">
+                      <Eye size={24} />
+                      <span className="text-xs font-medium">Profile</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="stats" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-green-100 data-[state=active]:text-green-600 rounded-lg">
+                      <TrendUp size={24} />
+                      <span className="text-xs font-medium">Stats</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="feed" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-pink-100 data-[state=active]:text-pink-600 rounded-lg">
+                      <ImageIcon size={24} />
+                      <span className="text-xs font-medium">Feed</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="dms" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-purple-100 data-[state=active]:text-purple-600 rounded-lg">
+                      <MessageCircle size={24} />
+                      <span className="text-xs font-medium">Chat</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="memories" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-orange-100 data-[state=active]:text-orange-600 rounded-lg">
+                      <BookOpen size={24} />
+                      <span className="text-xs font-medium">Stories</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="settings" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-gray-100 data-[state=active]:text-gray-600 rounded-lg">
+                      <Pencil size={24} />
+                      <span className="text-xs font-medium">Settings</span>
+                    </TabsTrigger>
+                  </TabsList>
 
-              <ScrollArea className="h-[60vh] mt-4 pr-4">
-                <TabsContent value="overview" className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Card className="p-4">
-                      <h4 className="font-semibold mb-3 flex items-center gap-2">
-                        <BookOpen size={16} />
-                        Character Info
-                      </h4>
-                      <div className="space-y-3">
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground">Description</label>
-                          <p className="text-sm mt-1">{character.description || '—'}</p>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground">Rarity</label>
-                          <div className="flex items-center gap-2 mt-1">
-                            {getRarityIcon(character.rarity)}
-                            <Badge variant="outline" className="text-xs capitalize">
-                              {character.rarity || 'common'}
-                            </Badge>
+                  {/* Content Area with Fixed Scrolling */}
+                  <div className="flex-1 overflow-hidden">
+                    <ScrollArea className="h-full">
+                      <div className="p-6">
+                <TabsContent value="overview" className="space-y-6 mt-0">
+                  {/* Character Profile Header - Prominent Image and START Button */}
+                  <Card className="p-6 bg-gradient-to-br from-white via-gray-50 to-white dark:from-gray-800 dark:via-gray-900 dark:to-gray-800 border-0 shadow-xl">
+                    <div className="flex flex-col items-center text-center mb-6">
+                      <Avatar className="w-32 h-32 border-4 border-white shadow-xl ring-4 ring-primary/20 mb-4">
+                        <AvatarImage src={character.avatar} alt={character.name} />
+                        <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-white text-3xl font-bold">
+                          {character.name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      
+                      <div className="flex items-center gap-3 mb-2">
+                        <h2 className="text-3xl font-bold">{character.name}</h2>
+                        {getRarityIcon(character.rarity)}
+                      </div>
+                      
+                      <Badge variant="default" className="bg-gradient-to-r from-primary to-primary/80 text-white px-4 py-2 text-sm mb-4">
+                        {character.role || 'No role'} • Level {stats.level}
+                      </Badge>
+
+                      {/* Story Status and START Button */}
+                      {characterSessions.length === 0 ? (
+                        <div className="w-full max-w-sm">
+                          <div className="mb-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl border border-green-200 dark:border-green-800">
+                            <h3 className="font-semibold text-green-800 dark:text-green-300 mb-2">Ready to Begin</h3>
+                            <p className="text-sm text-green-600 dark:text-green-400">
+                              Start your story with {character.name}. She's new to the house and feeling uncertain about everything.
+                            </p>
                           </div>
+                          <Button 
+                            onClick={() => onStartChat(character.id)}
+                            size="lg" 
+                            className="w-full h-12 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold text-lg shadow-lg"
+                          >
+                            <Star size={20} className="mr-2" />
+                            START STORY
+                          </Button>
                         </div>
-                        {character.specialAbility && (
+                      ) : (
+                        <div className="w-full max-w-sm">
+                          <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                            <h3 className="font-semibold text-blue-800 dark:text-blue-300 mb-2">Story in Progress</h3>
+                            <p className="text-sm text-blue-600 dark:text-blue-400">
+                              Continue your ongoing story with {character.name}. You've had {totalMessages} conversations.
+                            </p>
+                          </div>
+                          <Button 
+                            onClick={() => onStartChat(character.id)}
+                            size="lg" 
+                            className="w-full h-12 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold text-lg shadow-lg"
+                          >
+                            <MessageCircle size={20} className="mr-2" />
+                            CONTINUE STORY
+                          </Button>
+                        </div>
+                      )}
+
+                        {/* Social Media Style Stats Row */}
+                        <div className="flex gap-8 text-center mt-6">
                           <div>
-                            <label className="text-sm font-medium text-muted-foreground">Special Ability</label>
-                            <p className="text-sm mt-1 text-amber-600 font-medium">{character.specialAbility}</p>
+                            <div className="text-2xl font-bold text-primary">{characterSessions.length}</div>
+                            <div className="text-sm text-muted-foreground">Chats</div>
                           </div>
-                        )}
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground">Personalities</label>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {character.personalities?.length ? character.personalities.map((personality) => (
-                              <Badge key={personality} variant="default" className="text-xs capitalize">{personality}</Badge>
-                            )) : <span className="text-sm text-muted-foreground">—</span>}
+                          <div>
+                            <div className="text-2xl font-bold text-primary">{totalMessages}</div>
+                            <div className="text-sm text-muted-foreground">Messages</div>
+                          </div>
+                          <div>
+                            <div className="text-2xl font-bold text-primary">{achievedMilestones}</div>
+                            <div className="text-sm text-muted-foreground">Milestones</div>
                           </div>
                         </div>
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground">Traits</label>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {character.traits?.length ? character.traits.map((trait) => (
-                              <Badge key={trait} variant="secondary" className="text-xs capitalize">{trait}</Badge>
-                            )) : <span className="text-sm text-muted-foreground">—</span>}
+                    </div>
+
+                    {/* Description */}
+                    <div className="mb-6 p-4 bg-white/50 dark:bg-gray-800/50 rounded-lg border border-gray-200/50 dark:border-gray-700/50">
+                      <p className="text-sm leading-relaxed">{character.description || 'No description available'}</p>
+                    </div>
+
+                    {/* Physical Stats - Instagram Profile Style */}
+                    {character.physicalStats && (
+                      <div className="mb-6">
+                        <h4 className="text-sm font-semibold text-muted-foreground mb-3">Physical Info</h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="flex items-center justify-between p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                            <span className="text-sm font-medium text-muted-foreground">Hair Color</span>
+                            <span className="text-sm font-semibold">{character.physicalStats.hairColor}</span>
+                          </div>
+                          <div className="flex items-center justify-between p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                            <span className="text-sm font-medium text-muted-foreground">Eye Color</span>
+                            <span className="text-sm font-semibold">{character.physicalStats.eyeColor}</span>
+                          </div>
+                          <div className="flex items-center justify-between p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                            <span className="text-sm font-medium text-muted-foreground">Height</span>
+                            <span className="text-sm font-semibold">{character.physicalStats.height}</span>
+                          </div>
+                          <div className="flex items-center justify-between p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                            <span className="text-sm font-medium text-muted-foreground">Skin</span>
+                            <span className="text-sm font-semibold">{character.physicalStats.skinTone}</span>
                           </div>
                         </div>
                       </div>
-                    </Card>
+                    )}
 
-                    <Card className="p-4">
-                      <h4 className="font-semibold mb-3 flex items-center gap-2">
-                        <TrendUp size={16} />
-                        Stats Overview
-                      </h4>
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="flex items-center gap-2">
-                              <Heart size={12} className="text-red-500" />
-                              Love
-                            </span>
-                            <span className="font-medium">{stats.love}%</span>
-                          </div>
-                          <Progress value={stats.love} className="h-2" />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="flex items-center gap-2">
-                              <Drop size={12} className="text-pink-500" />
-                              Wet
-                            </span>
-                            <span className="font-medium">{stats.wet}%</span>
-                          </div>
-                          <Progress value={stats.wet} className="h-2" />
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="flex items-center gap-2">
-                              <Smile size={12} className="text-yellow-500" />
-                              Happiness
-                            </span>
-                            <span className="font-medium">{stats.happiness}%</span>
-                          </div>
-                          <Progress value={stats.happiness} className="h-2" />
-                        </div>
+                    {/* Personality Tags */}
+                    <div className="mb-6">
+                      <h4 className="text-sm font-semibold text-muted-foreground mb-3">Personality</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {character.personalities?.map((personality) => (
+                          <Badge key={personality} variant="outline" className="bg-white/70 dark:bg-gray-800/70 border-primary/20 text-primary hover:bg-primary/10">
+                            {personality}
+                          </Badge>
+                        ))}
                       </div>
-                    </Card>
-                  </div>
+                    </div>
 
-                  <Card className="p-4">
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
-                      <Users size={16} />
-                      Quick Actions
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" onClick={() => onStartChat(character.id)}>
+                    {/* Features Tags */}
+                    <div className="mb-6">
+                      <h4 className="text-sm font-semibold text-muted-foreground mb-3">Features</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {character.features?.map((feature) => (
+                          <Badge key={feature} variant="secondary" className="bg-gradient-to-r from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 text-purple-700 dark:text-purple-300">
+                            {feature}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Quick Action Buttons */}
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => onStartChat(character.id)} className="flex-1">
                         <MessageCircle size={14} className="mr-2" />
-                        Start Chat
+                        Message
                       </Button>
                       {onEdit && (
                         <Button size="sm" variant="outline" onClick={() => onEdit(character)}>
                           <Pencil size={14} className="mr-2" />
-                          Edit Character
+                          Edit
                         </Button>
                       )}
                       {onGift && (
                         <Button size="sm" variant="outline" onClick={() => onGift(character.id)}>
                           <Gift size={14} className="mr-2" />
-                          Give Gift
+                          Gift
                         </Button>
                       )}
                       {onMove && (
@@ -462,57 +778,360 @@ export function CharacterCard({
                   </Card>
                 </TabsContent>
 
-                <TabsContent value="chats" className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <Card className="p-4 text-center">
-                      <div className="text-3xl font-bold text-primary">{characterSessions.length}</div>
-                      <div className="text-sm text-muted-foreground">Conversations</div>
-                    </Card>
-                    <Card className="p-4 text-center">
-                      <div className="text-3xl font-bold text-primary">{totalMessages}</div>
-                      <div className="text-sm text-muted-foreground">Messages</div>
-                    </Card>
+                <TabsContent value="feed" className="space-y-0">
+                  {/* Create New Image Button */}
+                  <div className="p-4 border-b border-border/50">
+                    <Button
+                      onClick={() => setShowCreateImage(!showCreateImage)}
+                      className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
+                      size="lg"
+                    >
+                      <Plus className="w-5 h-5 mr-2" />
+                      Create New Post
+                    </Button>
+                    
+                    {showCreateImage && (
+                      <div className="mt-4 space-y-3">
+                        <Textarea
+                          placeholder={`What's on your mind, ${character.name}?`}
+                          value={newImagePrompt}
+                          onChange={(e) => setNewImagePrompt(e.target.value)}
+                          rows={3}
+                          className="resize-none"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={handleCreateImage}
+                            disabled={isCreatingImage || !newImagePrompt.trim()}
+                            className="flex-1"
+                          >
+                            {isCreatingImage ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                                Creating...
+                              </>
+                            ) : (
+                              <>
+                                <ImageIcon className="w-4 h-4 mr-2" />
+                                Post
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setShowCreateImage(false);
+                              setNewImagePrompt('');
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  <Card className="p-4">
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
-                      <MessageCircle size={16} />
-                      Recent Chats
-                    </h4>
-                    <div className="space-y-2">
-                      {characterSessions.slice(0, 8).map((session) => (
-                        <div key={session.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                          <div>
-                            <div className="text-sm font-medium">
-                              {session.type === 'group' ? 'Group Chat' : 'Individual Chat'}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {session.messages.length} messages
-                            </div>
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {new Date(session.updatedAt).toLocaleDateString()}
-                          </div>
+                  {/* Instagram-style Feed */}
+                  <div className="flex-1 overflow-y-auto">
+                    {characterImages.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-64 text-center px-4">
+                        <div className="w-16 h-16 bg-gradient-to-br from-pink-400 to-purple-500 rounded-full flex items-center justify-center mb-4">
+                          <ImageIcon className="w-8 h-8 text-white" />
                         </div>
-                      ))}
-                      {!characterSessions.length && (
-                        <div className="text-center py-8 text-muted-foreground">
-                          No chats yet. Start a conversation!
-                        </div>
-                      )}
-                    </div>
-                  </Card>
+                        <h3 className="text-lg font-semibold mb-2">No Posts Yet</h3>
+                        <p className="text-muted-foreground text-sm mb-4">
+                          {character.name} hasn't shared any photos yet. Be the first to create a post!
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border/30">
+                        {characterImages.map((image) => (
+                          <div key={image.id} className="bg-white dark:bg-gray-900">
+                            {/* Post Header */}
+                            <div className="flex items-center justify-between p-3">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="w-8 h-8 border border-gray-200 dark:border-gray-700">
+                                  <AvatarImage src={character.avatar} alt={character.name} />
+                                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                                    {character.name.slice(0, 2).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <div className="font-semibold text-sm">{character.name}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {new Date(image.createdAt).toLocaleDateString()}
+                                  </div>
+                                </div>
+                              </div>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <span className="text-lg">⋯</span>
+                              </Button>
+                            </div>
 
-                  <Card className="p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Clock size={16} />
-                      <span className="font-semibold">Last Interaction</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">{lastInteraction}</p>
-                  </Card>
+                            {/* Post Image - Edge to Edge */}
+                            <div className="relative">
+                              <img
+                                src={image.imageUrl}
+                                alt={image.caption || 'Post'}
+                                className="w-full aspect-square object-cover cursor-pointer"
+                                onClick={() => setSelectedImage(image)}
+                              />
+                            </div>
+
+                            {/* Post Actions */}
+                            <div className="p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-4">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => {
+                                      // Toggle like functionality would go here
+                                    }}
+                                  >
+                                    <Heart
+                                      size={24}
+                                      className={image.liked ? 'fill-red-500 text-red-500' : 'text-gray-700 dark:text-gray-300'}
+                                    />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => setSelectedImage(image)}
+                                  >
+                                    <MessageCircle size={24} className="text-gray-700 dark:text-gray-300" />
+                                  </Button>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => handleDownloadImage(image)}
+                                >
+                                  <Download size={20} className="text-gray-700 dark:text-gray-300" />
+                                </Button>
+                              </div>
+
+                              {/* Likes */}
+                              <div className="text-sm font-semibold mb-1">
+                                {image.liked ? '1 like' : 'Be the first to like this'}
+                              </div>
+
+                              {/* Caption */}
+                              <div className="text-sm">
+                                <span className="font-semibold mr-2">{character.name}</span>
+                                {image.caption || 'Just feeling cute today 💕'}
+                              </div>
+
+                              {/* View all comments (placeholder) */}
+                              <Button variant="ghost" size="sm" className="h-6 p-0 text-xs text-muted-foreground mt-1">
+                                View all comments
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </TabsContent>
 
-                <TabsContent value="progress" className="space-y-4">
+                <TabsContent value="dms" className="flex-1 flex flex-col">
+                  <div className="flex flex-col h-full bg-gradient-to-b from-blue-50 to-white dark:from-gray-800 dark:to-gray-900">
+                    {/* Chat Header - iPhone/iPad Style */}
+                    <div className="flex items-center gap-3 p-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
+                      <Avatar className="w-10 h-10 ring-2 ring-blue-200">
+                        <AvatarImage src={character.avatar} alt={character.name} />
+                        <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                          {character.name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900 dark:text-white">{character.name}</div>
+                        <div className="text-sm text-green-500 flex items-center gap-1">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          Active now
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+
+                    {/* Messages Area */}
+                    <ScrollArea className="flex-1 p-4">
+                      <div className="space-y-4">
+                        {dmMessages.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                            <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-800 dark:to-blue-900 rounded-full flex items-center justify-center mb-6">
+                              <MessageCircle size={32} className="text-blue-500" />
+                            </div>
+                            <h3 className="text-xl font-semibold mb-2 text-gray-800 dark:text-white">Start a conversation</h3>
+                            <p className="text-gray-600 dark:text-gray-300 text-sm max-w-xs">
+                              Send {character.name} a message to begin chatting
+                            </p>
+                          </div>
+                        ) : (
+                          dmMessages.map((message) => (
+                            <div
+                              key={message.id}
+                              className={`flex ${message.characterId ? 'justify-start' : 'justify-end'}`}
+                            >
+                              <div
+                                className={`max-w-[75%] p-3 rounded-2xl shadow-sm ${
+                                  message.characterId
+                                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-tl-md border border-gray-200 dark:border-gray-600'
+                                    : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-tr-md'
+                                }`}
+                              >
+                                <p className="text-sm leading-relaxed">{message.content}</p>
+                                <div className={`text-xs mt-1 ${
+                                  message.characterId
+                                    ? 'text-gray-500 dark:text-gray-400'
+                                    : 'text-blue-100'
+                                }`}>
+                                  {new Date(message.timestamp).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                        {isSendingMessage && (
+                          <div className="flex justify-start">
+                            <div className="bg-white dark:bg-gray-700 p-3 rounded-2xl rounded-tl-md border border-gray-200 dark:border-gray-600">
+                              <div className="flex space-x-1">
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </ScrollArea>
+
+                    {/* Message Input - iPhone/iPad Style */}
+                    <div className="p-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700">
+                      <div className="flex gap-3 items-end">
+                        <div className="flex-1 relative">
+                          <input
+                            type="text"
+                            value={dmInput}
+                            onChange={(e) => setDmInput(e.target.value)}
+                            placeholder={`Message ${character.name}...`}
+                            className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSendDmMessage();
+                              }
+                            }}
+                            disabled={isSendingMessage}
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          className="rounded-full w-10 h-10 p-0 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg"
+                          onClick={handleSendDmMessage}
+                          disabled={!dmInput.trim() || isSendingMessage}
+                        >
+                          {isSendingMessage ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <MessageCircle size={16} />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="stats" className="space-y-4">
+                  {/* Main Character Stats */}
+                  <Card className="p-4">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                      <Heart size={16} />
+                      Main Stats
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Love</span>
+                          <span className="font-medium">{stats.love}%</span>
+                        </div>
+                        <Progress value={stats.love} className="h-2" />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Happiness</span>
+                          <span className="font-medium">{stats.happiness}%</span>
+                        </div>
+                        <Progress value={stats.happiness} className="h-2" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Wet</span>
+                          <span className="font-medium">{stats.wet}%</span>
+                        </div>
+                        <Progress value={stats.wet} className="h-2" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Willingness</span>
+                          <span className="font-medium">{stats.willing}%</span>
+                        </div>
+                        <Progress value={stats.willing} className="h-2" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Self Esteem</span>
+                          <span className="font-medium">{stats.selfEsteem}%</span>
+                        </div>
+                        <Progress value={stats.selfEsteem} className="h-2" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Loyalty</span>
+                          <span className="font-medium">{stats.loyalty}%</span>
+                        </div>
+                        <Progress value={stats.loyalty} className="h-2" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Fight</span>
+                          <span className="font-medium">{stats.fight}%</span>
+                        </div>
+                        <Progress value={stats.fight} className="h-2" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Stamina</span>
+                          <span className="font-medium">{stats.stamina}%</span>
+                        </div>
+                        <Progress value={stats.stamina} className="h-2" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Pain Tolerance</span>
+                          <span className="font-medium">{stats.pain}%</span>
+                        </div>
+                        <Progress value={stats.pain} className="h-2" />
+                      </div>
+                    </div>
+                  </Card>
+
                   {/* Level and Experience */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Card className="p-4">
@@ -814,6 +1433,23 @@ export function CharacterCard({
                           {character.prompts?.background || '—'}
                         </div>
                       </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-sm font-medium">Image Prompt</label>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={handleGenerateImagePrompt}
+                            disabled={isGeneratingImagePrompt}
+                            className="h-6 px-2 text-xs"
+                          >
+                            {isGeneratingImagePrompt ? 'Generating...' : 'Generate'}
+                          </Button>
+                        </div>
+                        <div className="mt-1 p-3 bg-muted/30 rounded text-xs text-muted-foreground max-h-20 overflow-y-auto">
+                          {character.imageDescription || '—'}
+                        </div>
+                      </div>
                     </div>
                   </Card>
 
@@ -841,134 +1477,291 @@ export function CharacterCard({
                     </div>
                   </Card>
                 </TabsContent>
-              </ScrollArea>
-            </Tabs>
+
+                {/* Story Chronicle / Memories Tab */}
+                <TabsContent value="memories" className="space-y-4">
+                  <Card className="p-4">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                      <BookOpen size={16} />
+                      Story Chronicle
+                    </h4>
+                    <div className="space-y-3">
+                      {character.progression.storyChronicle && character.progression.storyChronicle.length > 0 ? (
+                        <ScrollArea className="h-64">
+                          <div className="space-y-3">
+                            {character.progression.storyChronicle
+                              .slice()
+                              .reverse() // Show most recent first
+                              .map((entry) => (
+                                <div key={entry.id} className="p-3 bg-muted/30 rounded-lg">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant="outline" className="text-xs">
+                                        {entry.eventType}
+                                      </Badge>
+                                      <Badge 
+                                        variant={entry.significance === 'pivotal' ? 'default' : 'outline'} 
+                                        className="text-xs"
+                                      >
+                                        {entry.significance}
+                                      </Badge>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">
+                                      {new Date(entry.timestamp).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                  <h5 className="font-medium text-sm mb-1">{entry.title}</h5>
+                                  <p className="text-sm text-muted-foreground mb-2">{entry.summary}</p>
+                                  {entry.tags && entry.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {entry.tags.map((tag, index) => (
+                                        <Badge key={index} variant="secondary" className="text-xs">
+                                          {tag}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                        </ScrollArea>
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <BookOpen size={32} className="mx-auto mb-2 opacity-50" />
+                          <p>No story entries yet</p>
+                          <p className="text-xs">Start conversations to build your story together</p>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+
+                  <Card className="p-4">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                      <TrendUp size={16} />
+                      Emotional Journey
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="text-sm">
+                        <p className="text-muted-foreground">
+                          {analyzeEmotionalJourney(character)}
+                        </p>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                          <span className="font-medium">Recent Context:</span>
+                          <div className="mt-1 p-2 bg-muted/30 rounded text-xs text-muted-foreground max-h-20 overflow-y-auto">
+                            {getRecentStoryContext(character, 5)}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="font-medium">Story Arc:</span>
+                          <div className="mt-1 p-2 bg-muted/30 rounded text-xs">
+                            {character.progression.currentStoryArc || 'No active story arc'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </TabsContent>
+
+                {/* Close all other TabsContent areas */}
+                <TabsContent value="stats" className="mt-0">
+                  {/* Stats content would go here - keeping existing functionality */}
+                  <div className="p-4">Stats view not implemented in this update</div>
+                </TabsContent>
+
+                <TabsContent value="feed" className="mt-0">
+                  {/* Feed content would go here - keeping existing functionality */}
+                  <div className="p-4">Feed view not implemented in this update</div>
+                </TabsContent>
+
+                <TabsContent value="dms" className="mt-0">
+                  {/* DMs content would go here - keeping existing functionality */}
+                  <div className="p-4">DMs view not implemented in this update</div>
+                </TabsContent>
+
+                <TabsContent value="memories" className="mt-0">
+                  {/* Memories content would go here - keeping existing functionality */}
+                  <div className="p-4">Stories view not implemented in this update</div>
+                </TabsContent>
+
+                <TabsContent value="settings" className="mt-0">
+                  {/* Settings content would go here - keeping existing functionality */}
+                  <div className="p-4">Settings view not implemented in this update</div>
+                </TabsContent>
+
+                      </div>
+                    </ScrollArea>
+                  </div>
+                </Tabs>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
-      </>
-    );
-  }
 
-  // Full card variant (not currently used but kept for flexibility)
-  return (
-    <Card className="p-4 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setShowDetails(true)}>
-      <div className="flex items-start gap-3 mb-4">
-        <Avatar className="w-12 h-12">
-          <AvatarImage src={character.avatar} alt={character.name} />
-          <AvatarFallback className="bg-primary text-primary-foreground">
-            {character.name.slice(0, 2).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        {/* Image Detail Modal */}
+        {selectedImage && (
+          <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+            <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Image Details</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col gap-4">
+              <img
+                src={selectedImage.imageUrl}
+                alt={selectedImage.prompt}
+                className="w-full max-h-96 object-contain rounded-lg"
+              />
+              <div className="space-y-2">
+                <p><strong>Prompt:</strong> {selectedImage.prompt}</p>
+                <p><strong>Created:</strong> {new Date(selectedImage.createdAt).toLocaleString()}</p>
+                {selectedImage.tags && selectedImage.tags.length > 0 && (
+                  <div>
+                    <strong>Tags:</strong>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {selectedImage.tags.map(tag => (
+                        <Badge key={tag} variant="outline">{tag}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => handleDownloadImage(selectedImage)}
+                  className="flex-1"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <h4 className="font-medium">{character.name}</h4>
-            {getRarityIcon(character.rarity)}
-            {character.role && (
-              <Badge variant="outline" className="text-xs">
-                {character.role}
-              </Badge>
-            )}
+      <Card className="p-4 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setShowDetails(true)}>
+        <div className="flex items-start gap-3 mb-4">
+          <Avatar className="w-12 h-12">
+            <AvatarImage src={character.avatar} alt={character.name} />
+            <AvatarFallback className="bg-primary text-primary-foreground">
+              {character.name.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h4 className="font-medium">{character.name}</h4>
+              {getRarityIcon(character.rarity)}
+              {character.role && (
+                <Badge variant="outline" className="text-xs">
+                  {character.role}
+                </Badge>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground line-clamp-2">
+              {character.description}
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground line-clamp-2">
-            {character.description}
-          </p>
         </div>
-      </div>
 
-      <div className="space-y-2 mb-4">
-        <div className="flex items-center gap-2 text-xs">
-          <Heart size={12} className="text-red-500" />
-          <Progress value={stats.love} className="h-1 flex-1" />
-          <span className="text-muted-foreground w-8">{stats.love}%</span>
+        <div className="space-y-2 mb-4">
+          <div className="flex items-center gap-2 text-xs">
+            <Heart size={12} className="text-red-500" />
+            <Progress value={stats.love} className="h-1 flex-1" />
+            <span className="text-muted-foreground w-8">{stats.love}%</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <Smile size={12} className="text-yellow-500" />
+            <Progress value={stats.happiness} className="h-1 flex-1" />
+            <span className="text-muted-foreground w-8">{stats.happiness}%</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <Drop size={12} className="text-pink-500" />
+            <Progress value={stats.wet} className="h-1 flex-1" />
+            <span className="text-muted-foreground w-8">{stats.wet}%</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-xs">
-          <Smile size={12} className="text-yellow-500" />
-          <Progress value={stats.happiness} className="h-1 flex-1" />
-          <span className="text-muted-foreground w-8">{stats.happiness}%</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs">
-          <Drop size={12} className="text-pink-500" />
-          <Progress value={stats.wet} className="h-1 flex-1" />
-          <span className="text-muted-foreground w-8">{stats.wet}%</span>
-        </div>
-      </div>
 
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          className="flex-1"
-          onClick={(e) => {
-            e.stopPropagation();
-            onStartChat(character.id);
-          }}
-        >
-          <MessageCircle size={14} className="mr-1" />
-          Chat
-        </Button>
-        {onEdit && (
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            className="flex-1"
+            onClick={(e) => {
+              e.stopPropagation();
+              onStartChat(character.id);
+            }}
+          >
+            <MessageCircle size={14} className="mr-1" />
+            Chat
+          </Button>
+          {onEdit && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(character);
+              }}
+            >
+              <Pencil size={14} />
+            </Button>
+          )}
+          {onDelete && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Trash size={14} />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Character</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete {character.name}? This action cannot be undone and will permanently remove the character from your house, including all their conversations and progress.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={() => onDelete(character.id)}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Delete Character
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           <Button
             size="sm"
             variant="outline"
             onClick={(e) => {
               e.stopPropagation();
-              onEdit(character);
+              onGift?.(character.id);
             }}
           >
-            <Pencil size={14} />
+            <Gift size={14} />
           </Button>
-        )}
-        {onDelete && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Trash size={14} />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Character</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to delete {character.name}? This action cannot be undone and will permanently remove the character from your house, including all their conversations and progress.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction 
-                  onClick={() => onDelete(character.id)}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  Delete Character
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={(e) => {
-            e.stopPropagation();
-            onGift?.(character.id);
-          }}
-        >
-          <Gift size={14} />
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={(e) => {
-            e.stopPropagation();
-            onMove?.(character.id);
-          }}
-        >
-          <House size={14} />
-        </Button>
-      </div>
-    </Card>
-  );
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={(e) => {
+              e.stopPropagation();
+              onMove?.(character.id);
+            }}
+          >
+            <House size={14} />
+          </Button>
+        </div>
+      </Card>
+      </>
+    );
+  }
 }

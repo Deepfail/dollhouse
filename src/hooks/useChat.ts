@@ -7,6 +7,7 @@ import { AIService } from '@/lib/aiService';
 import { storage } from '@/lib/storage';
 import { toast } from 'sonner';
 import { useMemorySystem } from './useMemorySystem';
+import { useStorySystem } from './useStorySystem';
 
 export function useChat() {
   const [sessions, setSessions] = useSimpleStorage<ChatSession[]>('chat-sessions', []);
@@ -15,6 +16,7 @@ export function useChat() {
   const { house } = useHouse();
   const { processUserMessage, processCharacterResponse, triggerMilestoneEvents } = useInteractionSystem();
   const { processConversationMemories, getMemoryContext } = useMemorySystem();
+  const { createStoryEntry, addStoryEntry, getStoryModePrompt } = useStorySystem();
   
   // Ensure sessions is never undefined
   const safeSessions = sessions || [];
@@ -293,7 +295,7 @@ CHARACTER INFORMATION:
 Name: ${character.name}
 Appearance: ${character.appearance}
 Personality: ${character.personality}
-Traits: ${character.traits.join(', ')}
+Traits: ${character.features.join(', ')}
 Background: ${character.prompts?.background || 'No specific background provided'}
 Role: ${character.role}
 
@@ -336,6 +338,12 @@ ${(character.progression?.memorableEvents || []).filter(event => event.intensity
         characterPrompt += memoryContext;
       }
 
+      // Add story mode context for narrative continuity
+      const storyModeContext = getStoryModePrompt(character);
+      if (storyModeContext) {
+        characterPrompt += `\n\n${storyModeContext}`;
+      }
+
       if (conversationContext) {
         characterPrompt += `\n\nCurrent conversation:
 ${conversationContext}`;
@@ -343,7 +351,7 @@ ${conversationContext}`;
 
       characterPrompt += `\n\nUser just said: "${userMessage.content}"
 
-Respond as ${character.name} would, staying true to your character with your actual personality (${character.personality}), traits (${character.traits.join(', ')}), and current emotional/sexual state. Reference your shared history, memories, and past events when appropriate to maintain continuity. Keep responses conversational and engaging, typically 1-2 sentences unless the situation calls for more detail.`;
+Respond as ${character.name} would, staying true to your character with your actual personality (${character.personality}), traits (${character.features.join(', ')}), and current emotional/sexual state. Reference your shared history, memories, and past events when appropriate to maintain continuity. Keep responses conversational and engaging, typically 1-2 sentences unless the situation calls for more detail.`;
 
       console.log(`Generating AI response for ${character.name} using ${provider}...`);
       // Use the new direct API service that gets settings from KV directly
@@ -363,6 +371,36 @@ Respond as ${character.name} would, staying true to your character with your act
 
       // Process character response for relationship building
       processCharacterResponse(characterId, response, character);
+
+      // Generate story entry for this conversation exchange
+      try {
+        const storyEntry = await createStoryEntry(
+          character,
+          'conversation',
+          `Conversation with ${character.name}`,
+          {
+            conversation: `User: ${userMessage.content}\n${character.name}: ${response}`,
+            userAction: userMessage.content,
+            characterResponse: response,
+            participants: [characterId]
+          }
+        );
+        
+        // Update character with new story entry
+        const updatedCharacter = addStoryEntry(character, storyEntry);
+        
+        // Update the character in house storage
+        const currentHouse = await storage.get<any>('character-house');
+        if (currentHouse?.characters) {
+          const charIndex = currentHouse.characters.findIndex((c: any) => c.id === characterId);
+          if (charIndex !== -1) {
+            currentHouse.characters[charIndex] = updatedCharacter;
+            await storage.set('character-house', currentHouse);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to generate story entry:', error);
+      }
 
       return message;
     } catch (error) {
