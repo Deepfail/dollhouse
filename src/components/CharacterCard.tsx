@@ -124,7 +124,7 @@ export function CharacterCard({
   const { getRecentStoryContext, analyzeEmotionalJourney } = useStorySystem();
 
   // Image handling
-  const { data: images } = useFileStorage<GeneratedImage[]>('generated-images.json', []);
+  const { data: images, setData: setImages } = useFileStorage<GeneratedImage[]>('generated-images.json', []);
   const characterImages = images.filter(img => img.characterId === character.id);
 
   // Safely access character properties with defaults - ensure no NaN values
@@ -325,14 +325,13 @@ export function CharacterCard({
           caption: generateImageCaption(character, newImagePrompt.trim())
         };
 
-        // Save to localStorage
-        const existingImages = JSON.parse(localStorage.getItem('generated-images') || '[]');
-        const updatedImages = [newImage, ...existingImages];
-        localStorage.setItem('generated-images', JSON.stringify(updatedImages));
+        // Save using proper file storage system
+        const updatedImages = [newImage, ...images];
+        setImages(updatedImages);
 
         setNewImagePrompt('');
         setShowCreateImage(false);
-        // Could add toast notification here
+        toast.success('Image created successfully!');
       }
     } catch (error) {
       console.error('Image creation error:', error);
@@ -342,20 +341,26 @@ export function CharacterCard({
   };
 
   const generateImageCaption = (character: Character, prompt: string): string => {
-    // Generate a simple caption based on the character and prompt
-    const captions = [
-      `Just feeling myself today 💕 #${character.name}`,
-      `New look, same amazing me ✨`,
-      `When you wake up feeling cute 😘`,
-      `Living my best life 💖`,
-      `Just a girl and her thoughts 💭`,
-      `Feeling beautiful inside and out 🌸`,
-      `Embracing my vibe 💫`,
-      `Confidence level: Expert 💪`,
-      `Just being me 💕`,
-      `Love this energy ✨`
+    // Generate AI-style caption from character perspective
+    const motivations = [
+      "just felt like sharing this moment",
+      "loving this vibe today",
+      "feeling myself right now",
+      "when the lighting hits just right",
+      "new day, new me",
+      "embracing my energy",
+      "this is my happy place",
+      "living in the moment",
+      "feeling grateful for today",
+      "just being authentic"
     ];
-    return captions[Math.floor(Math.random() * captions.length)];
+    
+    const emojis = ["💕", "✨", "💖", "🌸", "💫", "🌟", "💝", "🦋", "🌺", "💎"];
+    
+    const motivation = motivations[Math.floor(Math.random() * motivations.length)];
+    const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+    
+    return `${motivation} ${emoji}`;
   };
 
   const handleGenerateImagePrompt = async () => {
@@ -783,160 +788,228 @@ Return only the image prompt, nothing else.`;
                   </Card>
                 </TabsContent>
 
-                <TabsContent value="feed" className="space-y-0">
-                  {/* Create New Image Button */}
-                  <div className="p-4 border-b border-border/50">
-                    <Button
-                      onClick={() => setShowCreateImage(!showCreateImage)}
-                      className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
-                      size="lg"
-                    >
-                      <Plus className="w-5 h-5 mr-2" />
-                      Create New Post
-                    </Button>
+                <TabsContent value="feed" className="flex-1 flex flex-col p-0 m-0">
+                  {/* Mobile Phone-style Header */}
+                  <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
+                    {/* Status Bar Mockup */}
+                    <div className="flex justify-between items-center px-4 py-1 text-xs bg-black text-white">
+                      <span>9:41</span>
+                      <div className="flex gap-1">
+                        <div className="w-4 h-2 bg-white rounded-sm opacity-60"></div>
+                        <div className="w-4 h-2 bg-white rounded-sm opacity-80"></div>
+                        <div className="w-4 h-2 bg-white rounded-sm"></div>
+                      </div>
+                    </div>
                     
+                    {/* Feed Header */}
+                    <div className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="w-8 h-8 border border-gray-200 dark:border-gray-700">
+                          <AvatarImage src={character.avatar} alt={character.name} />
+                          <AvatarFallback className="bg-gradient-to-br from-pink-400 to-purple-500 text-white text-xs">
+                            {character.name.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-semibold text-sm">{character.name}</div>
+                          <div className="text-xs text-muted-foreground">@{character.name.toLowerCase().replace(/\s+/g, '')}</div>
+                        </div>
+                      </div>
+                      
+                      {/* Create Post Button - Instagram Style */}
+                      <Button
+                        onClick={() => setShowCreateImage(!showCreateImage)}
+                        variant="ghost"
+                        size="sm"
+                        className="p-2 rounded-lg border-2 border-dashed border-gray-300 hover:border-primary hover:bg-primary/5"
+                      >
+                        <Plus size={18} className="text-primary" />
+                      </Button>
+                    </div>
+
+                    {/* Create Post Interface */}
                     {showCreateImage && (
-                      <div className="mt-4 space-y-3">
-                        <Textarea
-                          placeholder={`What's on your mind, ${character.name}?`}
-                          value={newImagePrompt}
-                          onChange={(e) => setNewImagePrompt(e.target.value)}
-                          rows={3}
-                          className="resize-none"
-                        />
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={handleCreateImage}
-                            disabled={isCreatingImage || !newImagePrompt.trim()}
-                            className="flex-1"
-                          >
-                            {isCreatingImage ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                                Creating...
-                              </>
-                            ) : (
-                              <>
-                                <ImageIcon className="w-4 h-4 mr-2" />
-                                Post
-                              </>
-                            )}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setShowCreateImage(false);
-                              setNewImagePrompt('');
-                            }}
-                          >
-                            Cancel
-                          </Button>
+                      <div className="border-t border-gray-200 dark:border-gray-800 p-4 bg-gray-50 dark:bg-gray-800/50">
+                        <div className="flex items-start gap-3">
+                          <Avatar className="w-8 h-8 border border-gray-200 dark:border-gray-700">
+                            <AvatarImage src={character.avatar} alt={character.name} />
+                            <AvatarFallback className="bg-gradient-to-br from-pink-400 to-purple-500 text-white text-xs">
+                              {character.name.slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 space-y-3">
+                            <Textarea
+                              placeholder={`What's on your mind, ${character.name}?`}
+                              value={newImagePrompt}
+                              onChange={(e) => setNewImagePrompt(e.target.value)}
+                              rows={3}
+                              className="resize-none border-0 bg-white dark:bg-gray-900 rounded-xl shadow-sm"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                onClick={handleCreateImage}
+                                disabled={isCreatingImage || !newImagePrompt.trim()}
+                                className="flex-1 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
+                                size="sm"
+                              >
+                                {isCreatingImage ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2" />
+                                    Creating...
+                                  </>
+                                ) : (
+                                  <>
+                                    <ImageIcon className="w-4 h-4 mr-2" />
+                                    Share
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setShowCreateImage(false);
+                                  setNewImagePrompt('');
+                                }}
+                                className="rounded-full"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Instagram-style Feed */}
-                  <div className="flex-1 overflow-y-auto">
+                  {/* Instagram-style Feed Content */}
+                  <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
                     {characterImages.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center h-64 text-center px-4">
-                        <div className="w-16 h-16 bg-gradient-to-br from-pink-400 to-purple-500 rounded-full flex items-center justify-center mb-4">
-                          <ImageIcon className="w-8 h-8 text-white" />
+                      <div className="flex flex-col items-center justify-center h-full text-center px-6 py-12">
+                        <div className="w-20 h-20 bg-gradient-to-br from-pink-100 to-purple-100 dark:from-pink-900/30 dark:to-purple-900/30 rounded-full flex items-center justify-center mb-6">
+                          <ImageIcon className="w-10 h-10 text-pink-400" />
                         </div>
-                        <h3 className="text-lg font-semibold mb-2">No Posts Yet</h3>
-                        <p className="text-muted-foreground text-sm mb-4">
-                          {character.name} hasn't shared any photos yet. Be the first to create a post!
+                        <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">No Posts Yet</h3>
+                        <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 max-w-xs">
+                          {character.name} hasn't shared any photos yet. Tap the + button to create their first post!
                         </p>
                       </div>
                     ) : (
-                      <div className="divide-y divide-border/30">
-                        {characterImages.map((image) => (
-                          <div key={image.id} className="bg-white dark:bg-gray-900">
+                      <div className="space-y-0">
+                        {characterImages.map((image, index) => (
+                          <div key={image.id} className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
                             {/* Post Header */}
                             <div className="flex items-center justify-between p-3">
                               <div className="flex items-center gap-3">
                                 <Avatar className="w-8 h-8 border border-gray-200 dark:border-gray-700">
                                   <AvatarImage src={character.avatar} alt={character.name} />
-                                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                                  <AvatarFallback className="bg-gradient-to-br from-pink-400 to-purple-500 text-white text-xs">
                                     {character.name.slice(0, 2).toUpperCase()}
                                   </AvatarFallback>
                                 </Avatar>
                                 <div>
-                                  <div className="font-semibold text-sm">{character.name}</div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {new Date(image.createdAt).toLocaleDateString()}
+                                  <div className="font-semibold text-sm text-gray-900 dark:text-white">{character.name}</div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    {new Date(image.createdAt).toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
                                   </div>
                                 </div>
                               </div>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <span className="text-lg">⋯</span>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                                <span className="text-lg leading-none">⋯</span>
                               </Button>
                             </div>
 
                             {/* Post Image - Edge to Edge */}
-                            <div className="relative">
+                            <div className="relative aspect-square bg-gray-100 dark:bg-gray-800">
                               <img
                                 src={image.imageUrl}
-                                alt={image.caption || 'Post'}
-                                className="w-full aspect-square object-cover cursor-pointer"
+                                alt={image.caption || `${character.name}'s post`}
+                                className="w-full h-full object-cover cursor-pointer transition-transform hover:scale-[1.02]"
                                 onClick={() => setSelectedImage(image)}
+                                loading={index < 3 ? "eager" : "lazy"}
                               />
+                              {/* Subtle overlay on hover */}
+                              <div className="absolute inset-0 bg-black/0 hover:bg-black/5 transition-colors pointer-events-none" />
                             </div>
 
                             {/* Post Actions */}
-                            <div className="p-3">
-                              <div className="flex items-center justify-between mb-2">
+                            <div className="p-3 space-y-2">
+                              {/* Action Buttons */}
+                              <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-8 w-8 p-0"
+                                    className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-900/20"
                                     onClick={() => {
-                                      // Toggle like functionality would go here
+                                      // Toggle like functionality
+                                      const updatedImages = images.map(img => 
+                                        img.id === image.id ? { ...img, liked: !img.liked } : img
+                                      );
+                                      setImages(updatedImages);
                                     }}
                                   >
                                     <Heart
-                                      size={24}
-                                      className={image.liked ? 'fill-red-500 text-red-500' : 'text-gray-700 dark:text-gray-300'}
+                                      size={22}
+                                      className={`transition-colors ${
+                                        image.liked 
+                                          ? 'fill-red-500 text-red-500' 
+                                          : 'text-gray-700 dark:text-gray-300 hover:text-red-400'
+                                      }`}
                                     />
                                   </Button>
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-8 w-8 p-0"
+                                    className="h-8 w-8 p-0 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                                     onClick={() => setSelectedImage(image)}
                                   >
-                                    <MessageCircle size={24} className="text-gray-700 dark:text-gray-300" />
+                                    <MessageCircle size={22} className="text-gray-700 dark:text-gray-300 hover:text-blue-400" />
                                   </Button>
                                 </div>
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 w-8 p-0"
+                                  className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-800"
                                   onClick={() => handleDownloadImage(image)}
                                 >
-                                  <Download size={20} className="text-gray-700 dark:text-gray-300" />
+                                  <Download size={18} className="text-gray-700 dark:text-gray-300" />
                                 </Button>
                               </div>
 
-                              {/* Likes */}
-                              <div className="text-sm font-semibold mb-1">
+                              {/* Likes Count */}
+                              <div className="text-sm font-semibold text-gray-900 dark:text-white">
                                 {image.liked ? '1 like' : 'Be the first to like this'}
                               </div>
 
                               {/* Caption */}
-                              <div className="text-sm">
+                              <div className="text-sm text-gray-900 dark:text-white">
                                 <span className="font-semibold mr-2">{character.name}</span>
-                                {image.caption || 'Just feeling cute today 💕'}
+                                <span className="text-gray-700 dark:text-gray-300">
+                                  {image.caption || 'just felt like sharing this moment ✨'}
+                                </span>
                               </div>
 
-                              {/* View all comments (placeholder) */}
-                              <Button variant="ghost" size="sm" className="h-6 p-0 text-xs text-muted-foreground mt-1">
-                                View all comments
+                              {/* View comments link */}
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-6 p-0 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                                onClick={() => setSelectedImage(image)}
+                              >
+                                View full image
                               </Button>
                             </div>
                           </div>
                         ))}
+                        
+                        {/* Bottom spacing for mobile */}
+                        <div className="h-6 bg-gray-50 dark:bg-gray-900"></div>
                       </div>
                     )}
                   </div>
