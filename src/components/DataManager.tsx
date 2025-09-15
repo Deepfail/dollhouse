@@ -34,9 +34,10 @@ export function DataManager() {
   const [localStorageKeys, setLocalStorageKeys] = useState<string[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Refresh localStorage keys
+  // Refresh settings keys (disabled - no more localStorage)
   const refreshKeys = () => {
-    const keys = Object.keys(localStorage).sort();
+    // const keys = Object.keys(localStorage).sort();
+    const keys: string[] = []; // No localStorage anymore
     setLocalStorageKeys(keys);
     setRefreshTrigger(prev => prev + 1);
   };
@@ -48,24 +49,13 @@ export function DataManager() {
   }, [isOpen]);
 
   const getStorageData = (key: string) => {
-    try {
-      const data = localStorage.getItem(key);
-      return data ? JSON.parse(data) : null;
-    } catch (error) {
-      return localStorage.getItem(key); // Return as string if not JSON
-    }
+    // No localStorage - return empty
+    return null;
   };
 
   const getFormattedData = (key: string) => {
-    try {
-      const data = localStorage.getItem(key);
-      if (!data) return '';
-      
-      const parsed = JSON.parse(data);
-      return JSON.stringify(parsed, null, 2);
-    } catch (error) {
-      return localStorage.getItem(key) || '';
-    }
+    // No localStorage - return empty
+    return '';
   };
 
   const handleEditData = (key: string) => {
@@ -76,16 +66,8 @@ export function DataManager() {
   const handleSaveData = () => {
     if (!selectedKey) return;
 
-    try {
-      // Try to parse as JSON first
-      const parsed = JSON.parse(editingData);
-      localStorage.setItem(selectedKey, JSON.stringify(parsed));
-      toast.success('Data saved successfully');
-    } catch (error) {
-      // Save as string if not valid JSON
-      localStorage.setItem(selectedKey, editingData);
-      toast.success('Data saved as string');
-    }
+    // Disabled localStorage functionality
+    toast.info('localStorage functionality disabled - using repository storage instead');
 
     setSelectedKey(null);
     setEditingData('');
@@ -94,8 +76,8 @@ export function DataManager() {
 
   const handleDeleteKey = (key: string) => {
     if (confirm(`Are you sure you want to delete "${key}"?`)) {
-      localStorage.removeItem(key);
-      toast.success('Data deleted');
+      // Disabled localStorage functionality
+      toast.info('localStorage functionality disabled - using repository storage instead');
       if (selectedKey === key) {
         setSelectedKey(null);
         setEditingData('');
@@ -107,9 +89,10 @@ export function DataManager() {
   const handleExportAll = () => {
     const allData: Record<string, any> = {};
     
-    localStorageKeys.forEach(key => {
-      allData[key] = getStorageData(key);
-    });
+    // No localStorage - empty export
+    // localStorageKeys.forEach(key => {
+    //   allData[key] = getStorageData(key);
+    // });
 
     const dataStr = JSON.stringify(allData, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
@@ -135,10 +118,11 @@ export function DataManager() {
         const data = JSON.parse(e.target?.result as string);
         
         Object.entries(data).forEach(([key, value]) => {
-          localStorage.setItem(key, JSON.stringify(value));
+          // localStorage.setItem(key, JSON.stringify(value));
+          // Disabled localStorage import
         });
         
-        toast.success('Data imported successfully');
+        toast.info('localStorage import disabled - using repository storage instead');
         refreshKeys();
       } catch (error) {
         toast.error('Failed to import data: Invalid JSON');
@@ -151,22 +135,13 @@ export function DataManager() {
   };
 
   const getDataSize = (key: string) => {
-    const data = localStorage.getItem(key);
-    return data ? `${(data.length / 1024).toFixed(1)} KB` : '0 KB';
+    // const data = localStorage.getItem(key);
+    return '0 KB'; // No localStorage
   };
 
   const getDataType = (key: string) => {
-    try {
-      const data = localStorage.getItem(key);
-      if (!data) return 'empty';
-      
-      const parsed = JSON.parse(data);
-      if (Array.isArray(parsed)) return 'array';
-      if (typeof parsed === 'object') return 'object';
-      return typeof parsed;
-    } catch {
-      return 'string';
-    }
+    // Disabled localStorage
+    return 'empty';
   };
 
   return (
@@ -221,7 +196,7 @@ export function DataManager() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Badge variant="secondary">{localStorageKeys.length} Keys</Badge>
-                <Badge variant="outline">{localStorage.length} Total Items</Badge>
+                <Badge variant="outline">0 Total Items</Badge>
               </div>
               <Button variant="outline" size="sm" onClick={refreshKeys}>
                 <RotateCcw size={16} className="mr-2" />

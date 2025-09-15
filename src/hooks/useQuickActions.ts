@@ -1,7 +1,9 @@
-import { useSimpleStorage } from './useSimpleStorage';
+import { useRepositoryKV } from './useRepositoryStorage';
 import { useHouse } from './useHouse';
 import { useChat } from './useChat';
 import { AIService } from '@/lib/aiService';
+import { createAsset } from '@/repo/assets';
+import { queryClient } from '@/lib/query';
 import { toast } from 'sonner';
 
 export interface QuickAction {
@@ -102,7 +104,7 @@ const DEFAULT_ACTIONS: QuickAction[] = [
 ];
 
 export function useQuickActions() {
-  const [quickActions, setQuickActions] = useSimpleStorage<QuickAction[]>('quick-actions', DEFAULT_ACTIONS);
+  const [quickActions, setQuickActions] = useRepositoryKV<QuickAction[]>('quick-actions', DEFAULT_ACTIONS);
   const { house, updateCharacter } = useHouse();
   const { createSession, setActiveSessionId } = useChat();
 
@@ -600,18 +602,23 @@ export function useQuickActions() {
         const imageUrl = await AIService.generateImage(prompt);
         
         if (imageUrl) {
-          // Store the image in the gallery
-          const images = JSON.parse(localStorage.getItem('generated-images') || '[]');
-          const newImage = {
-            id: crypto.randomUUID(),
-            prompt,
-            imageUrl,
-            createdAt: new Date(),
-            characterId: character.id,
-            tags: ['portrait', 'character', character.name.toLowerCase()]
-          };
-          images.unshift(newImage);
-          localStorage.setItem('generated-images', JSON.stringify(images));
+          // Store the image in the assets repository
+          try {
+            await createAsset({
+              owner_type: 'character',
+              owner_id: character.id,
+              kind: 'generated-image',
+              path: imageUrl,
+              meta_json: JSON.stringify({
+                prompt,
+                createdAt: new Date().toISOString(),
+                tags: ['portrait', 'character', character.name.toLowerCase()]
+              })
+            });
+            queryClient.invalidateQueries({ queryKey: ['assets'] });
+          } catch (error) {
+            console.error(`Error saving image for ${character.name}:`, error);
+          }
         }
       } catch (error) {
         console.error(`Error generating image for ${character.name}:`, error);
@@ -629,17 +636,24 @@ export function useQuickActions() {
       const imageUrl = await AIService.generateImage(prompt);
       
       if (imageUrl) {
-        const images = JSON.parse(localStorage.getItem('generated-images') || '[]');
-        const newImage = {
-          id: crypto.randomUUID(),
-          prompt,
-          imageUrl,
-          createdAt: new Date(),
-          tags: ['scene', 'house', 'interior']
-        };
-        images.unshift(newImage);
-        localStorage.setItem('generated-images', JSON.stringify(images));
-        toast.success('House scene image generated!');
+        try {
+          await createAsset({
+            owner_type: 'house',
+            owner_id: 'scene',
+            kind: 'generated-image',
+            path: imageUrl,
+            meta_json: JSON.stringify({
+              prompt,
+              createdAt: new Date().toISOString(),
+              tags: ['scene', 'house', 'interior']
+            })
+          });
+          queryClient.invalidateQueries({ queryKey: ['assets'] });
+          toast.success('House scene image generated!');
+        } catch (error) {
+          console.error('Error saving scene image:', error);
+          toast.success('House scene image generated!');
+        }
       }
     } catch (error) {
       console.error('Error generating scene image:', error);
@@ -661,18 +675,24 @@ export function useQuickActions() {
       const imageUrl = await AIService.generateImage(prompt);
       
       if (imageUrl) {
-        const images = JSON.parse(localStorage.getItem('generated-images') || '[]');
-        const newImage = {
-          id: crypto.randomUUID(),
-          prompt,
-          imageUrl,
-          createdAt: new Date(),
-          characterId: character.id,
-          tags: ['portrait', 'detailed', character.name.toLowerCase()]
-        };
-        images.unshift(newImage);
-        localStorage.setItem('generated-images', JSON.stringify(images));
-        toast.success(`Detailed portrait of ${character.name} generated!`);
+        try {
+          await createAsset({
+            owner_type: 'character',
+            owner_id: character.id,
+            kind: 'generated-image',
+            path: imageUrl,
+            meta_json: JSON.stringify({
+              prompt,
+              createdAt: new Date().toISOString(),
+              tags: ['portrait', 'detailed', character.name.toLowerCase()]
+            })
+          });
+          queryClient.invalidateQueries({ queryKey: ['assets'] });
+          toast.success(`Detailed portrait of ${character.name} generated!`);
+        } catch (error) {
+          console.error('Error saving portrait:', error);
+          toast.success(`Detailed portrait of ${character.name} generated!`);
+        }
       }
     } catch (error) {
       console.error('Error generating portrait:', error);
@@ -750,9 +770,18 @@ export function useQuickActions() {
 
   const backupGallery = async () => {
     try {
-      const images = JSON.parse(localStorage.getItem('generated-images') || '[]');
+      // Get all assets from the repository instead of localStorage
+      const { listAssets } = await import('@/repo/assets');
+      const assets = await listAssets();
+      const images = assets.filter(asset => asset.kind === 'generated-image');
+      
       const backup = {
-        images,
+        images: images.map(asset => ({
+          id: asset.id,
+          path: asset.path,
+          createdAt: asset.created_at,
+          meta: JSON.parse(asset.meta_json || '{}')
+        })),
         exportDate: new Date().toISOString(),
         totalImages: images.length
       };

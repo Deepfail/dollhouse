@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useSimpleStorage } from './useSimpleStorage';
+import { useRepositoryKV } from './useRepositoryStorage';
 
 import { ChatSession, Character, ChatMessage, SceneObjective } from '@/types'
 import { useHouse } from './useHouse'           // if your hook lives elsewhere, fix this path
@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 
 export const useSceneMode = () => {
   const { house } = useHouse()
-  const [activeSessions, setActiveSessions] = useSimpleStorage<ChatSession[]>('scene-sessions', [])
+  const [activeSessions, setActiveSessions] = useRepositoryKV<ChatSession[]>('scene-sessions', [])
   const [isProcessing, setIsProcessing] = useState(false)
 
   // Keep a live copy for timers to read fresh state
