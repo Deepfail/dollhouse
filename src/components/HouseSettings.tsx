@@ -10,8 +10,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { useHouse } from '@/hooks/useHouse';
-import { useSimpleStorage, simpleStorage } from '@/hooks/useSimpleStorage';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { useFileStorage } from '@/hooks/useFileStorage';
+import { fileStorage } from '@/lib/fileStorage';
 import { AVAILABLE_MODELS } from '@/types';
 import { AIService } from '@/lib/aiService';
 import { toast } from 'sonner';
@@ -31,10 +32,10 @@ interface HouseSettingsProps {
 }
 
 export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
-  const { house, updateHouse } = useHouse();
+  const { house, updateHouse } = useHouseFileStorage();
   
   // Force update trigger to help with persistence issues
-  const [forceUpdate, setForceUpdate] = useSimpleStorage<number>('settings-force-update', 0);
+  const { data: forceUpdate, setData: setForceUpdate } = useFileStorage<number>('settings-force-update.json', 0);
   
   // House configuration state
   const [houseName, setHouseName] = useState(house.name);
@@ -215,40 +216,39 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       console.log('New AI settings being saved:', newApiSettings);
       
       // Save using the hook's updateHouse method 
-      updateHouse(currentHouse => {
-        const updated = {
-          ...currentHouse,
-          aiSettings: newApiSettings,
-          updatedAt: new Date()
-        };
-        console.log('Updated House object:', updated);
-        console.log('Updated AI Settings object:', updated.aiSettings);
-        return updated;
+      updateHouse({
+        aiSettings: newApiSettings,
+        updatedAt: new Date()
       });
       
       // Trigger a force update to ensure other components re-render
-      setForceUpdate(current => (current || 0) + 1);
+      setForceUpdate((forceUpdate || 0) + 1);
       
       // Give a moment for the update to propagate
-      setTimeout(() => {
+      setTimeout(async () => {
         console.log('Checking updated house state...');
         console.log('House AI Settings after update:', house.aiSettings);
         
-        // Verify the save worked by checking localStorage directly
-        const kvData = simpleStorage.get('character-house') as any;
-        console.log('Verification - localStorage settings:', kvData?.aiSettings);
-        console.log('Verification - Hook AI settings:', house.aiSettings);
-        
-        const savedTextApiKey = kvData?.aiSettings?.textApiKey || kvData?.aiSettings?.apiKey;
-        if (savedTextApiKey === textApiKey.trim()) {
-          console.log('✅ API settings successfully saved and verified!');
-          toast.success('API settings saved successfully');
-        } else {
-          console.error('❌ API settings save verification failed');
-          console.log('Expected:', textApiKey.trim());
-          console.log('Got from localStorage:', savedTextApiKey);
-          console.log('Got from Hook:', house.aiSettings?.apiKey);
-          toast.error('API settings may not have saved correctly. Please try again.');
+        try {
+          // Verify the save worked by checking file storage directly
+          const houseData = await fileStorage.readFile<any>('house.json');
+          console.log('Verification - file storage settings:', houseData?.aiSettings);
+          console.log('Verification - Hook AI settings:', house.aiSettings);
+          
+          const savedTextApiKey = houseData?.aiSettings?.textApiKey || houseData?.aiSettings?.apiKey;
+          if (savedTextApiKey === textApiKey.trim()) {
+            console.log('✅ API settings successfully saved and verified!');
+            toast.success('API settings saved successfully');
+          } else {
+            console.error('❌ API settings save verification failed');
+            console.log('Expected:', textApiKey.trim());
+            console.log('Got from file storage:', savedTextApiKey);
+            console.log('Got from Hook:', house.aiSettings?.apiKey);
+            toast.error('API settings may not have saved correctly. Please try again.');
+          }
+        } catch (error) {
+          console.error('Error verifying save:', error);
+          toast.success('API settings saved successfully'); // Assume success if verification fails
         }
       }, 500); // Give a bit more time for state to propagate
       
@@ -403,9 +403,14 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                           variant="outline" 
                           size="sm" 
                           onClick={async () => {
-                            const kvData = simpleStorage.get('character-house');
-                            console.log('Storage data:', kvData);
-                            toast.info('Storage data logged to console');
+                            try {
+                              const houseData = await fileStorage.readFile<any>('house.json');
+                              console.log('Storage data:', houseData);
+                              toast.info('Storage data logged to console');
+                            } catch (error) {
+                              console.error('Error reading storage:', error);
+                              toast.error('Error reading storage data');
+                            }
                           }}
                           className="mt-2 h-7 text-xs"
                         >

@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useHouse } from '@/hooks/useHouse';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { useChat } from '@/hooks/useChat';
 import { Character } from '@/types';
 import { toast } from 'sonner';
@@ -43,7 +43,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: SidebarProps) {
-  const { house } = useHouse();
+  const { house } = useHouseFileStorage();
   const { createSession, sessions, closeSession, deleteSession, switchToSession } = useChat();
   const [showCreator, setShowCreator] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -89,16 +89,16 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
         <div className="flex items-center gap-3 mb-4">
           <Home size={24} className="text-primary" />
           <div>
-            <h1 className="text-xl font-bold">{house.name}</h1>
+            <h1 className="text-xl font-bold">{house?.name || 'Loading...'}</h1>
             <p className="text-sm text-muted-foreground">
-              {house.characters.length} characters
+              {house?.characters?.length || 0} characters
             </p>
           </div>
         </div>
         
         <div className="flex items-center gap-2 text-sm">
           <Badge variant="secondary" className="text-primary font-medium">
-            ${house.currency}
+            ${house?.currency || 0}
           </Badge>
           <span className="text-muted-foreground">House Funds</span>
         </div>
@@ -167,7 +167,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
               </div>
 
               <div className="space-y-2">
-                {house.characters.length === 0 ? (
+                {(house?.characters?.length || 0) === 0 ? (
                   <Card className="p-4 text-center text-muted-foreground">
                     <p className="text-sm">No characters yet</p>
                     <p className="text-xs">Create your first companion!</p>
@@ -175,18 +175,19 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
                 ) : (
                   (house.characters || []).map(character => (
                     <CharacterCard
-                      key={character.id}
+                      key={`sidebar-${character.id}`}
                       character={character}
                       onStartChat={startIndividualChat}
                       onEdit={setEditingCharacter}
                       onGift={(characterId) => setSelectedCharacterForGift(characterId)}
                       compact={true}
+                      source="sidebar"
                     />
                   ))
                 )}
               </div>
 
-              {house.characters.length > 1 && (
+              {(house?.characters?.length || 0) > 1 && (
                 <Button
                   variant="outline"
                   className="w-full"
@@ -236,7 +237,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
                     {room.residents.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {room.residents.slice(0, 3).map(residentId => {
-                          const character = house.characters.find(c => c.id === residentId);
+                          const character = house?.characters?.find(c => c.id === residentId);
                           return character ? (
                             <Badge key={character.id} variant="outline" className="text-xs">
                               {character.name}
@@ -562,7 +563,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
       )}
 
       {/* Gift Manager Modal */}
-      {selectedCharacterForGift && (
+      {selectedCharacterForGift && house?.characters && (
         <GiftManager
           character={house.characters.find(c => c.id === selectedCharacterForGift)!}
           isOpen={!!selectedCharacterForGift}

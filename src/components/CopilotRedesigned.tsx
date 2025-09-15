@@ -5,8 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { useSimpleStorage, simpleStorage } from '@/hooks/useSimpleStorage';
-import { useHouse } from '@/hooks/useHouse';
+import { useFileStorage } from '@/hooks/useFileStorage';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { fileStorage } from '@/lib/fileStorage';
 import { useQuickActions } from '@/hooks/useQuickActions';
 import { useChat } from '@/hooks/useChat';
 import { useSceneMode } from '@/hooks/useSceneMode';
@@ -58,13 +59,13 @@ interface CopilotProps {
 }
 
 export function CopilotRedesigned({ onStartChat, onStartGroupChat, onStartScene }: CopilotProps = {}) {
-  const { house } = useHouse();
+  const { house } = useHouseFileStorage();
   const { quickActions, executeAction } = useQuickActions();
   const { createSession, setActiveSessionId } = useChat();
   const { createSceneSession } = useSceneMode();
-  const [updates, setUpdates] = useSimpleStorage<CopilotUpdate[]>('copilot-updates', []);
-  const [chatMessages, setChatMessages] = useSimpleStorage<CopilotMessage[]>('copilot-chat', []);
-  const [forceUpdate] = useSimpleStorage<number>('settings-force-update', 0);
+  const { data: updates, setData: setUpdates } = useFileStorage<CopilotUpdate[]>('copilot-updates.json', []);
+  const { data: chatMessages, setData: setChatMessages } = useFileStorage<CopilotMessage[]>('copilot-chat.json', []);
+  const { data: forceUpdate } = useFileStorage<number>('settings-force-update.json', 0);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -81,7 +82,7 @@ export function CopilotRedesigned({ onStartChat, onStartGroupChat, onStartScene 
 
   // Dynamic message generation functions (like the original)
   const generateArousalMessage = async (character: any) => {
-    const settings = simpleStorage.get('house-settings') as any || {};
+    const settings = await fileStorage.readFile('house-settings.json') as any || {};
     const copilotPrompt = settings.copilotPrompt || 'You are a helpful assistant for a character simulation game.';
     const housePrompt = settings.housePrompt || 'A virtual house with multiple characters.';
     const conversationHistory = safeChatMessages.slice(-5).map(m => 
@@ -105,7 +106,7 @@ export function CopilotRedesigned({ onStartChat, onStartGroupChat, onStartScene 
   };
 
   const deleteMessage = (messageId: string) => {
-    setChatMessages(prev => prev.filter(m => m.id !== messageId));
+    setChatMessages(chatMessages.filter(m => m.id !== messageId));
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -125,7 +126,7 @@ export function CopilotRedesigned({ onStartChat, onStartGroupChat, onStartScene 
       timestamp: new Date()
     };
 
-    setChatMessages(prev => [...prev, userMessage]);
+    setChatMessages([...chatMessages, userMessage]);
     setInputMessage('');
     setIsTyping(true);
 
@@ -138,7 +139,7 @@ export function CopilotRedesigned({ onStartChat, onStartGroupChat, onStartScene 
       }
 
       // Generate text response
-      const settings = simpleStorage.get('house-settings') as any || {};
+      const settings = await fileStorage.readFile('house-settings.json') as any || {};
       const copilotPrompt = settings.copilotPrompt || 'You are a helpful assistant for a character simulation game.';
       const housePrompt = settings.housePrompt || 'A virtual house with multiple characters.';
       const conversationHistory = safeChatMessages.slice(-10).map(m => 
@@ -156,7 +157,7 @@ export function CopilotRedesigned({ onStartChat, onStartGroupChat, onStartScene 
         timestamp: new Date()
       };
 
-      setChatMessages(prev => [...prev, copilotMessage]);
+      setChatMessages([...chatMessages, copilotMessage]);
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error('Failed to get response');
@@ -193,7 +194,7 @@ export function CopilotRedesigned({ onStartChat, onStartGroupChat, onStartScene 
         imageData: imageData || undefined
       };
 
-      setChatMessages(prev => [...prev, copilotMessage]);
+      setChatMessages([...chatMessages, copilotMessage]);
     } catch (error) {
       console.error('Error generating image:', error);
       const errorMessage: CopilotMessage = {
@@ -202,7 +203,7 @@ export function CopilotRedesigned({ onStartChat, onStartGroupChat, onStartScene 
         content: `Sorry, I couldn't generate that image. ${error instanceof Error ? error.message : 'Unknown error occurred.'}`,
         timestamp: new Date()
       };
-      setChatMessages(prev => [...prev, errorMessage]);
+      setChatMessages([...chatMessages, errorMessage]);
     }
   };
 
@@ -211,7 +212,7 @@ export function CopilotRedesigned({ onStartChat, onStartGroupChat, onStartScene 
   };
 
   const dismissAllNotifications = () => {
-    setUpdates(prev => prev.map(u => ({ ...u, handled: true })));
+    setUpdates(updates.map(u => ({ ...u, handled: true })));
     setShowNotifications(false);
     toast.success('All notifications dismissed');
   };

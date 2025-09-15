@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useHouse } from '@/hooks/useHouse';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { Character, AVAILABLE_PERSONALITIES, AVAILABLE_ROLES, AVAILABLE_TRAITS } from '@/types';
 import { Plus, X, FloppyDisk as Save, DotsThree, Image as ImageIcon, Spinner } from '@phosphor-icons/react';
 import { toast } from 'sonner';
@@ -28,7 +28,7 @@ const PRESET_CLASSES = [
 ];
 
 export function CharacterCreator({ open, onOpenChange, character }: CharacterCreatorProps) {
-  const { house, addCharacter, updateCharacter } = useHouse();
+  const { house, addCharacter, updateCharacter } = useHouseFileStorage();
   const isEditing = !!character;
 
   const [formData, setFormData] = useState({

@@ -9,7 +9,7 @@ import { ChatInterface } from './ChatInterface';
 import { SceneInterface } from './SceneInterface';
 import { HouseMap } from './HouseMap';
 import { DesktopUI } from './DesktopUI';
-import { useHouse } from '@/hooks/useHouse';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { useChat } from '@/hooks/useChat';
 import { useSceneMode } from '@/hooks/useSceneMode';
 import { Character } from '@/types';
@@ -24,7 +24,7 @@ import {
 } from '@phosphor-icons/react';
 
 export function HouseView() {
-  const { house, removeCharacter } = useHouse();
+  const { house, removeCharacter } = useHouseFileStorage();
   const { createSession } = useChat();
   const { createSceneSession } = useSceneMode();
   const [activeChat, setActiveChat] = useState<string | null>(null);
@@ -202,11 +202,12 @@ export function HouseView() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {house.characters?.map((character) => (
                     <CharacterCard
-                      key={character.id}
+                      key={`houseview-${character.id}`}
                       character={character}
                       onStartChat={handleStartChat}
                       onDelete={handleDeleteCharacter}
                       compact
+                      source="houseview"
                     />
                   ))}
                 </div>

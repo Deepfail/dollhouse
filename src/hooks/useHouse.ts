@@ -226,8 +226,22 @@ export function useHouse() {
   // Ensure house is never undefined by providing the default
   const safeHouse = house || DEFAULT_HOUSE;
   
+  // Ensure critical fields exist with proper defaults
+  const normalizedHouse = {
+    ...safeHouse,
+    characters: safeHouse.characters || [],
+    rooms: safeHouse.rooms || DEFAULT_HOUSE.rooms,
+    aiSettings: safeHouse.aiSettings || DEFAULT_HOUSE.aiSettings,
+    autoCreator: safeHouse.autoCreator || DEFAULT_HOUSE.autoCreator
+  };
+  
   // Utility function to repair character-room relationships
   const repairCharacterRoomSync = (house: House): House => {
+    // Ensure characters array exists
+    if (!house.characters) {
+      house = { ...house, characters: [] };
+    }
+    
     let needsRepair = false;
     let repairedHouse = { ...house };
     
@@ -375,17 +389,11 @@ export function useHouse() {
       const currentHouse = current || DEFAULT_HOUSE;
       console.log('Current house characters count:', currentHouse.characters.length);
       
-      // Check if character already exists (by ID or name) to prevent duplicates
+      // Basic duplicate checking - only prevent actual data duplicates
       const existingById = currentHouse.characters.find(c => c.id === initializedCharacter.id);
-      const existingByName = currentHouse.characters.find(c => c.name === initializedCharacter.name);
       
       if (existingById) {
         console.warn('Character with ID already exists, skipping:', initializedCharacter.id);
-        return currentHouse;
-      }
-      
-      if (existingByName) {
-        console.warn('Character with name already exists, skipping:', initializedCharacter.name);
         return currentHouse;
       }
       
@@ -406,7 +414,7 @@ export function useHouse() {
       };
       
       console.log('New house characters count:', newHouse.characters.length);
-      console.log('Character added successfully');
+      console.log('Character added successfully:', initializedCharacter.name);
       
       return newHouse;
     });

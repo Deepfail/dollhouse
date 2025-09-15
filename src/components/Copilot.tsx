@@ -5,8 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useSimpleStorage, simpleStorage } from '@/hooks/useSimpleStorage';
-import { useHouse } from '@/hooks/useHouse';
+import { useFileStorage } from '@/hooks/useFileStorage';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { useQuickActions } from '@/hooks/useQuickActions';
 import { useChat } from '@/hooks/useChat';
 import { useSceneMode } from '@/hooks/useSceneMode';
@@ -53,13 +53,13 @@ interface CopilotProps {
 }
 
 export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: CopilotProps = {}) {
-  const { house } = useHouse();
+  const { house } = useHouseFileStorage();
   const { quickActions, executeAction } = useQuickActions();
   const { createSession, setActiveSessionId } = useChat();
   const { createSceneSession } = useSceneMode();
-  const [updates, setUpdates] = useSimpleStorage<CopilotUpdate[]>('copilot-updates', []);
-  const [chatMessages, setChatMessages] = useSimpleStorage<CopilotMessage[]>('copilot-chat', []);
-  const [forceUpdate] = useSimpleStorage<number>('settings-force-update', 0);
+  const { data: updates, setData: setUpdates } = useFileStorage<CopilotUpdate[]>('copilot-updates.json', []);
+  const { data: chatMessages, setData: setChatMessages } = useFileStorage<CopilotMessage[]>('copilot-chat.json', []);
+  const { data: forceUpdate } = useFileStorage<number>('settings-force-update.json', 0);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
@@ -501,7 +501,7 @@ Stay in character as ${character.name}. Respond naturally and immersively to con
     };
 
     // Add user message
-    setChatMessages(current => [...(current || []), userMessage]);
+    setChatMessages([...(chatMessages || []), userMessage]);
     setInputMessage('');
     setIsTyping(true);
 
@@ -532,7 +532,7 @@ Stay in character as ${character.name}. Respond naturally and immersively to con
               imageData: imageResult,
               timestamp: new Date()
             };
-            setChatMessages(current => [...(current || []), imageMessage]);
+            setChatMessages([...(chatMessages || []), imageMessage]);
             toast.success('Image generated successfully!');
           } else {
             throw new Error('No image data returned');
@@ -545,7 +545,7 @@ Stay in character as ${character.name}. Respond naturally and immersively to con
             content: "I apologize, but I couldn't generate that image right now. Please check your Venice AI settings and try again.",
             timestamp: new Date()
           };
-          setChatMessages(current => [...(current || []), errorMessage]);
+          setChatMessages([...(chatMessages || []), errorMessage]);
           toast.error('Failed to generate image');
         }
         setIsTyping(false);
@@ -641,7 +641,7 @@ Remember our conversation history and build upon previous interactions. Referenc
         timestamp: new Date()
       };
 
-      setChatMessages(current => [...(current || []), copilotMessage]);
+      setChatMessages([...(chatMessages || []), copilotMessage]);
     } catch (error) {
       console.error('Error generating copilot response:', error);
       const errorMessage: CopilotMessage = {
@@ -650,7 +650,7 @@ Remember our conversation history and build upon previous interactions. Referenc
         content: "I apologize, but I'm having trouble processing your message right now. Please try again or check your AI settings.",
         timestamp: new Date()
       };
-      setChatMessages(current => [...(current || []), errorMessage]);
+      setChatMessages([...(chatMessages || []), errorMessage]);
       toast.error('Failed to get copilot response');
     } finally {
       setIsTyping(false);
@@ -1473,7 +1473,7 @@ Remember our conversation history and build upon previous interactions. Referenc
     }
 
     if (newUpdates.length > 0) {
-      setUpdates(current => [...(current || []), ...newUpdates].slice(-20)); // Keep last 20
+      setUpdates([...(updates || []), ...newUpdates].slice(-20)); // Keep last 20
     }
   };
 
@@ -1520,8 +1520,8 @@ Remember our conversation history and build upon previous interactions. Referenc
   };
 
   const handleUpdate = (updateId: string) => {
-    setUpdates(current =>
-      (current || []).map(update =>
+    setUpdates(
+      (updates || []).map(update =>
         update.id === updateId ? { ...update, handled: true } : update
       )
     );

@@ -1,12 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
-import { useSimpleStorage } from './useSimpleStorage';
+import { useFileStorage } from './useFileStorage';
 import { Character, AutoCharacterConfig, AVAILABLE_PERSONALITIES, AVAILABLE_ROLES } from '@/types';
 import { generateRandomCharacter } from '@/lib/characterGenerator';
-import { useHouse } from '@/hooks/useHouse';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 
 export const useAutoCharacterCreator = () => {
-  const { house, updateHouse, addCharacter } = useHouse();
-  const [config, setConfig] = useSimpleStorage<AutoCharacterConfig>('auto-character-config', {
+  const { house, updateHouse, addCharacter } = useHouseFileStorage();
+  const { data: config, setData: setConfig } = useFileStorage<AutoCharacterConfig>('auto-character-config.json', {
     themes: ['college', 'prime', 'fresh'], // Use actual character themes
     personalities: AVAILABLE_PERSONALITIES.slice(0, 10), // Use first 10 personalities as defaults
     roles: AVAILABLE_ROLES.slice(0, 10), // Use first 10 roles as defaults
@@ -25,9 +25,22 @@ export const useAutoCharacterCreator = () => {
     console.log('=== createRandomCharacter called ===');
     console.log('isCreating:', isCreating, 'isCreatingRef.current:', isCreatingRef.current);
     
+    // Enhanced duplicate prevention - reject if already creating or recent creation
     if (isCreating || isCreatingRef.current) {
       console.log('Already creating a character, skipping...');
       return Promise.reject('Already creating character');
+    }
+    
+    // Check if a character was created very recently (within last 2 seconds)
+    const recentCharacters = house.characters?.filter(char => {
+      const createdAt = new Date(char.createdAt);
+      const timeDiff = Date.now() - createdAt.getTime();
+      return timeDiff < 2000; // 2 seconds
+    }) || [];
+    
+    if (recentCharacters.length > 0) {
+      console.log('Character created very recently, preventing duplicate creation');
+      return Promise.reject('Recent character creation detected');
     }
     
     setIsCreating(true);
@@ -39,22 +52,18 @@ export const useAutoCharacterCreator = () => {
       
       console.log('Generated character:', character.name, 'with ID:', character.id);
       
-      // Check if character already exists before adding
-      const existingCharacters = house.characters || [];
-      const nameExists = existingCharacters.some(c => c.name === character.name);
-      const idExists = existingCharacters.some(c => c.id === character.id);
+      // Double-check current house state at time of addition
+      const currentCharacters = house.characters || [];
+      const nameExists = currentCharacters.some(c => c.name === character.name);
+      const idExists = currentCharacters.some(c => c.id === character.id);
       
       if (nameExists) {
         console.warn('Character with this name already exists:', character.name);
-        setIsCreating(false);
-        isCreatingRef.current = false;
         return Promise.reject('Character name already exists');
       }
       
       if (idExists) {
         console.warn('Character with this ID already exists:', character.id);
-        setIsCreating(false);
-        isCreatingRef.current = false;
         return Promise.reject('Character ID already exists');
       }
       
@@ -69,8 +78,11 @@ export const useAutoCharacterCreator = () => {
       console.error('Error in createRandomCharacter:', error);
       throw error;
     } finally {
-      setIsCreating(false);
-      isCreatingRef.current = false;
+      // Add small delay before allowing next creation
+      setTimeout(() => {
+        setIsCreating(false);
+        isCreatingRef.current = false;
+      }, 500);
     }
   };
 

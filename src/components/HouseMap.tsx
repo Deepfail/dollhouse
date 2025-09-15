@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useHouse } from '@/hooks/useHouse';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { Room, Character } from '@/types';
 import { CharacterCard } from './CharacterCard';
 import { motion } from 'framer-motion';
@@ -31,7 +31,7 @@ interface HouseMapProps {
 }
 
 export function HouseMap({ onStartChat, onStartGroupChat, onStartScene }: HouseMapProps) {
-  const { house } = useHouse();
+  const { house } = useHouseFileStorage();
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [hoveredRoom, setHoveredRoom] = useState<string | null>(null);
 

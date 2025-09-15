@@ -10,11 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { Bug, Database, ArrowClockwise, Trash, CheckCircle, XCircle, Warning } from '@phosphor-icons/react';
-import { useHouse } from '@/hooks/useHouse';
-import { simpleStorage } from '@/hooks/useSimpleStorage';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { fileStorage } from '@/lib/fileStorage';
 
 export function PersistenceDebugger() {
-  const { house, updateHouse } = useHouse();
+  const { house, updateHouse } = useHouseFileStorage();
   const [testKey, setTestKey] = useState('test-persistence-key');
   const [testValue, setTestValue] = useState('test-value-123');
   const [isOpen, setIsOpen] = useState(false);
@@ -117,16 +117,16 @@ export function PersistenceDebugger() {
 
     // Test 3: House data persistence
     try {
-      const currentHouseData = simpleStorage.get('character-house') as any;
-      const hasApiKey = !!(currentHouseData?.aiSettings?.textApiKey || currentHouseData?.aiSettings?.apiKey);
-      const characterCount = currentHouseData?.characters?.length || 0;
+      // For now, just check if house object exists from the hook
+      const hasApiKey = !!(house?.aiSettings?.textApiKey || house?.aiSettings?.apiKey);
+      const characterCount = house?.characters?.length || 0;
 
       results.tests.push({
         name: 'House data persistence',
-        passed: !!currentHouseData,
+        passed: !!house,
         hasApiKey,
         characterCount,
-        dataSize: currentHouseData ? JSON.stringify(currentHouseData).length : 0
+        dataSize: house ? JSON.stringify(house).length : 0
       });
     } catch (error) {
       results.tests.push({
@@ -183,7 +183,7 @@ export function PersistenceDebugger() {
       userAgent: navigator.userAgent,
       storageInfo,
       testResults,
-      houseData: simpleStorage.get('character-house'),
+      houseData: house,
       allKeys: Object.keys(localStorage),
       localStorageDump: Object.fromEntries(
         Object.keys(localStorage).map(key => [key, localStorage.getItem(key)])

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { useSimpleStorage } from '@/hooks/useSimpleStorage';
+import { useFileStorage } from '@/hooks/useFileStorage';
 import { AIService } from '@/lib/aiService';
 import { toast } from 'sonner';
 import {
@@ -34,7 +34,7 @@ interface ImageGalleryProps {
 }
 
 export function ImageGallery({ open, onOpenChange }: ImageGalleryProps) {
-  const [images, setImages] = useSimpleStorage<GeneratedImage[]>('generated-images', []);
+  const { data: images, setData: setImages } = useFileStorage<GeneratedImage[]>('generated-images.json', []);
   const [isGenerating, setIsGenerating] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -59,7 +59,7 @@ export function ImageGallery({ open, onOpenChange }: ImageGalleryProps) {
           tags: extractTagsFromPrompt(prompt)
         };
 
-        setImages(prev => [newImage, ...prev]);
+        setImages([newImage, ...images]);
         setPrompt('');
         toast.success('Image generated successfully!');
       } else {
@@ -74,12 +74,12 @@ export function ImageGallery({ open, onOpenChange }: ImageGalleryProps) {
   };
 
   const handleDeleteImage = (imageId: string) => {
-    setImages(prev => prev.filter(img => img.id !== imageId));
+    setImages(images.filter(img => img.id !== imageId));
     toast.success('Image deleted');
   };
 
   const handleToggleLike = (imageId: string) => {
-    setImages(prev => prev.map(img => 
+    setImages(images.map(img => 
       img.id === imageId ? { ...img, liked: !img.liked } : img
     ));
   };

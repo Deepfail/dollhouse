@@ -6,9 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { useSimpleStorage, simpleStorage } from '@/hooks/useSimpleStorage';
+import { useFileStorage } from '@/hooks/useFileStorage';
 import { useChat } from '@/hooks/useChat';
-import { useHouse } from '@/hooks/useHouse';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { ChatMessage } from '@/types';
 import { PaperPlaneTilt as Send, ChatCircle as MessageCircle, Users, Camera, Warning, ArrowLeft, Image as ImageIcon, MagicWand } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -24,13 +24,15 @@ interface ChatInterfaceProps {
 
 export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat }: ChatInterfaceProps) {
   const { sessions, sendMessage, switchToSession, activeSession, setActiveSessionId, clearAllSessions } = useChat();
-  const { house } = useHouse();
+  const { house } = useHouseFileStorage();
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState<string[]>([]);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [imagePrompt, setImagePrompt] = useState('');
-  const [forceUpdate] = useSimpleStorage<number>('settings-force-update', 0); // React to settings changes
+  const { data: forceUpdate } = useFileStorage<number>('settings-force-update.json', 0); // React to settings changes
+  const { data: generatedImages, setData: setGeneratedImages } = useFileStorage<any[]>('generated-images.json', []);
+  const { data: testSessions, setData: setTestSessions } = useFileStorage<any[]>('test-sessions.json', []);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Use the sessionId if provided, otherwise use the hook's active session
@@ -102,7 +104,6 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
         await sendMessage(imageMessage);
         
         // Store the generated image in the gallery
-        const images = simpleStorage.get<any[]>('generated-images') || [];
         const newImage = {
           id: crypto.randomUUID(),
           prompt: imagePrompt.trim(),
@@ -111,8 +112,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
           characterId: currentSession.participantIds[0], // Associate with first character in chat
           tags: extractTagsFromPrompt(imagePrompt)
         };
-        images.unshift(newImage);
-        simpleStorage.set('generated-images', images);
+        setGeneratedImages([newImage, ...generatedImages]);
         
         setImagePrompt('');
         setShowImageDialog(false);
@@ -381,14 +381,14 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                           updatedAt: new Date()
                         };
                         
-                        // Try to manually set the session
+                        // Try to manually set the session using file storage
                         if (typeof window !== 'undefined') {
-                          simpleStorage.set('test-session', testSession);
-                          console.log('Test session saved to localStorage');
+                          setTestSessions([...testSessions, testSession]);
+                          console.log('Test session saved to file storage');
                           setActiveSessionId(testSessionId);
                           setTimeout(() => window.location.reload(), 500);
                         } else {
-                          console.error('LocalStorage not available');
+                          console.error('File storage not available');
                           toast.error('LocalStorage not available');
                         }
                       }

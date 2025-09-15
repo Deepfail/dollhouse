@@ -21,6 +21,11 @@ import {
   FileText,
   Key
 } from '@phosphor-icons/react';
+import { StorageMigration } from './StorageMigration';
+import { FileStorageTest } from './FileStorageTest';
+import { EmergencyDataRepair } from './EmergencyDataRepair';
+import { SimpleCharacterImport } from './SimpleCharacterImport';
+import { DuplicateCharacterFinder } from './DuplicateCharacterFinder';
 
 export function DataManager() {
   const [isOpen, setIsOpen] = useState(false);
@@ -177,15 +182,40 @@ export function DataManager() {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Database size={20} />
-            Data Manager - localStorage Browser
+            Data Manager - Storage Systems
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="browser" className="w-full">
+        <Tabs defaultValue="import" className="w-full">
           <TabsList>
-            <TabsTrigger value="browser">Data Browser</TabsTrigger>
+            <TabsTrigger value="import">📥 Import Characters</TabsTrigger>
+            <TabsTrigger value="duplicates">🔍 Find Duplicates</TabsTrigger>
+            <TabsTrigger value="repair">🚨 Emergency Repair</TabsTrigger>
+            <TabsTrigger value="migration">Storage Migration</TabsTrigger>
+            <TabsTrigger value="test">Test Storage</TabsTrigger>
+            <TabsTrigger value="browser">localStorage Browser</TabsTrigger>
             <TabsTrigger value="export">Import/Export</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="import" className="space-y-4">
+            <SimpleCharacterImport />
+          </TabsContent>
+
+          <TabsContent value="duplicates" className="space-y-4">
+            <DuplicateCharacterFinder />
+          </TabsContent>
+
+          <TabsContent value="repair" className="space-y-4">
+            <EmergencyDataRepair />
+          </TabsContent>
+
+          <TabsContent value="migration" className="space-y-4">
+            <StorageMigration />
+          </TabsContent>
+
+          <TabsContent value="test" className="space-y-4">
+            <FileStorageTest />
+          </TabsContent>
 
           <TabsContent value="browser" className="space-y-4">
             <div className="flex items-center justify-between">

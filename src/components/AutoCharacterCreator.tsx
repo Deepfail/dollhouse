@@ -45,7 +45,7 @@ export const AutoCharacterCreator: React.FC = () => {
   const [isCreatingNow, setIsCreatingNow] = useState(false);
 
   const handleCreateNow = async () => {
-    if (isCreatingNow) {
+    if (isCreatingNow || isCreating) {
       console.log('Create button clicked while already creating, ignoring...');
       return;
     }
@@ -59,9 +59,16 @@ export const AutoCharacterCreator: React.FC = () => {
       });
     } catch (error) {
       console.error('Failed to create character:', error);
-      toast.error('Failed to create character');
+      if (error.toString().includes('already exists') || error.toString().includes('Recent character')) {
+        toast.warning('Character creation skipped to prevent duplicates');
+      } else {
+        toast.error('Failed to create character');
+      }
     } finally {
-      setIsCreatingNow(false);
+      // Add small delay to prevent rapid successive clicks
+      setTimeout(() => {
+        setIsCreatingNow(false);
+      }, 1000);
     }
   };
 
@@ -75,12 +82,12 @@ export const AutoCharacterCreator: React.FC = () => {
   };
 
   const toggleTheme = (themeId: string) => {
-    setConfig(prev => ({
-      ...prev,
-      themes: prev.themes.includes(themeId)
-        ? prev.themes.filter(t => t !== themeId)
-        : [...prev.themes, themeId]
-    }));
+    setConfig({
+      ...config,
+      themes: config.themes.includes(themeId)
+        ? config.themes.filter(t => t !== themeId)
+        : [...config.themes, themeId]
+    });
   };
 
   const getRarityStats = () => {
@@ -258,10 +265,10 @@ export const AutoCharacterCreator: React.FC = () => {
                     <Slider
                       value={[config.rarityWeights.common]}
                       onValueChange={([value]) => 
-                        setConfig(prev => ({
-                          ...prev,
-                          rarityWeights: { ...prev.rarityWeights, common: value }
-                        }))
+                        setConfig({
+                          ...config,
+                          rarityWeights: { ...config.rarityWeights, common: value }
+                        })
                       }
                       min={0}
                       max={100}
@@ -286,10 +293,10 @@ export const AutoCharacterCreator: React.FC = () => {
                     <Slider
                       value={[config.rarityWeights.rare]}
                       onValueChange={([value]) => 
-                        setConfig(prev => ({
-                          ...prev,
-                          rarityWeights: { ...prev.rarityWeights, rare: value }
-                        }))
+                        setConfig({
+                          ...config,
+                          rarityWeights: { ...config.rarityWeights, rare: value }
+                        })
                       }
                       min={0}
                       max={100}
@@ -314,10 +321,10 @@ export const AutoCharacterCreator: React.FC = () => {
                     <Slider
                       value={[config.rarityWeights.legendary]}
                       onValueChange={([value]) => 
-                        setConfig(prev => ({
-                          ...prev,
-                          rarityWeights: { ...prev.rarityWeights, legendary: value }
-                        }))
+                        setConfig({
+                          ...config,
+                          rarityWeights: { ...config.rarityWeights, legendary: value }
+                        })
                       }
                       min={0}
                       max={100}

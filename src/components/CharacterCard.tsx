@@ -42,7 +42,7 @@ import {
 } from '@phosphor-icons/react';
 
 import { Character } from '@/types';
-import { useSimpleStorage } from '@/hooks/useSimpleStorage';
+import { useFileStorage } from '@/hooks/useFileStorage';
 import { useChat } from '@/hooks/useChat';
 import { useRelationshipDynamics } from '@/hooks/useRelationshipDynamics';
 import { useStorySystem } from '@/hooks/useStorySystem';
@@ -68,6 +68,7 @@ interface CharacterCardProps {
   onEdit?: (character: Character) => void;
   onDelete?: (characterId: string) => void;
   compact?: boolean;
+  source?: string; // NEW: Help identify where this card is rendered from
 }
 
 const getRarityIcon = (rarity?: Character['rarity']) => {
@@ -104,6 +105,7 @@ export function CharacterCard({
   onEdit,
   onDelete,
   compact = false,
+  source = 'unknown', // NEW: Default source
 }: CharacterCardProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
@@ -122,7 +124,7 @@ export function CharacterCard({
   const { getRecentStoryContext, analyzeEmotionalJourney } = useStorySystem();
 
   // Image handling
-  const [images] = useSimpleStorage<GeneratedImage[]>('generated-images', []);
+  const { data: images } = useFileStorage<GeneratedImage[]>('generated-images.json', []);
   const characterImages = images.filter(img => img.characterId === character.id);
 
   // Safely access character properties with defaults - ensure no NaN values
@@ -421,6 +423,8 @@ Return only the image prompt, nothing else.`;
         <Card 
           className="p-3 hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-primary/20 hover:border-l-primary"
           onClick={() => setShowDetails(true)}
+          data-character-id={character.id}
+          data-character-source={source}
         >
           <div className="flex items-center gap-3">
             <Avatar className="w-12 h-12 border-2 border-primary/20">
@@ -434,6 +438,7 @@ Return only the image prompt, nothing else.`;
               <div className="flex items-center gap-2 mb-1">
                 <h4 className="font-semibold text-sm truncate">{character.name}</h4>
                 {getRarityIcon(character.rarity)}
+                <div className="text-[8px] opacity-50 ml-auto">{source}</div>
               </div>
               
               <div className="flex items-center gap-2 mb-2">

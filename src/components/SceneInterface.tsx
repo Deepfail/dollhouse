@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useSceneMode } from '@/hooks/useSceneMode';
-import { useHouse } from '@/hooks/useHouse';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { ChatSession, ChatMessage } from '@/types';
 import { 
   Play, 
@@ -27,7 +27,7 @@ interface SceneInterfaceProps {
 }
 
 export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClose }) => {
-  const { house } = useHouse();
+  const { house } = useHouseFileStorage();
   const { 
     activeSessions, 
     startAutoPlay, 

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { useHouse } from '@/hooks/useHouse';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { useSceneMode } from '@/hooks/useSceneMode';
 import { AIService } from '@/lib/aiService';
 import { SceneObjective } from '@/types';
@@ -19,7 +19,7 @@ interface SceneCreatorProps {
 }
 
 export const SceneCreator: React.FC<SceneCreatorProps> = ({ onSceneCreated }) => {
-  const { house } = useHouse();
+  const { house } = useHouseFileStorage();
   const { createSceneSession } = useSceneMode();
   
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);

@@ -1,15 +1,16 @@
 import { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
-import { CopilotRedesigned as Copilot } from './CopilotRedesigned';
+// import { CopilotRedesigned as Copilot } from './CopilotRedesigned';
 
 interface LayoutProps {
   children: ReactNode;
+  currentView?: 'house' | 'chat' | 'scene';
   onStartChat?: (characterId: string) => void;
   onStartGroupChat?: (sessionId?: string) => void;
   onStartScene?: (sessionId: string) => void;
 }
 
-export function Layout({ children, onStartChat, onStartGroupChat, onStartScene }: LayoutProps) {
+export function Layout({ children, currentView, onStartChat, onStartGroupChat, onStartScene }: LayoutProps) {
   return (
     <div className="flex h-screen bg-background">
       {/* Main Sidebar */}
@@ -26,14 +27,14 @@ export function Layout({ children, onStartChat, onStartGroupChat, onStartScene }
         {children}
       </div>
       
-      {/* Copilot Sidebar */}
-      <div className="w-80 border-l border-border flex-shrink-0">
+      {/* Copilot Sidebar - temporarily disabled during migration */}
+      {/* <div className="w-80 border-l border-border flex-shrink-0">
         <Copilot 
           onStartChat={onStartChat}
           onStartGroupChat={onStartGroupChat}
           onStartScene={onStartScene}
         />
-      </div>
+      </div> */}
     </div>
   );
 }

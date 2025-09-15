@@ -5,7 +5,7 @@ import { ChatInterface } from '@/components/ChatInterface';
 import { SceneInterface } from '@/components/SceneInterface';
 import { useChat } from '@/hooks/useChat';
 import { useSceneMode } from '@/hooks/useSceneMode';
-import { useHouse } from '@/hooks/useHouse';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 
@@ -14,7 +14,7 @@ function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const { createSession, sessions, switchToSession, setActiveSessionId: setChatActiveSessionId } = useChat();
   const { activeSessions } = useSceneMode();
-  const { house } = useHouse();
+  const { house, isLoading, error } = useHouseFileStorage();
 
   // Debug logging with error handling
   useEffect(() => {
@@ -75,7 +75,7 @@ function App() {
         return;
       }
       
-      const character = house.characters.find(c => c.id === characterId);
+      const character = house?.characters?.find(c => c.id === characterId);
       if (!character) {
         toast.error('Character not found');
         return;
@@ -167,9 +167,39 @@ function App() {
     }
   };
 
+  // Show loading state while file storage is initializing
+  if (isLoading) {
+    return (
+      <div className="h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading house data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if file storage failed
+  if (error) {
+    return (
+      <div className="h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">Failed to load house data: {error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen bg-background">
       <Layout
+        currentView={currentView}
         onStartChat={handleStartChat}
         onStartGroupChat={handleStartGroupChat}
         onStartScene={handleStartScene}

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useHouse } from '@/hooks/useHouse';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { useChat } from '@/hooks/useChat';
 import { Character } from '@/types';
 import { CharacterCard } from './CharacterCard';
@@ -42,7 +42,7 @@ interface Widget {
 }
 
 export function DesktopUI() {
-  const { house } = useHouse();
+  const { house } = useHouseFileStorage();
   const { sessions } = useChat();
   const [time, setTime] = useState(new Date());
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);

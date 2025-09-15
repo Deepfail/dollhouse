@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Gift, Heart, Star, Sparkle, Crown } from '@phosphor-icons/react';
 import { Character, Gift as GiftType } from '@/types';
-import { useHouse } from '@/hooks/useHouse';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { useRelationshipDynamics } from '@/hooks/useRelationshipDynamics';
 import { toast } from 'sonner';
 
@@ -138,7 +138,18 @@ const getRarityIcon = (rarity: GiftType['rarity']) => {
 
 export function GiftManager({ character, isOpen, onClose }: GiftManagerProps) {
   const [selectedGift, setSelectedGift] = useState<GiftType | null>(null);
-  const { house, spendCurrency } = useHouse();
+  const { house, updateHouse } = useHouseFileStorage();
+  
+  // Helper function for spending currency
+  const spendCurrency = async (amount: number): Promise<boolean> => {
+    if (house.currency >= amount) {
+      return await updateHouse({
+        ...house,
+        currency: house.currency - amount
+      });
+    }
+    return false;
+  };
   const { updateRelationshipStats, addRelationshipEvent } = useRelationshipDynamics();
 
   const handleGiveGift = (gift: GiftType) => {
