@@ -16,6 +16,8 @@ import { Plus, X, FloppyDisk as Save, DotsThree, Image as ImageIcon, Spinner } f
 import { toast } from 'sonner';
 import { AIService } from '@/lib/aiService';
 import { generatePersonality, generateBackground, generateFeatures, generateSystemPrompt } from '@/lib/characterGenerator';
+import { createAsset } from '@/repo/assets';
+import { queryClient } from '@/lib/query';
 
 interface CharacterCreatorProps {
   open: boolean;
@@ -84,21 +86,28 @@ export function CharacterCreator({ open, onOpenChange, character }: CharacterCre
       if (imageUrl) {
         updateFormData('avatar', imageUrl);
         
-        // Also save to image gallery
-        const existingImages = JSON.parse(localStorage.getItem('generated-images') || '[]');
-        const newImage = {
-          id: crypto.randomUUID(),
-          prompt: prompt,
-          imageUrl,
-          createdAt: new Date(),
-          characterId: character?.id || 'new-character',
-          tags: ['character', 'portrait', formData.role || 'character'].filter(Boolean)
-        };
-        
-        const updatedImages = [newImage, ...existingImages];
-        localStorage.setItem('generated-images', JSON.stringify(updatedImages));
-        
-        toast.success('Character image generated and saved to gallery!');
+        // Also save to image gallery using assets repository
+        try {
+          await createAsset({
+            owner_type: 'character',
+            owner_id: character?.id || 'new-character',
+            kind: 'generated-image',
+            path: imageUrl,
+            meta_json: JSON.stringify({
+              prompt: prompt,
+              createdAt: new Date().toISOString(),
+              tags: ['character', 'portrait', formData.role || 'character'].filter(Boolean)
+            })
+          });
+          
+          // Invalidate assets queries to show the new image immediately
+          queryClient.invalidateQueries({ queryKey: ['assets'] });
+          
+          toast.success('Character image generated and saved to gallery!');
+        } catch (assetError) {
+          console.error('Failed to save image to assets:', assetError);
+          toast.success('Character image generated!');
+        }
       } else {
         toast.error('Failed to generate image. Please check your Venice AI settings.');
       }

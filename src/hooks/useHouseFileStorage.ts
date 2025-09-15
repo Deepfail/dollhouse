@@ -1,7 +1,7 @@
 /**
  * useHouseFileStorage Hook
  * 
- * New version of useHouse that uses file-based storage instead of localStorage
+ * New version of useHouse that uses file-based storage instead of browserStorage
  * Separates house data from character data for better organization
  */
 

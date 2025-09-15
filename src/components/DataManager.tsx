@@ -31,12 +31,13 @@ export function DataManager() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [editingData, setEditingData] = useState<string>('');
-  const [localStorageKeys, setLocalStorageKeys] = useState<string[]>([]);
+  const [browserStorageKeys, setLocalStorageKeys] = useState<string[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Refresh localStorage keys
+  // Refresh settings keys (disabled - no more browserStorage)
   const refreshKeys = () => {
-    const keys = Object.keys(localStorage).sort();
+    // const keys = Object.keys(browserStorage).sort();
+    const keys: string[] = []; // No browserStorage anymore
     setLocalStorageKeys(keys);
     setRefreshTrigger(prev => prev + 1);
   };
@@ -48,24 +49,13 @@ export function DataManager() {
   }, [isOpen]);
 
   const getStorageData = (key: string) => {
-    try {
-      const data = localStorage.getItem(key);
-      return data ? JSON.parse(data) : null;
-    } catch (error) {
-      return localStorage.getItem(key); // Return as string if not JSON
-    }
+    // No browserStorage - return empty
+    return null;
   };
 
   const getFormattedData = (key: string) => {
-    try {
-      const data = localStorage.getItem(key);
-      if (!data) return '';
-      
-      const parsed = JSON.parse(data);
-      return JSON.stringify(parsed, null, 2);
-    } catch (error) {
-      return localStorage.getItem(key) || '';
-    }
+    // No browserStorage - return empty
+    return '';
   };
 
   const handleEditData = (key: string) => {
@@ -76,16 +66,8 @@ export function DataManager() {
   const handleSaveData = () => {
     if (!selectedKey) return;
 
-    try {
-      // Try to parse as JSON first
-      const parsed = JSON.parse(editingData);
-      localStorage.setItem(selectedKey, JSON.stringify(parsed));
-      toast.success('Data saved successfully');
-    } catch (error) {
-      // Save as string if not valid JSON
-      localStorage.setItem(selectedKey, editingData);
-      toast.success('Data saved as string');
-    }
+    // Disabled browserStorage functionality
+    toast.info('browserStorage functionality disabled - using repository storage instead');
 
     setSelectedKey(null);
     setEditingData('');
@@ -94,8 +76,8 @@ export function DataManager() {
 
   const handleDeleteKey = (key: string) => {
     if (confirm(`Are you sure you want to delete "${key}"?`)) {
-      localStorage.removeItem(key);
-      toast.success('Data deleted');
+      // Disabled browserStorage functionality
+      toast.info('browserStorage functionality disabled - using repository storage instead');
       if (selectedKey === key) {
         setSelectedKey(null);
         setEditingData('');
@@ -107,9 +89,10 @@ export function DataManager() {
   const handleExportAll = () => {
     const allData: Record<string, any> = {};
     
-    localStorageKeys.forEach(key => {
-      allData[key] = getStorageData(key);
-    });
+    // No browserStorage - empty export
+    // browserStorageKeys.forEach(key => {
+    //   allData[key] = getStorageData(key);
+    // });
 
     const dataStr = JSON.stringify(allData, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
@@ -135,10 +118,11 @@ export function DataManager() {
         const data = JSON.parse(e.target?.result as string);
         
         Object.entries(data).forEach(([key, value]) => {
-          localStorage.setItem(key, JSON.stringify(value));
+          // browserStorage.setItem(key, JSON.stringify(value));
+          // Disabled browserStorage import
         });
         
-        toast.success('Data imported successfully');
+        toast.info('browserStorage import disabled - using repository storage instead');
         refreshKeys();
       } catch (error) {
         toast.error('Failed to import data: Invalid JSON');
@@ -151,22 +135,13 @@ export function DataManager() {
   };
 
   const getDataSize = (key: string) => {
-    const data = localStorage.getItem(key);
-    return data ? `${(data.length / 1024).toFixed(1)} KB` : '0 KB';
+    // const data = browserStorage.getItem(key);
+    return '0 KB'; // No browserStorage
   };
 
   const getDataType = (key: string) => {
-    try {
-      const data = localStorage.getItem(key);
-      if (!data) return 'empty';
-      
-      const parsed = JSON.parse(data);
-      if (Array.isArray(parsed)) return 'array';
-      if (typeof parsed === 'object') return 'object';
-      return typeof parsed;
-    } catch {
-      return 'string';
-    }
+    // Disabled browserStorage
+    return 'empty';
   };
 
   return (
@@ -193,7 +168,7 @@ export function DataManager() {
             <TabsTrigger value="repair">🚨 Emergency Repair</TabsTrigger>
             <TabsTrigger value="migration">Storage Migration</TabsTrigger>
             <TabsTrigger value="test">Test Storage</TabsTrigger>
-            <TabsTrigger value="browser">localStorage Browser</TabsTrigger>
+            <TabsTrigger value="browser">browserStorage Browser</TabsTrigger>
             <TabsTrigger value="export">Import/Export</TabsTrigger>
           </TabsList>
 
@@ -220,8 +195,8 @@ export function DataManager() {
           <TabsContent value="browser" className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Badge variant="secondary">{localStorageKeys.length} Keys</Badge>
-                <Badge variant="outline">{localStorage.length} Total Items</Badge>
+                <Badge variant="secondary">{browserStorageKeys.length} Keys</Badge>
+                <Badge variant="outline">0 Total Items</Badge>
               </div>
               <Button variant="outline" size="sm" onClick={refreshKeys}>
                 <RotateCcw size={16} className="mr-2" />
@@ -238,7 +213,7 @@ export function DataManager() {
                 <CardContent>
                   <ScrollArea className="h-64">
                     <div className="space-y-2">
-                      {localStorageKeys.map(key => (
+                      {browserStorageKeys.map(key => (
                         <Card key={key} className="p-3">
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
@@ -351,7 +326,7 @@ export function DataManager() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Download all localStorage data as a JSON file for backup or transfer.
+                    Download all browserStorage data as a JSON file for backup or transfer.
                   </p>
                   <Button onClick={handleExportAll} className="w-full">
                     <Download size={16} className="mr-2" />

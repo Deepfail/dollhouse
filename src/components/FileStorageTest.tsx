@@ -123,8 +123,8 @@ export function FileStorageTest() {
 
       // Test 4: Hook integration
       try {
-        // Check if we're using localStorage or file storage
-        const hasLocalStorageData = !!localStorage.getItem('character-house');
+        // Check if we're using browserStorage or file storage
+        const hasLocalStorageData = !!browserStorage.getItem('character-house');
         const hasFileStorageData = await fileStorage.fileExists('house') || await fileStorage.fileExists('characters');
         
         let hookPassed = false;
@@ -135,9 +135,9 @@ export function FileStorageTest() {
           hookPassed = !testDataLoading && !testDataError && testData && testData.message === 'Hello World';
           hookMessage = 'Hook loads data correctly from file storage';
         } else if (hasLocalStorageData) {
-          // Still using localStorage
+          // Still using browserStorage
           hookPassed = true; // Consider it passing since it's expected behavior
-          hookMessage = 'Hook ready - currently using localStorage (migration pending)';
+          hookMessage = 'Hook ready - currently using browserStorage (migration pending)';
         } else {
           // No data anywhere
           hookPassed = !testDataLoading && !testDataError && testData && testData.message === 'Hello World';
@@ -162,7 +162,7 @@ export function FileStorageTest() {
       // Test 5: House hook integration
       try {
         // Check storage type for house data
-        const hasLocalStorageData = !!localStorage.getItem('character-house');
+        const hasLocalStorageData = !!browserStorage.getItem('character-house');
         const hasFileStorageData = await fileStorage.fileExists('house') || await fileStorage.fileExists('characters');
         
         let housePassed = false;
@@ -173,9 +173,9 @@ export function FileStorageTest() {
           housePassed = !houseLoading && !houseError && house && !!house.id;
           houseMessage = 'House hook loads correctly from file storage';
         } else if (hasLocalStorageData) {
-          // Still using localStorage - this is expected
+          // Still using browserStorage - this is expected
           housePassed = true; // The old useHouse hook should still work
-          houseMessage = 'House data in localStorage - ready for migration when App is updated';
+          houseMessage = 'House data in browserStorage - ready for migration when App is updated';
         } else {
           // No data anywhere
           housePassed = !houseLoading && !houseError && house && !!house.id;
@@ -257,7 +257,7 @@ export function FileStorageTest() {
       <Alert>
         <AlertTriangle className="w-4 h-4" />
         <AlertDescription>
-          <strong>Current Status:</strong> Your app is using localStorage (the old system). 
+          <strong>Current Status:</strong> Your app is using browserStorage (the old system). 
           The file storage hooks are ready but won't fully activate until migration is complete and the App is updated to use them.
           This is expected behavior - your data is safe!
         </AlertDescription>

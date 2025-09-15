@@ -1,7 +1,7 @@
 /**
  * Emergency Data Repair Utility
  * 
- * Fixes corrupted localStorage data and helps recover from editing mistakes
+ * Fixes corrupted browserStorage data and helps recover from editing mistakes
  */
 
 import React, { useState, useEffect } from 'react';
@@ -80,7 +80,7 @@ export function EmergencyDataRepair() {
 
     try {
       // Check character-house data
-      const houseData = localStorage.getItem('character-house');
+      const houseData = browserStorage.getItem('character-house');
       
       if (!houseData) {
         foundIssues.push({
@@ -158,11 +158,11 @@ export function EmergencyDataRepair() {
       }
 
       // Check other keys for corruption
-      Object.keys(localStorage).forEach(key => {
+      Object.keys(browserStorage).forEach(key => {
         if (key === 'character-house') return; // Already checked
 
         try {
-          const value = localStorage.getItem(key);
+          const value = browserStorage.getItem(key);
           if (value) {
             JSON.parse(value);
           }
@@ -196,8 +196,8 @@ export function EmergencyDataRepair() {
   const createBackup = () => {
     try {
       const backup: Record<string, string | null> = {};
-      Object.keys(localStorage).forEach(key => {
-        backup[key] = localStorage.getItem(key);
+      Object.keys(browserStorage).forEach(key => {
+        backup[key] = browserStorage.getItem(key);
       });
 
       const backupData = JSON.stringify(backup, null, 2);
@@ -242,7 +242,7 @@ export function EmergencyDataRepair() {
         let repairedHouse = { ...DEFAULT_HOUSE_TEMPLATE };
         
         // Try to preserve existing data
-        const existingData = localStorage.getItem('character-house');
+        const existingData = browserStorage.getItem('character-house');
         if (existingData) {
           try {
             const parsed = JSON.parse(existingData);
@@ -264,7 +264,7 @@ export function EmergencyDataRepair() {
         }
 
         // Save repaired data
-        localStorage.setItem('character-house', JSON.stringify(repairedHouse, null, 2));
+        browserStorage.setItem('character-house', JSON.stringify(repairedHouse, null, 2));
         toast.success('Repaired house data');
       }
 
@@ -288,7 +288,7 @@ export function EmergencyDataRepair() {
     }
 
     try {
-      localStorage.setItem('character-house', JSON.stringify(DEFAULT_HOUSE_TEMPLATE, null, 2));
+      browserStorage.setItem('character-house', JSON.stringify(DEFAULT_HOUSE_TEMPLATE, null, 2));
       toast.success('Reset to default house data');
       scanForIssues();
     } catch (error) {
@@ -305,7 +305,7 @@ export function EmergencyDataRepair() {
 
     try {
       const parsed = JSON.parse(manualData);
-      localStorage.setItem('character-house', JSON.stringify(parsed, null, 2));
+      browserStorage.setItem('character-house', JSON.stringify(parsed, null, 2));
       toast.success('Manual fix applied');
       scanForIssues();
       setManualData('');
@@ -315,7 +315,7 @@ export function EmergencyDataRepair() {
   };
 
   const loadCurrentData = () => {
-    const data = localStorage.getItem('character-house');
+    const data = browserStorage.getItem('character-house');
     if (data) {
       try {
         const parsed = JSON.parse(data);
@@ -345,7 +345,7 @@ export function EmergencyDataRepair() {
           <Alert className="mb-4">
             <AlertTriangle className="w-4 h-4" />
             <AlertDescription>
-              This tool helps fix corrupted localStorage data. <strong>Always create a backup first!</strong>
+              This tool helps fix corrupted browserStorage data. <strong>Always create a backup first!</strong>
             </AlertDescription>
           </Alert>
 

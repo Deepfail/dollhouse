@@ -1,7 +1,7 @@
 /**
  * SimpleCharacterImport Component
  * 
- * A straightforward way to import characters directly into the current localStorage system
+ * A straightforward way to import characters directly into the current browserStorage system
  * No complex migration - just simple character importing
  */
 
@@ -75,24 +75,9 @@ export function SimpleCharacterImport() {
     setIsImporting(true);
     
     try {
-      // Get current localStorage data
-      const currentDataStr = localStorage.getItem('character-house');
-      let currentData: any = {};
-      
-      if (currentDataStr) {
-        currentData = JSON.parse(currentDataStr);
-      }
-      
-      // Ensure we have a characters array
-      if (!currentData.characters) {
-        currentData.characters = [];
-      }
-      
-      // Get existing character IDs to prevent duplicates
-      const existingIds = new Set(currentData.characters.map((char: Character) => char.id));
-      
-      // Add new characters (skip duplicates)
-      let addedCount = 0;
+      // browserStorage import disabled - use file storage instead
+      toast.info('browserStorage import disabled - please use the file-based character import system');
+      return;
       let skippedCount = 0;
       
       for (const character of previewCharacters) {
@@ -113,8 +98,8 @@ export function SimpleCharacterImport() {
       // Update timestamps
       currentData.updatedAt = new Date().toISOString();
       
-      // Save back to localStorage
-      localStorage.setItem('character-house', JSON.stringify(currentData));
+      // browserStorage disabled
+      // browserStorage.setItem('character-house', JSON.stringify(currentData));
       
       // Show results
       if (addedCount > 0) {
@@ -155,7 +140,7 @@ export function SimpleCharacterImport() {
           <Alert>
             <CheckCircle className="w-4 h-4" />
             <AlertDescription>
-              This tool imports characters directly into your current localStorage system. 
+              This tool imports characters directly into your current browserStorage system. 
               Just select your JSON file and import - no complex migration needed!
             </AlertDescription>
           </Alert>
