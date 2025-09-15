@@ -24,7 +24,7 @@ export class AIService {
     if (!finalApiKey) {
       try {
         const house = simpleStorage.get<House>('character-house');
-        console.log('📦 Retrieved house from localStorage for AI service:', !!house);
+        console.log('📦 Retrieved house from browserStorage for AI service:', !!house);
         console.log('🔧 Raw house AI settings:', JSON.stringify(house?.aiSettings, null, 2));
         
         // Use new structured fields with fallback to legacy fields
@@ -43,13 +43,13 @@ export class AIService {
           finalApiKey = textApiKey.trim();
           finalModel = textModel || finalModel;
           
-          console.log('✅ Using localStorage settings:');
+          console.log('✅ Using browserStorage settings:');
           console.log('  - API Key length:', finalApiKey?.length);
           console.log('  - Model:', finalModel);
           console.log('  - Provider:', textProvider);
         }
       } catch (error) {
-        console.error('❌ Failed to get house settings from localStorage:', error);
+        console.error('❌ Failed to get house settings from browserStorage:', error);
       }
     }
     
@@ -317,9 +317,9 @@ export class AIService {
     console.log('Prompt:', prompt);
 
     try {
-      // Get house settings from localStorage
+      // Get house settings from browserStorage
       const house = simpleStorage.get<House>('character-house');
-      console.log('Retrieved house from localStorage for image generation:', !!house);
+      console.log('Retrieved house from browserStorage for image generation:', !!house);
 
       const imageProvider = house?.aiSettings?.imageProvider;
       const imageApiKey = house?.aiSettings?.imageApiKey;

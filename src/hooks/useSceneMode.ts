@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useSimpleStorage } from './useSimpleStorage';
+import { useRepositoryKV } from './useRepositoryStorage';
 
 import { ChatSession, Character, ChatMessage, SceneObjective } from '@/types'
 import { useHouse } from './useHouse'           // if your hook lives elsewhere, fix this path
@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 
 export const useSceneMode = () => {
   const { house } = useHouse()
-  const [activeSessions, setActiveSessions] = useSimpleStorage<ChatSession[]>('scene-sessions', [])
+  const [activeSessions, setActiveSessions] = useRepositoryKV<ChatSession[]>('scene-sessions', [])
   const [isProcessing, setIsProcessing] = useState(false)
 
   // Keep a live copy for timers to read fresh state
@@ -72,11 +72,11 @@ export const useSceneMode = () => {
     });
     toast.success(`Scene session created (${sessionId.slice(0, 12)})`)
 
-    // Verify session was stored
+    // Verify session was stored (disabled - no browserStorage)
     setTimeout(() => {
-      const stored = JSON.parse(localStorage.getItem('scene-sessions') || '[]');
-      const found = stored.find((s: any) => s.id === sessionId);
-      console.log('Session storage verification:', { sessionId, found: !!found, totalStored: stored.length });
+      // const stored = JSON.parse(browserStorage.getItem('scene-sessions') || '[]');
+      // const found = stored.find((s: any) => s.id === sessionId);
+      console.log('Session storage verification disabled - using repository storage');
     }, 100);
 
     // Generate initial character response for setup
@@ -398,8 +398,8 @@ Respond naturally as ${character.name} with your personality and current state. 
   };
 
   const loadFromStorage = useCallback(() => {
-    const stored = JSON.parse(localStorage.getItem('scene-sessions') || '[]');
-    setActiveSessions(stored);
+    // browserStorage disabled - data loaded from repository instead
+    console.log('loadFromStorage disabled - using repository storage');
   }, []);
 
   return {

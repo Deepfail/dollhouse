@@ -16,6 +16,10 @@ export async function getDb() {
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;`);
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id TEXT PRIMARY KEY, provider TEXT NOT NULL, name TEXT NOT NULL,
+      key_encrypted TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS characters (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar_path TEXT, bio TEXT DEFAULT '',
       traits_json TEXT NOT NULL, tags_json TEXT NOT NULL, system_prompt TEXT DEFAULT '',
@@ -35,6 +39,8 @@ export async function getDb() {
       kind TEXT NOT NULL, path TEXT NOT NULL, meta_json TEXT NOT NULL, created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_chats_character ON chats(character_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_assets_owner ON assets(owner_type, owner_id);
   `);
   return db;
 }
