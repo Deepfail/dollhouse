@@ -16,6 +16,10 @@ export async function getDb() {
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;`);
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id TEXT PRIMARY KEY, provider TEXT NOT NULL, key_value TEXT NOT NULL,
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS characters (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar_path TEXT, bio TEXT DEFAULT '',
       traits_json TEXT NOT NULL, tags_json TEXT NOT NULL, system_prompt TEXT DEFAULT '',
