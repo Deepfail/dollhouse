@@ -27,24 +27,10 @@ export function DuplicateCharacterFinder() {
     setIsScanning(true);
     
     try {
-      // Get current localStorage data
-      const currentDataStr = localStorage.getItem('character-house');
-      if (!currentDataStr) {
-        toast.info('No character data found');
-        setDuplicates([]);
-        return;
-      }
-      
-      const currentData = JSON.parse(currentDataStr);
-      const characters: Character[] = currentData.characters || [];
-      
-      if (characters.length === 0) {
-        toast.info('No characters found');
-        setDuplicates([]);
-        return;
-      }
-      
-      const duplicateGroups: DuplicateGroup[] = [];
+      // localStorage disabled - no duplicate checking available
+      toast.info('localStorage disabled - duplicate character detection not available');
+      setDuplicates([]);
+      return;
       
       // Find exact name duplicates
       const nameGroups = characters.reduce((acc, char) => {
@@ -128,24 +114,9 @@ export function DuplicateCharacterFinder() {
 
   const removeDuplicate = (characterToRemove: Character, groupIndex: number) => {
     try {
-      // Get current localStorage data
-      const currentDataStr = localStorage.getItem('character-house');
-      if (!currentDataStr) return;
-      
-      const currentData = JSON.parse(currentDataStr);
-      
-      // Remove the character
-      currentData.characters = currentData.characters.filter((char: Character) => 
-        char.id !== characterToRemove.id
-      );
-      
-      // Remove from room residents
-      if (currentData.rooms) {
-        currentData.rooms = currentData.rooms.map((room: any) => ({
-          ...room,
-          residents: room.residents.filter((id: string) => id !== characterToRemove.id)
-        }));
-      }
+      // localStorage disabled - cannot remove duplicates
+      toast.info('localStorage disabled - duplicate removal not available');
+      return;
       
       // Update timestamp
       currentData.updatedAt = new Date().toISOString();

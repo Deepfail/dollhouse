@@ -67,16 +67,8 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
 
   useEffect(() => {
     if (!session && sessionId) {
-      // If still not found after loading, check localStorage directly and force reload
-      const stored = JSON.parse(localStorage.getItem('scene-sessions') || '[]');
-      const found = stored.find((s: any) => s.id === sessionId);
-      if (found) {
-        console.log('Scene found in localStorage, reloading sessions:', found);
-        loadFromStorage();
-      } else {
-        console.log('Scene not found in localStorage either, sessionId:', sessionId);
-        console.log('Available sessions in localStorage:', stored.map((s: any) => s.id));
-      }
+      // localStorage disabled - session loading handled by repository
+      console.log('localStorage session loading disabled - using repository storage');
     }
   }, [session, sessionId, loadFromStorage]);
 

@@ -75,24 +75,9 @@ export function SimpleCharacterImport() {
     setIsImporting(true);
     
     try {
-      // Get current localStorage data
-      const currentDataStr = localStorage.getItem('character-house');
-      let currentData: any = {};
-      
-      if (currentDataStr) {
-        currentData = JSON.parse(currentDataStr);
-      }
-      
-      // Ensure we have a characters array
-      if (!currentData.characters) {
-        currentData.characters = [];
-      }
-      
-      // Get existing character IDs to prevent duplicates
-      const existingIds = new Set(currentData.characters.map((char: Character) => char.id));
-      
-      // Add new characters (skip duplicates)
-      let addedCount = 0;
+      // localStorage import disabled - use file storage instead
+      toast.info('localStorage import disabled - please use the file-based character import system');
+      return;
       let skippedCount = 0;
       
       for (const character of previewCharacters) {
@@ -113,8 +98,8 @@ export function SimpleCharacterImport() {
       // Update timestamps
       currentData.updatedAt = new Date().toISOString();
       
-      // Save back to localStorage
-      localStorage.setItem('character-house', JSON.stringify(currentData));
+      // localStorage disabled
+      // localStorage.setItem('character-house', JSON.stringify(currentData));
       
       // Show results
       if (addedCount > 0) {

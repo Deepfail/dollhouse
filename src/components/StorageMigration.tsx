@@ -36,12 +36,11 @@ export function StorageMigration() {
 
   const checkMigrationStatus = async () => {
     try {
-      // Check localStorage
-      const houseData = localStorage.getItem('character-house');
-      const localStorageKeys = Object.keys(localStorage);
-      const localStorageSize = localStorageKeys.reduce((size, key) => {
-        return size + (localStorage.getItem(key)?.length || 0);
-      }, 0);
+      // localStorage migration disabled - no longer needed
+      // const houseData = localStorage.getItem('character-house');
+      // const localStorageKeys = Object.keys(localStorage);
+      const localStorageKeys: string[] = [];
+      const localStorageSize = 0;
 
       // Check file storage
       const houseExists = await fileStorage.fileExists('house');
@@ -58,11 +57,9 @@ export function StorageMigration() {
         fileStorageSize += JSON.stringify(charactersData).length;
       }
 
-      // Smart migration logic:
-      // - Need migration if we have localStorage data but NO file storage data
-      // - Don't migrate if file storage already has data (to prevent overwriting)
+      // Migration logic disabled - localStorage no longer used
       const hasFileStorageData = houseExists || charactersExists;
-      const hasLocalStorageData = !!houseData || localStorageKeys.length > 0;
+      const hasLocalStorageData = false; // Always false now
 
       const migrationStatus: MigrationStatus = {
         hasLocalStorage: hasLocalStorageData,
@@ -95,30 +92,30 @@ export function StorageMigration() {
     setMigrationProgress(0);
     
     try {
-      setMigrationStep('Backing up current data...');
+      setMigrationStep('Migration disabled - no localStorage to migrate');
       setMigrationProgress(10);
       
-      // Create backup of current localStorage
-      const backup = Object.keys(localStorage).reduce((acc, key) => {
-        acc[key] = localStorage.getItem(key);
-        return acc;
-      }, {} as Record<string, string | null>);
+      // localStorage migration disabled
+      // const backup = Object.keys(localStorage).reduce((acc, key) => {
+      //   acc[key] = localStorage.getItem(key);
+      //   return acc;
+      // }, {} as Record<string, string | null>);
       
-      setMigrationStep('Migrating house data...');
+      setMigrationStep('Checking file storage...');
       setMigrationProgress(30);
       
-      // Perform the actual migration
-      await fileStorage.migrateFromLocalStorage();
+      // Skip actual migration since localStorage is disabled
+      // await fileStorage.migrateFromLocalStorage();
       
-      setMigrationStep('Verifying migration...');
+      setMigrationStep('Verifying storage...');
       setMigrationProgress(70);
       
-      // Verify migration was successful
+      // Verify file storage exists
       const houseExists = await fileStorage.fileExists('house');
       const charactersExists = await fileStorage.fileExists('characters');
       
       if (!houseExists) {
-        throw new Error('House data migration failed');
+        console.warn('No house data in file storage - localStorage migration disabled');
       }
       
       setMigrationStep('Migration completed!');
