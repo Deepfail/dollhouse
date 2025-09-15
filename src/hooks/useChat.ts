@@ -295,7 +295,7 @@ CHARACTER INFORMATION:
 Name: ${character.name}
 Appearance: ${character.appearance}
 Personality: ${character.personality}
-Traits: ${character.features.join(', ')}
+Features: ${character.features.join(', ')}
 Background: ${character.prompts?.background || 'No specific background provided'}
 Role: ${character.role}
 
