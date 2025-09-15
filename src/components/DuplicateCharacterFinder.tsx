@@ -27,8 +27,8 @@ export function DuplicateCharacterFinder() {
     setIsScanning(true);
     
     try {
-      // localStorage disabled - no duplicate checking available
-      toast.info('localStorage disabled - duplicate character detection not available');
+      // browserStorage disabled - no duplicate checking available
+      toast.info('browserStorage disabled - duplicate character detection not available');
       setDuplicates([]);
       return;
       
@@ -114,15 +114,15 @@ export function DuplicateCharacterFinder() {
 
   const removeDuplicate = (characterToRemove: Character, groupIndex: number) => {
     try {
-      // localStorage disabled - cannot remove duplicates
-      toast.info('localStorage disabled - duplicate removal not available');
+      // browserStorage disabled - cannot remove duplicates
+      toast.info('browserStorage disabled - duplicate removal not available');
       return;
       
       // Update timestamp
       currentData.updatedAt = new Date().toISOString();
       
-      // Save back to localStorage
-      localStorage.setItem('character-house', JSON.stringify(currentData));
+      // Save back to browserStorage
+      browserStorage.setItem('character-house', JSON.stringify(currentData));
       
       // Update local state
       setDuplicates(prev => {

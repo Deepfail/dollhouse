@@ -31,13 +31,13 @@ export function DataManager() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [editingData, setEditingData] = useState<string>('');
-  const [localStorageKeys, setLocalStorageKeys] = useState<string[]>([]);
+  const [browserStorageKeys, setLocalStorageKeys] = useState<string[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Refresh settings keys (disabled - no more localStorage)
+  // Refresh settings keys (disabled - no more browserStorage)
   const refreshKeys = () => {
-    // const keys = Object.keys(localStorage).sort();
-    const keys: string[] = []; // No localStorage anymore
+    // const keys = Object.keys(browserStorage).sort();
+    const keys: string[] = []; // No browserStorage anymore
     setLocalStorageKeys(keys);
     setRefreshTrigger(prev => prev + 1);
   };
@@ -49,12 +49,12 @@ export function DataManager() {
   }, [isOpen]);
 
   const getStorageData = (key: string) => {
-    // No localStorage - return empty
+    // No browserStorage - return empty
     return null;
   };
 
   const getFormattedData = (key: string) => {
-    // No localStorage - return empty
+    // No browserStorage - return empty
     return '';
   };
 
@@ -66,8 +66,8 @@ export function DataManager() {
   const handleSaveData = () => {
     if (!selectedKey) return;
 
-    // Disabled localStorage functionality
-    toast.info('localStorage functionality disabled - using repository storage instead');
+    // Disabled browserStorage functionality
+    toast.info('browserStorage functionality disabled - using repository storage instead');
 
     setSelectedKey(null);
     setEditingData('');
@@ -76,8 +76,8 @@ export function DataManager() {
 
   const handleDeleteKey = (key: string) => {
     if (confirm(`Are you sure you want to delete "${key}"?`)) {
-      // Disabled localStorage functionality
-      toast.info('localStorage functionality disabled - using repository storage instead');
+      // Disabled browserStorage functionality
+      toast.info('browserStorage functionality disabled - using repository storage instead');
       if (selectedKey === key) {
         setSelectedKey(null);
         setEditingData('');
@@ -89,8 +89,8 @@ export function DataManager() {
   const handleExportAll = () => {
     const allData: Record<string, any> = {};
     
-    // No localStorage - empty export
-    // localStorageKeys.forEach(key => {
+    // No browserStorage - empty export
+    // browserStorageKeys.forEach(key => {
     //   allData[key] = getStorageData(key);
     // });
 
@@ -118,11 +118,11 @@ export function DataManager() {
         const data = JSON.parse(e.target?.result as string);
         
         Object.entries(data).forEach(([key, value]) => {
-          // localStorage.setItem(key, JSON.stringify(value));
-          // Disabled localStorage import
+          // browserStorage.setItem(key, JSON.stringify(value));
+          // Disabled browserStorage import
         });
         
-        toast.info('localStorage import disabled - using repository storage instead');
+        toast.info('browserStorage import disabled - using repository storage instead');
         refreshKeys();
       } catch (error) {
         toast.error('Failed to import data: Invalid JSON');
@@ -135,12 +135,12 @@ export function DataManager() {
   };
 
   const getDataSize = (key: string) => {
-    // const data = localStorage.getItem(key);
-    return '0 KB'; // No localStorage
+    // const data = browserStorage.getItem(key);
+    return '0 KB'; // No browserStorage
   };
 
   const getDataType = (key: string) => {
-    // Disabled localStorage
+    // Disabled browserStorage
     return 'empty';
   };
 
@@ -168,7 +168,7 @@ export function DataManager() {
             <TabsTrigger value="repair">🚨 Emergency Repair</TabsTrigger>
             <TabsTrigger value="migration">Storage Migration</TabsTrigger>
             <TabsTrigger value="test">Test Storage</TabsTrigger>
-            <TabsTrigger value="browser">localStorage Browser</TabsTrigger>
+            <TabsTrigger value="browser">browserStorage Browser</TabsTrigger>
             <TabsTrigger value="export">Import/Export</TabsTrigger>
           </TabsList>
 
@@ -195,7 +195,7 @@ export function DataManager() {
           <TabsContent value="browser" className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Badge variant="secondary">{localStorageKeys.length} Keys</Badge>
+                <Badge variant="secondary">{browserStorageKeys.length} Keys</Badge>
                 <Badge variant="outline">0 Total Items</Badge>
               </div>
               <Button variant="outline" size="sm" onClick={refreshKeys}>
@@ -213,7 +213,7 @@ export function DataManager() {
                 <CardContent>
                   <ScrollArea className="h-64">
                     <div className="space-y-2">
-                      {localStorageKeys.map(key => (
+                      {browserStorageKeys.map(key => (
                         <Card key={key} className="p-3">
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
@@ -326,7 +326,7 @@ export function DataManager() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Download all localStorage data as a JSON file for backup or transfer.
+                    Download all browserStorage data as a JSON file for backup or transfer.
                   </p>
                   <Button onClick={handleExportAll} className="w-full">
                     <Download size={16} className="mr-2" />

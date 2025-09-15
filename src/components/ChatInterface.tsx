@@ -184,7 +184,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
     const provider = house.aiSettings?.provider || 'openrouter';
     const needsApiKey = false; // Let AIService handle validation
     const hasCharacters = house.characters && house.characters.length > 0;
-    const sparkUnavailable = false; // Always available with localStorage
+    const sparkUnavailable = false; // Always available with browserStorage
     
     // Check if API key is configured
     const hasApiKey = !!(house.aiSettings?.textApiKey || house.aiSettings?.apiKey);

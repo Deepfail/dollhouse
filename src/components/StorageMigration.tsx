@@ -1,7 +1,7 @@
 /**
  * StorageMigration Component
  * 
- * Handles migration from localStorage to the new file-based storage system
+ * Handles migration from browserStorage to the new file-based storage system
  * Shows migration status and allows users to manage the transition
  */
 
@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 interface MigrationStatus {
   hasLocalStorage: boolean;
   hasFileStorage: boolean;
-  localStorageSize: number;
+  browserStorageSize: number;
   fileStorageSize: number;
   needsMigration: boolean;
   canMigrate: boolean;
@@ -36,11 +36,11 @@ export function StorageMigration() {
 
   const checkMigrationStatus = async () => {
     try {
-      // localStorage migration disabled - no longer needed
-      // const houseData = localStorage.getItem('character-house');
-      // const localStorageKeys = Object.keys(localStorage);
-      const localStorageKeys: string[] = [];
-      const localStorageSize = 0;
+      // browserStorage migration disabled - no longer needed
+      // const houseData = browserStorage.getItem('character-house');
+      // const browserStorageKeys = Object.keys(browserStorage);
+      const browserStorageKeys: string[] = [];
+      const browserStorageSize = 0;
 
       // Check file storage
       const houseExists = await fileStorage.fileExists('house');
@@ -57,14 +57,14 @@ export function StorageMigration() {
         fileStorageSize += JSON.stringify(charactersData).length;
       }
 
-      // Migration logic disabled - localStorage no longer used
+      // Migration logic disabled - browserStorage no longer used
       const hasFileStorageData = houseExists || charactersExists;
       const hasLocalStorageData = false; // Always false now
 
       const migrationStatus: MigrationStatus = {
         hasLocalStorage: hasLocalStorageData,
         hasFileStorage: hasFileStorageData,
-        localStorageSize,
+        browserStorageSize,
         fileStorageSize,
         needsMigration: hasLocalStorageData && !hasFileStorageData,
         canMigrate: hasLocalStorageData && !hasFileStorageData
@@ -92,19 +92,19 @@ export function StorageMigration() {
     setMigrationProgress(0);
     
     try {
-      setMigrationStep('Migration disabled - no localStorage to migrate');
+      setMigrationStep('Migration disabled - no browserStorage to migrate');
       setMigrationProgress(10);
       
-      // localStorage migration disabled
-      // const backup = Object.keys(localStorage).reduce((acc, key) => {
-      //   acc[key] = localStorage.getItem(key);
+      // browserStorage migration disabled
+      // const backup = Object.keys(browserStorage).reduce((acc, key) => {
+      //   acc[key] = browserStorage.getItem(key);
       //   return acc;
       // }, {} as Record<string, string | null>);
       
       setMigrationStep('Checking file storage...');
       setMigrationProgress(30);
       
-      // Skip actual migration since localStorage is disabled
+      // Skip actual migration since browserStorage is disabled
       // await fileStorage.migrateFromLocalStorage();
       
       setMigrationStep('Verifying storage...');
@@ -115,7 +115,7 @@ export function StorageMigration() {
       const charactersExists = await fileStorage.fileExists('characters');
       
       if (!houseExists) {
-        console.warn('No house data in file storage - localStorage migration disabled');
+        console.warn('No house data in file storage - browserStorage migration disabled');
       }
       
       setMigrationStep('Migration completed!');
@@ -191,7 +191,7 @@ export function StorageMigration() {
             Storage Migration Center
           </CardTitle>
           <CardDescription>
-            Manage your transition from localStorage to the new file-based storage system
+            Manage your transition from browserStorage to the new file-based storage system
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -200,13 +200,13 @@ export function StorageMigration() {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Database className="w-4 h-4" />
-                <span className="font-medium">localStorage (Old System)</span>
+                <span className="font-medium">browserStorage (Old System)</span>
                 <Badge variant={status.hasLocalStorage ? "default" : "secondary"}>
                   {status.hasLocalStorage ? "Has Data" : "Empty"}
                 </Badge>
               </div>
               <div className="text-sm text-muted-foreground">
-                Size: {formatBytes(status.localStorageSize)}
+                Size: {formatBytes(status.browserStorageSize)}
               </div>
             </div>
             
@@ -229,7 +229,7 @@ export function StorageMigration() {
             <Alert>
               <AlertTriangle className="w-4 h-4" />
               <AlertDescription>
-                You have data in localStorage that needs to be migrated to the new file storage system.
+                You have data in browserStorage that needs to be migrated to the new file storage system.
                 This will improve performance and make your data easier to manage.
               </AlertDescription>
             </Alert>
@@ -248,8 +248,8 @@ export function StorageMigration() {
             <Alert>
               <AlertTriangle className="w-4 h-4" />
               <AlertDescription>
-                Both localStorage and file storage contain data. Migration is disabled to prevent overwriting your file storage data.
-                Use Export/Import to manage your data or clear localStorage from the Emergency Repair tab.
+                Both browserStorage and file storage contain data. Migration is disabled to prevent overwriting your file storage data.
+                Use Export/Import to manage your data or clear browserStorage from the Emergency Repair tab.
               </AlertDescription>
             </Alert>
           )}

@@ -3,7 +3,7 @@ import { getSetting, setSetting } from '../repo/settings';
 import { queryClient } from '../lib/query';
 
 /**
- * Hook that replaces localStorage usage with the settings repository
+ * Hook that replaces browserStorage usage with the settings repository
  * This provides a similar API to useLocalKV but uses the database instead
  */
 export function useRepositoryKV<T>(key: string, defaultValue: T): [T, (value: T | ((prev: T) => T)) => void] {

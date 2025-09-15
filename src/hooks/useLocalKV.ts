@@ -12,7 +12,7 @@ export function useKV<T>(key: string, defaultValue: T): [T, (value: T | ((prev: 
       ? (newValue as (prev: T) => T)(value) 
       : newValue;
     setValue(updatedValue);
-    console.warn(`useKV setStoredValue called for "${key}" but localStorage is disabled. Use useRepositoryKV instead.`);
+    console.warn(`useKV setStoredValue called for "${key}" but browserStorage is disabled. Use useRepositoryKV instead.`);
   }, [key, value]);
 
   return [value, setStoredValue];

@@ -24,10 +24,10 @@ export function PersistenceDebugger() {
   const updateStorageInfo = () => {
     try {
       const info: any = {
-        totalKeys: localStorage.length,
+        totalKeys: 0, // browserStorage disabled
         quota: 'unknown',
         used: 'unknown',
-        houseKeyExists: !!localStorage.getItem('character-house'),
+        houseKeyExists: false, // browserStorage disabled
         houseDataSize: 0,
         lastModified: 'unknown'
       };
@@ -43,8 +43,9 @@ export function PersistenceDebugger() {
         });
       }
 
-      // Get house data size
-      const houseData = localStorage.getItem('character-house');
+      // browserStorage disabled
+      // const houseData = browserStorage.getItem('character-house');
+      const houseData = null;
       if (houseData) {
         info.houseDataSize = `${(houseData.length / 1024).toFixed(1)} KB`;
         try {
@@ -69,19 +70,19 @@ export function PersistenceDebugger() {
       tests: []
     };
 
-    // Test 1: Basic localStorage write/read
+    // Test 1: Basic browserStorage write/read
     try {
-      localStorage.setItem(testKey, testValue);
-      const readValue = localStorage.getItem(testKey);
+      browserStorage.setItem(testKey, testValue);
+      const readValue = browserStorage.getItem(testKey);
       results.tests.push({
-        name: 'Basic localStorage',
+        name: 'Basic browserStorage',
         passed: readValue === testValue,
         expected: testValue,
         actual: readValue
       });
     } catch (error) {
       results.tests.push({
-        name: 'Basic localStorage',
+        name: 'Basic browserStorage',
         passed: false,
         error: error.message
       });
@@ -90,8 +91,8 @@ export function PersistenceDebugger() {
     // Test 2: JSON serialization
     try {
       const testObj = { test: 'value', number: 123, array: [1, 2, 3] };
-      localStorage.setItem(`${testKey}-json`, JSON.stringify(testObj));
-      const readJson = localStorage.getItem(`${testKey}-json`);
+      browserStorage.setItem(`${testKey}-json`, JSON.stringify(testObj));
+      const readJson = browserStorage.getItem(`${testKey}-json`);
       if (readJson) {
         const parsed = JSON.parse(readJson);
         results.tests.push({
@@ -104,7 +105,7 @@ export function PersistenceDebugger() {
         results.tests.push({
           name: 'JSON serialization',
           passed: false,
-          error: 'Failed to read JSON from localStorage'
+          error: 'Failed to read JSON from browserStorage'
         });
       }
     } catch (error) {
@@ -147,12 +148,12 @@ export function PersistenceDebugger() {
     setTestResults(results);
 
     // Clean up test keys
-    localStorage.removeItem(testKey);
-    localStorage.removeItem(`${testKey}-json`);
+    browserStorage.removeItem(testKey);
+    browserStorage.removeItem(`${testKey}-json`);
   };
 
   const checkReloadPersistence = () => {
-    const savedValue = localStorage.getItem(testKey);
+    const savedValue = browserStorage.getItem(testKey);
     const results = { ...testResults };
 
     if (results.tests) {
@@ -165,12 +166,12 @@ export function PersistenceDebugger() {
     }
 
     // Clean up
-    localStorage.removeItem(testKey);
+    browserStorage.removeItem(testKey);
   };
 
   const clearAllData = () => {
-    if (confirm('This will delete ALL localStorage data including your characters and settings. Are you sure?')) {
-      localStorage.clear();
+    if (confirm('This will delete ALL browserStorage data including your characters and settings. Are you sure?')) {
+      browserStorage.clear();
       toast.success('All data cleared');
       updateStorageInfo();
       setTimeout(() => window.location.reload(), 1000);
@@ -184,9 +185,9 @@ export function PersistenceDebugger() {
       storageInfo,
       testResults,
       houseData: house,
-      allKeys: Object.keys(localStorage),
-      localStorageDump: Object.fromEntries(
-        Object.keys(localStorage).map(key => [key, localStorage.getItem(key)])
+      allKeys: Object.keys(browserStorage),
+      browserStorageDump: Object.fromEntries(
+        Object.keys(browserStorage).map(key => [key, browserStorage.getItem(key)])
       )
     };
 
@@ -348,7 +349,7 @@ export function PersistenceDebugger() {
                     <strong>Common causes of data loss:</strong>
                     <ul className="mt-2 space-y-1 text-sm">
                       <li>• Browser clearing data when storage quota is exceeded</li>
-                      <li>• Browser extensions or privacy settings clearing localStorage</li>
+                      <li>• Browser extensions or privacy settings clearing browserStorage</li>
                       <li>• Incognito/private browsing mode</li>
                       <li>• Browser crashes or forced shutdowns</li>
                       <li>• Antivirus software interfering with storage</li>

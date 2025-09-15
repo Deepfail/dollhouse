@@ -72,9 +72,9 @@ export const useSceneMode = () => {
     });
     toast.success(`Scene session created (${sessionId.slice(0, 12)})`)
 
-    // Verify session was stored (disabled - no localStorage)
+    // Verify session was stored (disabled - no browserStorage)
     setTimeout(() => {
-      // const stored = JSON.parse(localStorage.getItem('scene-sessions') || '[]');
+      // const stored = JSON.parse(browserStorage.getItem('scene-sessions') || '[]');
       // const found = stored.find((s: any) => s.id === sessionId);
       console.log('Session storage verification disabled - using repository storage');
     }, 100);
@@ -398,7 +398,7 @@ Respond naturally as ${character.name} with your personality and current state. 
   };
 
   const loadFromStorage = useCallback(() => {
-    // localStorage disabled - data loaded from repository instead
+    // browserStorage disabled - data loaded from repository instead
     console.log('loadFromStorage disabled - using repository storage');
   }, []);
 

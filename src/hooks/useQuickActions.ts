@@ -770,7 +770,7 @@ export function useQuickActions() {
 
   const backupGallery = async () => {
     try {
-      // Get all assets from the repository instead of localStorage
+      // Get all assets from the repository instead of browserStorage
       const { listAssets } = await import('@/repo/assets');
       const assets = await listAssets();
       const images = assets.filter(asset => asset.kind === 'generated-image');

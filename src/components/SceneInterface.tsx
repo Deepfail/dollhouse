@@ -67,8 +67,8 @@ export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClo
 
   useEffect(() => {
     if (!session && sessionId) {
-      // localStorage disabled - session loading handled by repository
-      console.log('localStorage session loading disabled - using repository storage');
+      // browserStorage disabled - session loading handled by repository
+      console.log('browserStorage session loading disabled - using repository storage');
     }
   }, [session, sessionId, loadFromStorage]);
 

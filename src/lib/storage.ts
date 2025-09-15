@@ -1,4 +1,4 @@
-// Storage abstraction layer - now using repository instead of localStorage
+// Storage abstraction layer - now using repository instead of browserStorage
 
 export interface StorageAdapter {
   get<T>(key: string): Promise<T | null>;

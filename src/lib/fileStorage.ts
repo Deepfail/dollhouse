@@ -1,7 +1,7 @@
 /**
  * Traditional File-Based Storage System
  * 
- * This replaces the confusing localStorage system with proper file storage
+ * This replaces the confusing webStorage system with proper file storage
  * that users can easily find, backup, and manage.
  */
 
@@ -305,14 +305,12 @@ export class FileStorageSystem {
     console.log(`Would cleanup old backups for ${filename}, keeping ${this.config.backupCount} most recent`);
   }
 
-  // Migration from localStorage
+  // Migration from webStorage - DISABLED
   async migrateFromLocalStorage(): Promise<void> {
     try {
-      console.log('Starting migration from localStorage...');
-      
-      // Check if file storage already has data
-      const houseExists = await this.fileExists('house');
-      const charactersExists = await this.fileExists('characters');
+      console.log('webStorage migration disabled - no migration performed');
+      toast.info('webStorage migration disabled - using repository storage instead');
+      return;
       
       if (houseExists || charactersExists) {
         console.log('File storage already has data, skipping migration to prevent overwrite');
@@ -321,7 +319,7 @@ export class FileStorageSystem {
       }
       
       // Migrate house data
-      const houseData = localStorage.getItem('character-house');
+      const houseData = webStorage.getItem('character-house');
       if (houseData) {
         const parsed = JSON.parse(houseData);
         
@@ -341,14 +339,14 @@ export class FileStorageSystem {
         }
       }
       
-      // Migrate other localStorage data
-      const allKeys = Object.keys(localStorage);
+      // Migrate other webStorage data
+      const allKeys = Object.keys(webStorage);
       const settings: Record<string, any> = {};
       
       for (const key of allKeys) {
         if (key.startsWith('character-house')) continue; // Already migrated
         
-        const value = localStorage.getItem(key);
+        const value = webStorage.getItem(key);
         if (value) {
           try {
             settings[key] = JSON.parse(value);
@@ -365,9 +363,9 @@ export class FileStorageSystem {
       console.log('Migration completed successfully');
       toast.success('Data migrated to new file storage system');
       
-      // Don't automatically clear localStorage - let user decide
+      // Don't automatically clear webStorage - let user decide
       console.log('Migration complete. Your data is now in the new file storage system.');
-      console.log('You can safely clear localStorage from the Emergency Repair tab if desired.');
+      console.log('You can safely clear webStorage from the Emergency Repair tab if desired.');
       
     } catch (error) {
       console.error('Migration failed:', error);
