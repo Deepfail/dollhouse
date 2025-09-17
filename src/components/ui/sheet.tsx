@@ -1,6 +1,6 @@
 import * as SheetPrimitive from "@radix-ui/react-dialog"
-import { ComponentProps } from "react"
 import { X } from "lucide-react"
+import { ComponentProps } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -126,12 +126,7 @@ function SheetDescription({
 }
 
 export {
-  Sheet,
-  SheetTrigger,
-  SheetClose,
-  SheetContent,
-  SheetHeader,
-  SheetFooter,
-  SheetTitle,
-  SheetDescription,
+    Sheet, SheetClose,
+    SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger
 }
+

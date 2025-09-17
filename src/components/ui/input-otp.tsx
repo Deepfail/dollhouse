@@ -1,8 +1,8 @@
 "use client"
 
 import { OTPInput, OTPInputContext } from "input-otp"
-import { useContext, ComponentProps } from "react"
 import { Minus } from "lucide-react"
+import { ComponentProps, useContext } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -74,4 +74,5 @@ function InputOTPSeparator({ ...props }: ComponentProps<"div">) {
   )
 }
 
-export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator }
+export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot }
+

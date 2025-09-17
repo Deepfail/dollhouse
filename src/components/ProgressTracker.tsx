@@ -1,22 +1,18 @@
-import React from 'react';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { 
-  Heart, 
-  Trophy, 
-  Star, 
-  Lock, 
-  Check, 
-  Fire, 
-  Sparkle,
-  TrendUp,
-  Calendar,
-  Brain
-} from '@phosphor-icons/react';
 import { Character } from '@/types';
+import {
+    Brain,
+    Calendar,
+    Check,
+    Fire,
+    Heart,
+    Lock,
+    Star,
+    Trophy
+} from '@phosphor-icons/react';
 
 interface ProgressTrackerProps {
   character: Character;

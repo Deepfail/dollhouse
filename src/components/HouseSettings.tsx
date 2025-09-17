@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useRepositoryKV } from '@/hooks/useRepositoryStorage';
 import { AVAILABLE_MODELS } from '@/types';
-import { Gear, Check, X } from '@phosphor-icons/react';
+import { Check, Gear, X } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 

@@ -1,12 +1,10 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useChat } from '@/hooks/useChat';
-import { ArrowLeft, PaperPlane, Users, ChatCircle } from '@phosphor-icons/react';
+import { ArrowLeft, ChatCircle, PaperPlane, Users } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 

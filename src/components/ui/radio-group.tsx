@@ -1,8 +1,8 @@
 "use client"
 
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group"
-import { ComponentProps } from "react"
 import { Circle } from "lucide-react"
+import { ComponentProps } from "react"
 
 import { cn } from "@/lib/utils"
 

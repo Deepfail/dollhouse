@@ -8,16 +8,16 @@ import { useCharacters } from '@/hooks/useCharacters';
 import { useChat } from '@/hooks/useChat';
 import { Character } from '@/types';
 import {
-    House as Home,
-    Image as Image,
-    ChatCircle as MessageCircle,
-    Play,
-    Plus,
-    Gear as Settings,
-    Sparkle,
-    Trash,
-    Users,
-    X
+  House as Home,
+  Image,
+  ChatCircle as MessageCircle,
+  Play,
+  Plus,
+  Gear as Settings,
+  Sparkle,
+  Trash,
+  Users,
+  X
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { toast } from 'sonner';

@@ -1,6 +1,6 @@
-import * as ResizablePrimitive from "react-resizable-panels"
-import { ComponentProps } from "react"
 import { GripVertical } from "lucide-react"
+import { ComponentProps } from "react"
+import * as ResizablePrimitive from "react-resizable-panels"
 
 import { cn } from "@/lib/utils"
 
@@ -51,4 +51,5 @@ function ResizableHandle({
   )
 }
 
-export { ResizablePanelGroup, ResizablePanel, ResizableHandle }
+export { ResizableHandle, ResizablePanel, ResizablePanelGroup }
+

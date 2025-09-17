@@ -1,6 +1,6 @@
+import { Character } from '@/types';
 import { useCallback } from 'react';
 import { useRelationshipDynamics } from './useRelationshipDynamics';
-import { Character, ChatMessage } from '@/types';
 
 export function useInteractionSystem() {
   const { updateRelationshipStats, updateSkills, addRelationshipEvent, addSexualEvent, updateRelationshipStatus } = useRelationshipDynamics();

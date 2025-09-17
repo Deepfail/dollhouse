@@ -1,10 +1,10 @@
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Character } from '@/types';
-import { ChatCircle, Gear, Gift, Trash, Star, Heart, Lightning } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
+import { Character } from '@/types';
+import { ChatCircle, Gear, Gift, Heart, Lightning, Star, Trash } from '@phosphor-icons/react';
 
 interface CharacterCardProps {
   character: Character;

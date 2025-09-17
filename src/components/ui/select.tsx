@@ -1,6 +1,6 @@
 import * as SelectPrimitive from "@radix-ui/react-select"
-import { ComponentProps } from "react"
 import { Check, ChevronDown, ChevronUp } from "lucide-react"
+import { ComponentProps } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -170,14 +170,15 @@ function SelectScrollDownButton({
 }
 
 export {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectScrollDownButton,
-  SelectScrollUpButton,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectScrollDownButton,
+    SelectScrollUpButton,
+    SelectSeparator,
+    SelectTrigger,
+    SelectValue
 }
+

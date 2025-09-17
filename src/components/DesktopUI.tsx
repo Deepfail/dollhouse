@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useCharacters } from '@/hooks/useCharacters';
-import { Monitor, Users, ChatCircle, Camera } from '@phosphor-icons/react';
+import { Camera, ChatCircle, Monitor, Users } from '@phosphor-icons/react';
 
 export function DesktopUI() {
   const { characters, isLoading } = useCharacters();

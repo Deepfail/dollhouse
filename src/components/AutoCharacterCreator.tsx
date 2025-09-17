@@ -1,15 +1,14 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Slider } from '@/components/ui/slider';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { useAutoCharacterCreator } from '@/hooks/useAutoCharacterCreator';
-import { Sparkle, Plus, Gear, Clock, Users, Crown, Star, Diamond } from '@phosphor-icons/react';
+import { Clock, Crown, Diamond, Gear, Plus, Sparkle, Star, Users } from '@phosphor-icons/react';
+import React, { useState } from 'react';
 import { toast } from 'sonner';
 
 // Available character themes from the generator
