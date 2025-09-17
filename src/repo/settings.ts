@@ -50,7 +50,7 @@ export async function setSetting<T = any>(key: string, value: T): Promise<void> 
   
   console.log(`✅ Setting ${key} saved to database`);
   
-  // Save database to localStorage
+  // Database auto-saves with OPFS
   await saveDatabase();
 }
 
