@@ -3,7 +3,7 @@ let sqlite3: any;
 let db: any;
 
 export async function getDb() {
-  if (db) return db;
+  if (db) return { db };
 
   try {
     // @ts-ignore: provided by @sqlite.org/sqlite-wasm
@@ -17,13 +17,26 @@ export async function getDb() {
     );
   }
 
-  // OPFS is optional (non-secure contexts); init if available
-  if (sqlite3?.opfs?.init) {
-    await sqlite3.opfs.init();
-  }
+  // Try to use OPFS for persistence, fallback to in-memory
+  try {
+    // OPFS is optional (non-secure contexts); init if available
+    if (sqlite3?.opfs?.init) {
+      await sqlite3.opfs.init();
+    }
 
-  // Persistent DB file in OPFS
-  db = new sqlite3.oo1.OpfsDb('dollhouse/data.db'); // path is virtual inside OPFS
+    // Try to create persistent DB file in OPFS
+    if (sqlite3.oo1.OpfsDb) {
+      db = new sqlite3.oo1.OpfsDb('dollhouse/data.db'); // path is virtual inside OPFS
+      console.log('✅ Using OPFS persistent database');
+    } else {
+      throw new Error('OpfsDb not available');
+    }
+  } catch (opfsError) {
+    console.warn('⚠️ OPFS not available, using in-memory database:', opfsError);
+    // Fallback to in-memory database
+    db = new sqlite3.oo1.DB(':memory:', 'c');
+    console.log('✅ Using in-memory database (data will not persist)');
+  }
 
   db.exec('PRAGMA journal_mode=WAL;');
   db.exec('PRAGMA foreign_keys=ON;');
@@ -54,17 +67,24 @@ export async function getDb() {
       updated_at INTEGER NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS chats (
+    CREATE TABLE IF NOT EXISTS chat_sessions (
       id TEXT PRIMARY KEY,
-      character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
-      title TEXT NOT NULL,
+      type TEXT NOT NULL,              -- 'individual' | 'group' | 'scene'
+      title TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS session_participants (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+      character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+      joined_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY,
-      chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+      session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
       sender_id TEXT,                  -- NULL for user, character_id for character
       content TEXT NOT NULL,
       created_at INTEGER NOT NULL
@@ -80,22 +100,22 @@ export async function getDb() {
       created_at INTEGER NOT NULL
     );
 
-    CREATE INDEX IF NOT EXISTS idx_messages_chat
-      ON messages(chat_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_messages_session
+      ON messages(session_id, created_at);
 
-    CREATE INDEX IF NOT EXISTS idx_chats_character
-      ON chats(character_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_session_participants
+      ON session_participants(session_id, character_id);
 
     CREATE INDEX IF NOT EXISTS idx_assets_owner
       ON assets(owner_type, owner_id);
   `);
 
-  return db;
+  return { db };
 }
 
 export async function checkPersistence() {
   try {
-    const db = await getDb();
+    const { db } = await getDb();
     
     // Create test table if it doesn't exist
     db.exec(`
@@ -111,8 +131,6 @@ export async function checkPersistence() {
         sql: 'INSERT OR REPLACE INTO test_persistence (id, data) VALUES (1, ?)',
         bind: [`test-${Date.now()}`]
       });
-      // Save immediately
-      await saveDatabaseToStorage();
     } catch (writeError) {
       console.error('❌ Cannot write to database:', writeError);
       return { isPersistent: false, canWrite: false };
@@ -127,8 +145,11 @@ export async function checkPersistence() {
     });
     const row = rows[0];
     
+    // Check if we're using OPFS or in-memory
+    const isOpfs = db.constructor.name === 'OpfsDb';
+    
     return {
-      isPersistent: true,
+      isPersistent: isOpfs,
       testData: row?.data,
       canWrite: true
     };
