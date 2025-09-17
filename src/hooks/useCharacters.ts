@@ -1,6 +1,6 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { listCharacters, createCharacter, updateCharacter, deleteCharacter } from '@/repo/characters';
 import { queryClient, queryKeys } from '@/lib/query';
+import { createCharacter, deleteCharacter, listCharacters, updateCharacter } from '@/repo/characters';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 export function useCharacters() {

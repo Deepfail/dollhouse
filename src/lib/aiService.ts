@@ -1,5 +1,5 @@
 import { House } from '@/types';
-import { simpleStorage } from '@/hooks/useSimpleStorage';
+import { repositoryStorage } from '../hooks/useRepositoryStorage';
 
 // Direct OpenRouter service - no reliance on house state getter which might be stale
 export class AIService {
@@ -15,7 +15,7 @@ export class AIService {
       console.log('Prompt preview:', prompt.slice(0, 200) + '...');
     }
     
-    // Try to get API settings directly from KV if not provided
+    // Try to get API settings directly from repository storage if not provided
     let finalApiKey = apiKey;
     let finalModel = model;
     let textProvider = 'openrouter';
@@ -23,33 +23,33 @@ export class AIService {
     
     if (!finalApiKey) {
       try {
-        const house = simpleStorage.get<House>('character-house');
-        console.log('📦 Retrieved house from browserStorage for AI service:', !!house);
-        console.log('🔧 Raw house AI settings:', JSON.stringify(house?.aiSettings, null, 2));
+        // Get house config from repository storage
+        const houseConfig = await repositoryStorage.get('house_config') as any;
+        console.log('📦 Retrieved house config from repository storage');
         
-        // Use new structured fields with fallback to legacy fields
-        const textApiKey = house?.aiSettings?.textApiKey || house?.aiSettings?.apiKey;
-        const textModel = house?.aiSettings?.textModel || house?.aiSettings?.model;
-        textProvider = house?.aiSettings?.textProvider || house?.aiSettings?.provider || 'openrouter';
-        textApiUrl = house?.aiSettings?.textApiUrl || '';
-        
-        console.log('🔍 Detected values:');
-        console.log('  - textProvider:', textProvider);
-        console.log('  - textApiKey exists:', !!textApiKey);
-        console.log('  - textModel:', textModel);
-        console.log('  - textApiUrl:', textApiUrl);
-        
-        if (textApiKey && textModel) {
-          finalApiKey = textApiKey.trim();
-          finalModel = textModel || finalModel;
+        if (houseConfig?.aiSettings) {
+          const settings = houseConfig.aiSettings;
+          finalApiKey = settings.textApiKey;
+          finalModel = settings.textModel;
+          textProvider = settings.textProvider;
+          textApiUrl = settings.textApiUrl || '';
           
-          console.log('✅ Using browserStorage settings:');
-          console.log('  - API Key length:', finalApiKey?.length);
-          console.log('  - Model:', finalModel);
-          console.log('  - Provider:', textProvider);
+          console.log('🔍 Using repository settings:');
+          console.log('  - textProvider:', textProvider);
+          console.log('  - textApiKey exists:', !!finalApiKey);
+          console.log('  - textModel:', finalModel);
+          console.log('  - textApiUrl:', textApiUrl);
+        } else {
+          console.log('📦 No house config found, using defaults');
+          // Use defaults if no config exists
+          textProvider = 'openrouter';
+          textApiUrl = '';
         }
       } catch (error) {
-        console.error('❌ Failed to get house settings from browserStorage:', error);
+        console.error('❌ Failed to get house settings from repository storage:', error);
+        // Fall back to defaults
+        textProvider = 'openrouter';
+        textApiUrl = '';
       }
     }
     
@@ -211,12 +211,13 @@ export class AIService {
     
     if (!finalApiKey) {
       try {
-        const house = simpleStorage.get<House>('character-house');
+        const houseConfig = await repositoryStorage.get('house_config') as any;
         // Use new structured fields with fallback to legacy fields
-        finalApiKey = (house?.aiSettings?.textApiKey || house?.aiSettings?.apiKey)?.trim();
-        finalModel = house?.aiSettings?.textModel || house?.aiSettings?.model;
-        textProvider = house?.aiSettings?.textProvider || house?.aiSettings?.provider || 'openrouter';
-        textApiUrl = house?.aiSettings?.textApiUrl || '';
+        const apiKeyFromStorage = houseConfig?.aiSettings?.textApiKey || houseConfig?.aiSettings?.apiKey;
+        finalApiKey = (typeof apiKeyFromStorage === 'string' && apiKeyFromStorage) ? apiKeyFromStorage.trim() : undefined;
+        finalModel = houseConfig?.aiSettings?.textModel || houseConfig?.aiSettings?.model;
+        textProvider = houseConfig?.aiSettings?.textProvider || houseConfig?.aiSettings?.provider || 'openrouter';
+        textApiUrl = houseConfig?.aiSettings?.textApiUrl || '';
       } catch (error) {
         return { success: false, message: 'Failed to get API settings from storage' };
       }
@@ -317,15 +318,15 @@ export class AIService {
     console.log('Prompt:', prompt);
 
     try {
-      // Get house settings from browserStorage
-      const house = simpleStorage.get<House>('character-house');
-      console.log('Retrieved house from browserStorage for image generation:', !!house);
+      // Get house settings from repository storage
+      const houseConfig = await repositoryStorage.get('house_config') as any;
+      console.log('📦 Retrieved house config from repository storage for image generation');
 
-      const imageProvider = house?.aiSettings?.imageProvider;
-      const imageApiKey = house?.aiSettings?.imageApiKey;
-      const imageApiUrl = house?.aiSettings?.imageApiUrl;
+      const imageProvider = houseConfig?.aiSettings?.imageProvider;
+      const imageApiKey = houseConfig?.aiSettings?.imageApiKey;
+      const imageApiUrl = houseConfig?.aiSettings?.imageApiUrl;
 
-      const imageModel = house?.aiSettings?.imageModel || 'venice-sd35';
+      const imageModel = houseConfig?.aiSettings?.imageModel || 'venice-sd35';
 
       console.log('Image model:', imageModel);
 
@@ -339,7 +340,7 @@ export class AIService {
         return null;
       }
 
-      if (!imageApiKey || imageApiKey.trim().length === 0) {
+      if (!imageApiKey || typeof imageApiKey !== 'string' || imageApiKey.trim().length === 0) {
         throw new Error('Venice AI API key is required. Please configure it in House Settings.');
       }
 

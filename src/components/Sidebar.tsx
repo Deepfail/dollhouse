@@ -1,40 +1,36 @@
-import { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useCharacters } from '@/hooks/useCharacters';
 import { useChat } from '@/hooks/useChat';
 import { Character } from '@/types';
-import { toast } from 'sonner';
-import { 
-  Plus, 
-  House as Home, 
-  Users, 
-  ChatCircle as MessageCircle, 
-  Gear as Settings, 
-  Heart, 
-  Drop, 
-  Smiley as Smile,
-  Sparkle,
-  Play,
-  Image as ImageIcon,
-  X,
-  Trash
+import {
+    House as Home,
+    Image as Image,
+    ChatCircle as MessageCircle,
+    Play,
+    Plus,
+    Gear as Settings,
+    Sparkle,
+    Trash,
+    Users,
+    X
 } from '@phosphor-icons/react';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
-import { CharacterCreator } from './CharacterCreator';
 import { AutoCharacterCreator } from './AutoCharacterCreator';
-import { SceneCreator } from './SceneCreator';
-import { HouseSettings } from './HouseSettings';
 import { CharacterCard } from './CharacterCard';
-import { GiftManager } from './GiftManager';
+import { CharacterCreatorRepo } from './CharacterCreatorRepo';
 import { DataManager } from './DataManager';
-import { PersistenceDebugger } from './PersistenceDebugger';
+import { GiftManager } from './GiftManager';
+import { HouseSettings } from './HouseSettings';
 import { ImageGallery } from './ImageGallery';
+import { PersistenceDebugger } from './PersistenceDebugger';
+import { SceneCreator } from './SceneCreator';
 
 interface SidebarProps {
   onStartChat?: (characterId: string) => void;
@@ -43,8 +39,57 @@ interface SidebarProps {
 }
 
 export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: SidebarProps) {
-  const { house } = useHouseFileStorage();
+  const { characters, isLoading } = useCharacters();
   const { createSession, sessions, closeSession, deleteSession, switchToSession } = useChat();
+
+  // Default house structure with rooms for preserved functionality
+  const defaultHouse = {
+    name: 'Digital Dollhouse',
+    currency: 0, // Could be moved to its own state/store later
+    characters: characters || [],
+    rooms: [
+      {
+        id: 'common-room',
+        name: 'Common Room',
+        description: 'A shared space for everyone to gather',
+        type: 'shared',
+        capacity: 10,
+        residents: characters?.slice(0, 3).map(c => c.id) || [],
+        facilities: ['chat', 'games'],
+        unlocked: true
+      },
+      {
+        id: 'study-room',
+        name: 'Study Room',
+        description: 'A quiet place for focused conversations',
+        type: 'private',
+        capacity: 2,
+        residents: characters?.slice(3, 5).map(c => c.id) || [],
+        facilities: ['study', 'books'],
+        unlocked: true
+      },
+      {
+        id: 'garden',
+        name: 'Garden',
+        description: 'A peaceful outdoor space',
+        type: 'outdoor',
+        capacity: 6,
+        residents: [],
+        facilities: ['nature', 'relaxation'],
+        unlocked: characters ? characters.length >= 2 : false
+      },
+      {
+        id: 'workshop',
+        name: 'Workshop',
+        description: 'A creative space for making things',
+        type: 'creative',
+        capacity: 4,
+        residents: [],
+        facilities: ['crafting', 'tools'],
+        unlocked: characters ? characters.length >= 5 : false
+      }
+    ]
+  };
   const [showCreator, setShowCreator] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showImageGallery, setShowImageGallery] = useState(false);
@@ -72,7 +117,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
       onStartGroupChat();
     } else {
       // Fallback: use the old method
-      const characterIds = (house.characters || []).map(c => c.id);
+      const characterIds = (defaultHouse.characters || []).map(c => c.id);
       if (characterIds.length > 1) {
         createSession('group', characterIds);
         toast.success('Group chat started');
@@ -89,16 +134,16 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
         <div className="flex items-center gap-3 mb-4">
           <Home size={24} className="text-primary" />
           <div>
-            <h1 className="text-xl font-bold">{house?.name || 'Loading...'}</h1>
+            <h1 className="text-xl font-bold">{defaultHouse?.name || 'Loading...'}</h1>
             <p className="text-sm text-muted-foreground">
-              {house?.characters?.length || 0} characters
+              {defaultHouse?.characters?.length || 0} characters
             </p>
           </div>
         </div>
         
         <div className="flex items-center gap-2 text-sm">
           <Badge variant="secondary" className="text-primary font-medium">
-            ${house?.currency || 0}
+            ${defaultHouse?.currency || 0}
           </Badge>
           <span className="text-muted-foreground">House Funds</span>
         </div>
@@ -167,13 +212,13 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
               </div>
 
               <div className="space-y-2">
-                {(house?.characters?.length || 0) === 0 ? (
+                {(defaultHouse?.characters?.length || 0) === 0 ? (
                   <Card className="p-4 text-center text-muted-foreground">
                     <p className="text-sm">No characters yet</p>
                     <p className="text-xs">Create your first companion!</p>
                   </Card>
                 ) : (
-                  (house.characters || []).map(character => (
+                  (defaultHouse.characters || []).map(character => (
                     <CharacterCard
                       key={`sidebar-${character.id}`}
                       character={character}
@@ -187,7 +232,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
                 )}
               </div>
 
-              {(house?.characters?.length || 0) > 1 && (
+              {(defaultHouse?.characters?.length || 0) > 1 && (
                 <Button
                   variant="outline"
                   className="w-full"
@@ -213,7 +258,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
               </div>
 
               <div className="space-y-2">
-                {(house.rooms || []).map(room => (
+                {(defaultHouse.rooms || []).map(room => (
                   <Card key={room.id} className="p-3 hover:bg-accent/50 transition-colors cursor-pointer">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-medium text-sm">{room.name}</h4>
@@ -237,7 +282,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
                     {room.residents.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {room.residents.slice(0, 3).map(residentId => {
-                          const character = house?.characters?.find(c => c.id === residentId);
+                          const character = defaultHouse?.characters?.find(c => c.id === residentId);
                           return character ? (
                             <Badge key={character.id} variant="outline" className="text-xs">
                               {character.name}
@@ -316,7 +361,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
                           {/* Show participant names */}
                           <div className="flex flex-wrap gap-1">
                             {session.participantIds.slice(0, 3).map(id => {
-                              const character = house.characters?.find(c => c.id === id);
+                              const character = defaultHouse.characters?.find(c => c.id === id);
                               return character ? (
                                 <Badge key={id} variant="secondary" className="text-xs">
                                   {character.name}
@@ -419,7 +464,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
                           {/* Show participant names */}
                           <div className="flex flex-wrap gap-1">
                             {session.participantIds.slice(0, 3).map(id => {
-                              const character = house.characters?.find(c => c.id === id);
+                              const character = defaultHouse.characters?.find(c => c.id === id);
                               return character ? (
                                 <Badge key={id} variant="outline" className="text-xs">
                                   {character.name}
@@ -520,7 +565,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
           className="w-full justify-start"
           onClick={() => setShowImageGallery(true)}
         >
-          <ImageIcon size={16} className="mr-2" />
+          <Image size={16} className="mr-2" />
           Image Gallery
         </Button>
         <div className="flex gap-2">
@@ -531,7 +576,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
 
       {/* Character Creator Modal */}
       {showCreator && (
-        <CharacterCreator
+        <CharacterCreatorRepo
           open={showCreator}
           onOpenChange={setShowCreator}
         />
@@ -539,7 +584,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
 
       {/* Character Editor Modal */}
       {editingCharacter && (
-        <CharacterCreator
+        <CharacterCreatorRepo
           open={!!editingCharacter}
           onOpenChange={() => setEditingCharacter(null)}
           character={editingCharacter}
@@ -563,9 +608,9 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
       )}
 
       {/* Gift Manager Modal */}
-      {selectedCharacterForGift && house?.characters && (
+      {selectedCharacterForGift && defaultHouse?.characters && (
         <GiftManager
-          character={house.characters.find(c => c.id === selectedCharacterForGift)!}
+          character={defaultHouse.characters.find(c => c.id === selectedCharacterForGift)!}
           isOpen={!!selectedCharacterForGift}
           onClose={() => setSelectedCharacterForGift(null)}
         />

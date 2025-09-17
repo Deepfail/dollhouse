@@ -306,7 +306,8 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
                     relationship: '❤️',
                     sexual: '🔥',
                     preferences: '⭐',
-                    events: '📅'
+                    events: '📅',
+                    achievements: '🏆'
                   }[memory.category] || '💭';
 
                   const importanceColor = {

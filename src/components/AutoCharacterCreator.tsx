@@ -53,13 +53,14 @@ export const AutoCharacterCreator: React.FC = () => {
     setIsCreatingNow(true);
     try {
       const character = await createRandomCharacter();
-      const rarityIcon = RARITY_CONFIG[character.rarity].icon;
+      const rarityIcon = RARITY_CONFIG[character.rarity as keyof typeof RARITY_CONFIG].icon;
       toast.success(`Created ${character.rarity} character: ${character.name}`, {
         icon: React.createElement(rarityIcon, { size: 16 })
       });
     } catch (error) {
       console.error('Failed to create character:', error);
-      if (error.toString().includes('already exists') || error.toString().includes('Recent character')) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('already exists') || errorMessage.includes('Recent character')) {
         toast.warning('Character creation skipped to prevent duplicates');
       } else {
         toast.error('Failed to create character');
