@@ -29,10 +29,17 @@ export class AIService {
         
         if (houseConfig?.aiSettings) {
           const settings = houseConfig.aiSettings;
-          finalApiKey = settings.textApiKey;
-          finalModel = settings.textModel;
-          textProvider = settings.textProvider;
-          textApiUrl = settings.textApiUrl || '';
+          textProvider = settings.textProvider || 'openrouter';
+          // Prefer provider-specific slots; fall back to legacy fields
+          if (textProvider === 'venice') {
+            finalApiKey = settings.veniceTextApiKey || settings.textApiKey;
+            finalModel = settings.veniceTextModel || settings.textModel;
+            textApiUrl = settings.veniceTextApiUrl || settings.textApiUrl || '';
+          } else {
+            finalApiKey = settings.openrouterTextApiKey || settings.textApiKey;
+            finalModel = settings.openrouterTextModel || settings.textModel;
+            textApiUrl = '';
+          }
           
           console.log('🔍 Using repository settings:');
           console.log('  - textProvider:', textProvider);
@@ -55,7 +62,7 @@ export class AIService {
     
     // Set default model based on provider if not specified
     if (!finalModel) {
-      finalModel = textProvider === 'venice' ? 'llama-3.3-70b' : 'deepseek/deepseek-chat-v3.1';
+      finalModel = textProvider === 'venice' ? 'venice-large' : 'deepseek/deepseek-chat-v3.1';
     }
     
     if (!finalApiKey || finalApiKey.length === 0) {
@@ -67,7 +74,21 @@ export class AIService {
       // Route to appropriate provider
       if (textProvider === 'venice') {
         console.log('📍 Using Venice AI endpoint');
-        return await this.generateVeniceResponse(prompt, finalApiKey, finalModel, textApiUrl, options);
+        // Map friendly Venice aliases to concrete model IDs
+        const veniceModelMap: Record<string, string> = {
+          // Preferred direct IDs
+          'llama-3.3-70b': 'llama-3.3-70b',
+          'qwen3-235b': 'qwen3-235b',
+          'venice-uncensored': 'venice-uncensored',
+          // Back-compat aliases
+          'venice-uncensored-1.1': 'venice-uncensored',
+          'venice-reasoning': 'qwen3-235b',
+          'venice-small': 'llama-3.2-3b',
+          'venice-medium': 'llama-3.1-8b',
+          'venice-large': 'llama-3.3-70b',
+        };
+        const resolvedModel = veniceModelMap[finalModel] || finalModel;
+        return await this.generateVeniceResponse(prompt, finalApiKey, resolvedModel, textApiUrl, options);
       } else {
         console.log('📍 Using OpenRouter endpoint');
         return await this.generateOpenRouterResponse(prompt, finalApiKey, finalModel, options);
@@ -146,7 +167,9 @@ export class AIService {
       stream: false,
       venice_parameters: {
         enable_web_search: "auto",
-        include_venice_system_prompt: true
+        enable_web_citations: true,
+        include_venice_system_prompt: true,
+        strip_thinking_response: false
       }
     };
 
@@ -176,7 +199,8 @@ export class AIService {
       const raw = await response.text();
       console.error('Venice AI error response:', raw);
       
-      if (response.status === 401) throw new Error('401 Unauthorized: Invalid Venice AI API key.');
+  if (response.status === 401) throw new Error('401 Unauthorized: Invalid Venice AI API key.');
+  if (response.status === 402) throw new Error('402 Payment Required: Check Venice AI billing.');
       if (response.status === 403) throw new Error('403 Forbidden: Venice AI key not permitted.');
       if (response.status === 429) throw new Error('429 Rate limit exceeded.');
       if (response.status === 400) {
@@ -213,11 +237,18 @@ export class AIService {
       try {
         const houseConfig = await repositoryStorage.get('house_config') as any;
         // Use new structured fields with fallback to legacy fields
-        const apiKeyFromStorage = houseConfig?.aiSettings?.textApiKey || houseConfig?.aiSettings?.apiKey;
-        finalApiKey = (typeof apiKeyFromStorage === 'string' && apiKeyFromStorage) ? apiKeyFromStorage.trim() : undefined;
-        finalModel = houseConfig?.aiSettings?.textModel || houseConfig?.aiSettings?.model;
         textProvider = houseConfig?.aiSettings?.textProvider || houseConfig?.aiSettings?.provider || 'openrouter';
-        textApiUrl = houseConfig?.aiSettings?.textApiUrl || '';
+        if (textProvider === 'venice') {
+          const apiKeyFromStorage = houseConfig?.aiSettings?.veniceTextApiKey || houseConfig?.aiSettings?.textApiKey || houseConfig?.aiSettings?.apiKey;
+          finalApiKey = (typeof apiKeyFromStorage === 'string' && apiKeyFromStorage) ? apiKeyFromStorage.trim() : undefined;
+          finalModel = houseConfig?.aiSettings?.veniceTextModel || houseConfig?.aiSettings?.textModel || houseConfig?.aiSettings?.model;
+          textApiUrl = houseConfig?.aiSettings?.veniceTextApiUrl || houseConfig?.aiSettings?.textApiUrl || '';
+        } else {
+          const apiKeyFromStorage = houseConfig?.aiSettings?.openrouterTextApiKey || houseConfig?.aiSettings?.textApiKey || houseConfig?.aiSettings?.apiKey;
+          finalApiKey = (typeof apiKeyFromStorage === 'string' && apiKeyFromStorage) ? apiKeyFromStorage.trim() : undefined;
+          finalModel = houseConfig?.aiSettings?.openrouterTextModel || houseConfig?.aiSettings?.textModel || houseConfig?.aiSettings?.model;
+          textApiUrl = '';
+        }
       } catch (error) {
         return { success: false, message: 'Failed to get API settings from storage' };
       }
@@ -313,7 +344,23 @@ export class AIService {
     }
   }
 
-  static async generateImage(prompt: string): Promise<string | null> {
+  static async generateImage(
+    prompt: string,
+    options?: {
+      model?: string;
+      negative_prompt?: string;
+      width?: number;
+      height?: number;
+      steps?: number; // 20-50 recommended
+      cfg_scale?: number; // 1-20, default 7.5
+      style_preset?: string;
+      sampler?: string; // e.g., "ddim", "euler", etc. if supported
+      seed?: number;
+      variants?: number; // 1-4
+      format?: 'png' | 'webp' | 'jpeg';
+      hide_watermark?: boolean; // ensure watermark is hidden by default
+    }
+  ): Promise<string | null> {
     console.log('=== Generating image with Venice AI ===');
     console.log('Prompt:', prompt);
 
@@ -322,11 +369,21 @@ export class AIService {
       const houseConfig = await repositoryStorage.get('house_config') as any;
       console.log('📦 Retrieved house config from repository storage for image generation');
 
-      const imageProvider = houseConfig?.aiSettings?.imageProvider;
-      const imageApiKey = houseConfig?.aiSettings?.imageApiKey;
-      const imageApiUrl = houseConfig?.aiSettings?.imageApiUrl;
+  const imageProvider = houseConfig?.aiSettings?.imageProvider;
+  const imageApiKey = houseConfig?.aiSettings?.imageApiKey;
+  const imageApiUrl = houseConfig?.aiSettings?.imageApiUrl;
 
-      const imageModel = houseConfig?.aiSettings?.imageModel || 'venice-sd35';
+      // Map deprecated models to current alternatives
+  const rawModel = options?.model || houseConfig?.aiSettings?.imageModel || 'venice-sd35';
+      const deprecatedMap: Record<string, string> = {
+        'flux-dev': 'qwen-image',
+        'flux-dev-uncensored': 'lustify-sdxl',
+        'stable-diffusion-3.5': 'qwen-image',
+        'pony-realism': 'lustify-sdxl',
+        // Common user-entered/legacy aliases
+        'wai-Illustrious': 'qwen-image',
+      };
+      const imageModel = deprecatedMap[rawModel] || rawModel;
 
       console.log('Image model:', imageModel);
 
@@ -347,18 +404,36 @@ export class AIService {
       // Venice AI API endpoint
       const apiUrl = imageApiUrl || 'https://api.venice.ai/api/v1';
 
-      const requestBody = {
-        model: imageModel, // Use selected model from settings
-        prompt: prompt,
-        height: 1024,
-        width: 1024,
-        steps: 8, // Venice AI limit is 8 steps max
-        cfg_scale: 7.5,
-        seed: Math.floor(Math.random() * 1000000), // Random seed for variety
-        safe_mode: false, // Allow uncensored content
-        return_binary: false, // Return base64 encoded images
-        format: 'webp' // WebP format for better compression
+      // Build request per Venice native API /image/generate
+      const reqWidth = options?.width || 1024;
+      const reqHeight = options?.height || 1024;
+      // Steps: clamp by model constraints (e.g., qwen-image <= 8)
+      let reqSteps = options?.steps ?? 30; // 20-50 recommended for SD-like models
+      const modelKey = String(imageModel || '').toLowerCase();
+      if (modelKey === 'qwen-image' || modelKey.includes('qwen-image')) {
+        reqSteps = Math.min(reqSteps, 8);
+      }
+      const reqCfg = options?.cfg_scale ?? 7.5;
+      const reqSeed = options?.seed ?? Math.floor(Math.random() * 1_000_000);
+      const reqVariants = Math.max(1, Math.min(options?.variants ?? 1, 4));
+      const reqFormat = options?.format || 'webp';
+
+      const requestBody: any = {
+        model: imageModel,
+        prompt,
+        width: reqWidth,
+        height: reqHeight,
+        steps: reqSteps,
+        cfg_scale: reqCfg,
+        seed: reqSeed,
+        variants: reqVariants,
+        format: reqFormat,
+        // Default to hiding watermark unless explicitly disabled
+        hide_watermark: options?.hide_watermark ?? true,
       };
+      if (options?.negative_prompt) requestBody.negative_prompt = options.negative_prompt;
+      if (options?.style_preset) requestBody.style_preset = options.style_preset;
+      if (options?.sampler) requestBody.sampler = options.sampler;
 
       console.log('Making Venice AI request to:', `${apiUrl}/image/generate`);
       console.log('Request body:', { ...requestBody, prompt: prompt.slice(0, 50) + '...' });
@@ -377,7 +452,90 @@ export class AIService {
       if (!response.ok) {
         const raw = await response.text();
         console.error('Venice AI error response:', raw);
+        // If invalid style_preset, retry once without it
+        if (response.status === 400) {
+          try {
+            const j = JSON.parse(raw);
+            const msg = j?.details?.style_preset?._errors?.[0] || j?.issues?.[0]?.message || '';
+            if (String(msg).toLowerCase().includes('style')) {
+              console.warn('⚠️ Retrying image generation without style_preset');
+              const retryBody = { ...requestBody };
+              delete (retryBody as any).style_preset;
+              const retryResp = await fetch(`${apiUrl}/image/generate`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${imageApiKey.trim()}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(retryBody),
+              });
+              if (retryResp.ok) {
+                const data = await retryResp.json();
+                console.log('Venice AI retry response data keys:', Object.keys(data));
+                const images = Array.isArray(data?.images)
+                  ? data.images
+                  : Array.isArray(data?.data)
+                    ? data.data
+                    : [];
+                if (images && images.length > 0) {
+                  const imageData = images[0];
+                  const fmt = reqFormat || 'webp';
+                  if (typeof imageData === 'string') {
+                    return imageData.startsWith('data:') ? imageData : `data:image/${fmt};base64,${imageData}`;
+                  } else if (imageData?.url) {
+                    return imageData.url;
+                  } else if (imageData?.b64_json) {
+                    return `data:image/${fmt};base64,${imageData.b64_json}`;
+                  }
+                }
+              } else {
+                const retryRaw = await retryResp.text();
+                console.error('Venice AI retry error response:', retryRaw);
+              }
+            }
+            // If steps are too big, retry with the maximum allowed
+            const issues = j?.issues || [];
+            const stepsIssue = issues.find((it: any) => String(it?.path?.[0]) === 'steps' && (it?.code === 'too_big' || /less than or equal/i.test(String(it?.message))));
+            if (stepsIssue) {
+              const max = typeof stepsIssue.maximum === 'number' ? stepsIssue.maximum : 8;
+              console.warn(`⚠️ Retrying image generation with steps clamped to ${max}`);
+              const retryBody = { ...requestBody, steps: Math.min(reqSteps, max) };
+              const retryResp = await fetch(`${apiUrl}/image/generate`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${imageApiKey.trim()}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(retryBody),
+              });
+              if (retryResp.ok) {
+                const data = await retryResp.json();
+                console.log('Venice AI retry (steps) response data keys:', Object.keys(data));
+                const images = Array.isArray(data?.images)
+                  ? data.images
+                  : Array.isArray(data?.data)
+                    ? data.data
+                    : [];
+                if (images && images.length > 0) {
+                  const imageData = images[0];
+                  const fmt = reqFormat || 'webp';
+                  if (typeof imageData === 'string') {
+                    return imageData.startsWith('data:') ? imageData : `data:image/${fmt};base64,${imageData}`;
+                  } else if (imageData?.url) {
+                    return imageData.url;
+                  } else if (imageData?.b64_json) {
+                    return `data:image/${fmt};base64,${imageData.b64_json}`;
+                  }
+                }
+              } else {
+                const retryRaw = await retryResp.text();
+                console.error('Venice AI retry (steps) error response:', retryRaw);
+              }
+            }
+          } catch {}
+        }
         if (response.status === 401) throw new Error('401 Unauthorized: Invalid Venice AI API key.');
+        if (response.status === 402) throw new Error('402 Payment Required: Check your Venice AI balance or plan.');
         if (response.status === 403) throw new Error('403 Forbidden: API key not permitted.');
         if (response.status === 429) throw new Error('429 Rate limit exceeded.');
         if (response.status === 400) {
@@ -392,28 +550,35 @@ export class AIService {
       const data = await response.json();
       console.log('Venice AI response data keys:', Object.keys(data));
 
-      // Venice AI returns images array with base64 encoded images
-      if (!data.images || !Array.isArray(data.images) || data.images.length === 0) {
+      // Venice native returns an images array; tolerate other shapes
+      const images = Array.isArray(data?.images)
+        ? data.images
+        : Array.isArray(data?.data)
+          ? data.data
+          : [];
+
+      if (!images || images.length === 0) {
         console.error('No images in response:', data);
         throw new Error('No images returned from Venice AI');
       }
 
-      // For base64 images, we need to convert to data URL
-      const imageData = data.images[0];
+      // For base64 images, we need to convert to data URL (return the first)
+      const imageData = images[0];
       let imageUrl: string;
 
       if (typeof imageData === 'string' && imageData.startsWith('data:')) {
         // Already a data URL
         imageUrl = imageData;
-      } else if (typeof imageData === 'string' && imageData.includes('base64')) {
-        // Base64 string, convert to data URL
-        imageUrl = `data:image/webp;base64,${imageData}`;
       } else if (typeof imageData === 'string') {
-        // Assume it's base64 encoded
-        imageUrl = `data:image/webp;base64,${imageData}`;
+        // Assume it's base64 content without header
+        const fmt = reqFormat || 'webp';
+        imageUrl = `data:image/${fmt};base64,${imageData}`;
       } else if (imageData.url) {
         // Direct URL
         imageUrl = imageData.url;
+      } else if (imageData.b64_json) {
+        const fmt = reqFormat || 'webp';
+        imageUrl = `data:image/${fmt};base64,${imageData.b64_json}`;
       } else {
         console.error('Unexpected image data format:', imageData);
         throw new Error('Unexpected image data format from Venice AI');

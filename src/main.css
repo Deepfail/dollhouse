@@ -22,10 +22,10 @@
 
 /* Base styles */
 * {
-  border-color: hsl(var(--color-border));
+  border-color: rgb(var(--color-border));
 }
 
 body {
-  background-color: hsl(var(--color-background));
-  color: hsl(var(--color-foreground));
+  background-color: rgb(var(--color-background));
+  color: rgb(var(--color-foreground));
 }

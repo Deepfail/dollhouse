@@ -1,14 +1,13 @@
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { useRepositoryKV } from '@/hooks/useRepositoryStorage';
-import { AVAILABLE_MODELS } from '@/types';
+// ...existing code...
+import { AISettings } from '@/components/AISettings';
+import { repositoryStorage } from '@/hooks/useRepositoryStorage';
 import { Check, Gear, X } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -25,6 +24,7 @@ interface AISettings {
   textApiUrl?: string;
   imageProvider: 'venice' | 'openai' | 'stability' | 'none';
   imageModel?: string;
+  imageModelCustom?: string;
   imageApiKey?: string;
   imageApiUrl?: string;
 }
@@ -52,7 +52,8 @@ const DEFAULT_CONFIG: HouseConfig = {
     textProvider: 'openrouter',
     textModel: 'deepseek/deepseek-chat',
     imageProvider: 'venice',
-    imageModel: 'venice-sd35'
+    imageModel: 'venice-sd35',
+    imageModelCustom: ''
   },
   autoCreator: {
     enabled: false,
@@ -63,29 +64,55 @@ const DEFAULT_CONFIG: HouseConfig = {
 };
 
 export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
-  const [config, setConfig] = useRepositoryKV<HouseConfig>('house_config', DEFAULT_CONFIG);
-  const [localConfig, setLocalConfig] = useState<HouseConfig>(config);
+  const [localConfig, setLocalConfig] = useState<HouseConfig>(DEFAULT_CONFIG);
+  const [originalConfig, setOriginalConfig] = useState<HouseConfig>(DEFAULT_CONFIG);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Update local config when config changes
+  // Load settings from repositoryStorage on mount/open
   useEffect(() => {
-    setLocalConfig(config);
-  }, [config]);
+    if (!open) return;
+    (async () => {
+      try {
+        const config = await repositoryStorage.get<HouseConfig>('house_config');
+        if (config && Object.keys(config).length > 0) {
+          // Defensive: ensure aiSettings and autoCreator are always present
+          const safeConfig: HouseConfig = {
+            ...DEFAULT_CONFIG,
+            ...config,
+            aiSettings: { ...DEFAULT_CONFIG.aiSettings, ...(config as any).aiSettings },
+            autoCreator: { ...DEFAULT_CONFIG.autoCreator, ...(config as any).autoCreator }
+          };
+          setLocalConfig(safeConfig);
+          setOriginalConfig(safeConfig);
+        } else {
+          setLocalConfig(DEFAULT_CONFIG);
+          setOriginalConfig(DEFAULT_CONFIG);
+        }
+      } catch (err) {
+        setLocalConfig(DEFAULT_CONFIG);
+        setOriginalConfig(DEFAULT_CONFIG);
+      }
+    })();
+  }, [open]);
 
-  // Check for changes
+  // Track changes
   useEffect(() => {
-    const hasChanged = JSON.stringify(localConfig) !== JSON.stringify(config);
-    setHasChanges(hasChanged);
-  }, [localConfig, config]);
+    setHasChanges(JSON.stringify(localConfig) !== JSON.stringify(originalConfig));
+  }, [localConfig, originalConfig]);
 
-  const handleSave = () => {
-    setConfig(localConfig);
-    toast.success('House settings saved!');
-    setHasChanges(false);
+  const handleSave = async () => {
+    try {
+      await repositoryStorage.set('house_config', localConfig);
+      setOriginalConfig(localConfig);
+      toast.success('House settings saved!');
+      setHasChanges(false);
+    } catch (err) {
+      toast.error('Failed to save settings');
+    }
   };
 
   const handleCancel = () => {
-    setLocalConfig(config);
+    setLocalConfig(originalConfig);
     setHasChanges(false);
   };
 
@@ -109,9 +136,9 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden bg-gray-900 text-white" style={{ backgroundColor: '#1a1a1a', color: '#ffffff' }}>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 text-white">
             <Gear size={20} />
             House Settings
           </DialogTitle>
@@ -155,130 +182,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
 
             {/* AI Settings */}
             <TabsContent value="ai" className="space-y-6 mt-0">
-              {/* Text AI Settings */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  Text/Chat AI
-                  <Badge variant="outline">{localConfig.aiSettings.textProvider}</Badge>
-                </h3>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Provider</Label>
-                    <Select
-                      value={localConfig.aiSettings.textProvider}
-                      onValueChange={(value: any) => updateAISettings({ textProvider: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="openrouter">OpenRouter</SelectItem>
-                        <SelectItem value="venice">Venice AI</SelectItem>
-                        <SelectItem value="anthropic">Anthropic</SelectItem>
-                        <SelectItem value="openai">OpenAI</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Model</Label>
-                    <Select
-                      value={localConfig.aiSettings.textModel}
-                      onValueChange={(value) => updateAISettings({ textModel: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {AVAILABLE_MODELS.map(model => (
-                          <SelectItem key={model.id} value={model.id}>
-                            {model.name} ({model.provider})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="text-api-key">API Key</Label>
-                  <Input
-                    id="text-api-key"
-                    type="password"
-                    value={localConfig.aiSettings.textApiKey || ''}
-                    onChange={(e) => updateAISettings({ textApiKey: e.target.value })}
-                    placeholder="Enter your API key"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="text-api-url">Custom API URL (Optional)</Label>
-                  <Input
-                    id="text-api-url"
-                    value={localConfig.aiSettings.textApiUrl || ''}
-                    onChange={(e) => updateAISettings({ textApiUrl: e.target.value })}
-                    placeholder="https://api.example.com/v1"
-                  />
-                </div>
-              </div>
-
-              {/* Image AI Settings */}
-              <div className="space-y-4 border-t pt-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  Image Generation
-                  <Badge variant="outline">{localConfig.aiSettings.imageProvider}</Badge>
-                </h3>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Provider</Label>
-                    <Select
-                      value={localConfig.aiSettings.imageProvider}
-                      onValueChange={(value: any) => updateAISettings({ imageProvider: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="venice">Venice AI</SelectItem>
-                        <SelectItem value="openai">OpenAI (DALL-E)</SelectItem>
-                        <SelectItem value="stability">Stability AI</SelectItem>
-                        <SelectItem value="none">None</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Model</Label>
-                    <Input
-                      value={localConfig.aiSettings.imageModel || ''}
-                      onChange={(e) => updateAISettings({ imageModel: e.target.value })}
-                      placeholder="venice-sd35"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="image-api-key">API Key</Label>
-                  <Input
-                    id="image-api-key"
-                    type="password"
-                    value={localConfig.aiSettings.imageApiKey || ''}
-                    onChange={(e) => updateAISettings({ imageApiKey: e.target.value })}
-                    placeholder="Enter your image API key"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="image-api-url">Custom API URL (Optional)</Label>
-                  <Input
-                    id="image-api-url"
-                    value={localConfig.aiSettings.imageApiUrl || ''}
-                    onChange={(e) => updateAISettings({ imageApiUrl: e.target.value })}
-                    placeholder="https://api.example.com/v1"
-                  />
-                </div>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Manage AI providers, models, and keys in the dedicated AI Settings dialog.
+                </p>
+                <AISettings>
+                  <Button variant="outline">Open AI Settings</Button>
+                </AISettings>
               </div>
             </TabsContent>
 

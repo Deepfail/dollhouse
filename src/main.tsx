@@ -8,7 +8,6 @@ import { queryClient } from './lib/query';
 
 import "./index.css";
 import "./main.css";
-import "./styles/theme.css";
 
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary FallbackComponent={ErrorFallback}>

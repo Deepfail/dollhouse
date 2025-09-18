@@ -2,7 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useCharacters } from '@/hooks/useCharacters';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { Camera, ChatCircle, MapPin, Users } from '@phosphor-icons/react';
 
 interface HouseMapProps {
@@ -12,7 +12,7 @@ interface HouseMapProps {
 }
 
 export function HouseMap({ onStartChat, onStartGroupChat, onStartScene }: HouseMapProps) {
-  const { characters, isLoading } = useCharacters();
+  const { characters, isLoading } = useHouseFileStorage();
 
   // Default rooms structure
   const defaultRooms = [

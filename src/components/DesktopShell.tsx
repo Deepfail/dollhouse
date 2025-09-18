@@ -4,14 +4,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useCharacters } from '@/hooks/useCharacters';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { useSettings } from '@/hooks/useSettings';
 import { ChatCircle, Gear, Plus, User } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 export function DesktopShell() {
-  const { characters, isLoading } = useCharacters();
+  const { characters, isLoading } = useHouseFileStorage();
   const { setSetting } = useSettings();
   const [showCharacterCreator, setShowCharacterCreator] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<any>(null);

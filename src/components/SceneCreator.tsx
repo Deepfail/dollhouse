@@ -3,11 +3,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useCharacters } from '@/hooks/useCharacters';
+import { useChat } from '@/hooks/useChat';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { useSceneMode } from '@/hooks/useSceneMode';
+import { getDb, saveDatabase } from '@/lib/db';
 import { Camera, Play, Users } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 interface SceneCreatorProps {
@@ -15,12 +18,25 @@ interface SceneCreatorProps {
 }
 
 export function SceneCreator({ onSceneCreated }: SceneCreatorProps) {
-  const { characters } = useCharacters();
-  const { createSceneSession } = useSceneMode();
+  const { characters } = useHouseFileStorage();
+  const { createSceneSession, updateSceneSession } = useSceneMode();
+  const { createSession } = useChat();
   const [sceneName, setSceneName] = useState('');
   const [sceneDescription, setSceneDescription] = useState('');
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const [hiddenGoals, setHiddenGoals] = useState<Record<string, { goal: string; priority: 'low' | 'medium' | 'high' }>>({});
+
+  // Keep hidden goals in sync with selection
+  useEffect(() => {
+    setHiddenGoals(prev => {
+      const next: Record<string, { goal: string; priority: 'low' | 'medium' | 'high' }> = {};
+      for (const id of selectedCharacters) {
+        next[id] = prev[id] || { goal: '', priority: 'medium' };
+      }
+      return next;
+    });
+  }, [selectedCharacters]);
 
   const handleCreateScene = async () => {
     if (!sceneName.trim()) {
@@ -35,19 +51,55 @@ export function SceneCreator({ onSceneCreated }: SceneCreatorProps) {
 
     setIsCreating(true);
     try {
+      // First, create a scene session (in-memory)
       const sessionId = createSceneSession(selectedCharacters, {
         name: sceneName,
-        description: sceneDescription
+        description: sceneDescription,
+        hiddenGoals
       });
 
       if (sessionId) {
+        // Then, create a backing chat session of type 'scene' so AI can act on hidden goals
+        let chatSessionId: string | null = null;
+        try {
+          chatSessionId = await createSession('scene', selectedCharacters, {
+            hiddenGoals: Object.fromEntries(
+              Object.entries(hiddenGoals).map(([cid, v]) => [cid, { goal: v.goal, priority: v.priority }])
+            )
+          });
+        } catch (e) {
+          console.warn('Failed to create backing chat session for scene:', e);
+        }
+
+        // Persist mapping scene -> chat in settings and update scene session
+        try {
+          if (chatSessionId) {
+            const { db } = await getDb();
+            const key = `scene_chat:${sessionId}`;
+            const serialized = JSON.stringify({ chatSessionId });
+            const before: any[] = [];
+            db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: any) => before.push(r) });
+            db.exec({ sql: 'UPDATE settings SET value = ? WHERE key = ?', bind: [serialized, key] });
+            const after: any[] = [];
+            db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: any) => after.push(r) });
+            const changed = (after[0]?.c ?? 0) - (before[0]?.c ?? 0);
+            if (changed === 0) {
+              db.exec({ sql: 'INSERT INTO settings (key, value) VALUES (?, ?)', bind: [key, serialized] });
+            }
+            await saveDatabase();
+            updateSceneSession(sessionId, { chatSessionId });
+          }
+        } catch (e) {
+          console.warn('Failed to persist scene->chat mapping:', e);
+        }
+
         toast.success(`Scene "${sceneName}" created!`);
         onSceneCreated?.(sessionId);
-
         // Reset form
         setSceneName('');
         setSceneDescription('');
         setSelectedCharacters([]);
+        setHiddenGoals({});
       } else {
         toast.error('Failed to create scene');
       }
@@ -169,6 +221,68 @@ export function SceneCreator({ onSceneCreated }: SceneCreatorProps) {
               )}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Hidden Objectives */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Hidden Objectives</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {selectedCharacters.length === 0 && (
+            <div className="text-sm text-muted-foreground">
+              Select participants above to set their secret objectives.
+            </div>
+          )}
+          {selectedCharacters.map((id) => {
+            const ch = (characters || []).find(c => c.id === id);
+            if (!ch) return null;
+            const goal = hiddenGoals[id]?.goal || '';
+            const priority = hiddenGoals[id]?.priority || 'medium';
+            return (
+              <div key={id} className="space-y-2 p-3 rounded-md border border-zinc-800 bg-zinc-900">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="font-medium">{ch.name}</div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs">Priority</Label>
+                    <Select
+                      value={priority}
+                      onValueChange={(val: 'low' | 'medium' | 'high') =>
+                        setHiddenGoals(prev => ({
+                          ...prev,
+                          [id]: { goal: prev[id]?.goal || '', priority: val }
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-[130px] h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Textarea
+                  value={goal}
+                  onChange={(e) =>
+                    setHiddenGoals(prev => ({
+                      ...prev,
+                      [id]: { goal: e.target.value, priority: prev[id]?.priority || 'medium' }
+                    }))
+                  }
+                  placeholder={`What does ${ch.name} secretly want to achieve in this scene? (only visible to you)`}
+                  rows={3}
+                />
+                <div className="text-xs text-muted-foreground">
+                  These are secret objectives to guide behavior. They will not be shown to other characters.
+                </div>
+              </div>
+            );
+          })}
         </CardContent>
       </Card>
 

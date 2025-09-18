@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useCharacters } from '@/hooks/useCharacters';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import {
     Camera,
     Monitor as Desktop,
@@ -15,11 +15,12 @@ import {
     Users,
     X
 } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CharacterCard } from './CharacterCard';
 import { CharacterCreatorRepo } from './CharacterCreatorRepo';
 import { DesktopUI } from './DesktopUI';
 import { HouseMap } from './HouseMap';
+
 
 interface HouseViewProps {
   onStartChat?: (characterId: string) => void;
@@ -28,60 +29,64 @@ interface HouseViewProps {
 }
 
 export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: HouseViewProps) {
-  const { characters, deleteCharacter, isLoading } = useCharacters();
+  const {
+    house,
+    characters,
+    isLoading,
+    addCharacter,
+    removeCharacter,
+    updateCharacter,
+    addRoom,
+    removeRoom,
+    assignCharacterToRoom,
+    getAvailableRooms
+  } = useHouseFileStorage();
   const [viewMode, setViewMode] = useState<'map' | 'list' | 'desktop'>('map');
   const [selectedCharacter, setSelectedCharacter] = useState<any>(null);
   const [showCharacterDetails, setShowCharacterDetails] = useState(false);
   const [showCharacterCreator, setShowCharacterCreator] = useState(false);
+  const [showRoomCreator, setShowRoomCreator] = useState(false);
+  const [newRoomName, setNewRoomName] = useState('');
+  const [newRoomType, setNewRoomType] = useState<'shared' | 'private'>('shared');
 
-  // Default rooms structure for now - could be moved to its own hook/store later
-  const defaultRooms = [
-    {
-      id: 'common-room',
-      name: 'Common Room',
-      description: 'A shared space for everyone to gather',
-      type: 'shared',
-      capacity: 10,
-      residents: characters?.slice(0, 3).map((c: any) => c.id) || [],
-      facilities: ['chat', 'games'],
-      unlocked: true
-    },
-    {
-      id: 'study-room',
-      name: 'Study Room',
-      description: 'A quiet place for focused conversations',
-      type: 'private',
-      capacity: 2,
-      residents: characters?.slice(3, 5).map((c: any) => c.id) || [],
-      facilities: ['chat'],
-      unlocked: true
-    },
-    {
-      id: 'garden',
-      name: 'Garden',
-      description: 'An outdoor space for relaxation',
-      type: 'shared',
-      capacity: 8,
-      residents: characters?.slice(5, 8).map((c: any) => c.id) || [],
-      facilities: ['chat', 'scenes'],
-      unlocked: true
+  // UI-level dedupe guard
+  const visibleCharacters = useMemo(() => {
+    const byId = new Set<string>();
+    const byName = new Set<string>();
+    const out: any[] = [];
+    for (const c of characters || []) {
+      const idKey = c.id;
+      const nameKey = (c.name || '').trim().toLowerCase();
+      if (byId.has(idKey) || (nameKey && byName.has(nameKey))) continue;
+      byId.add(idKey);
+      if (nameKey) byName.add(nameKey);
+      out.push(c);
     }
-  ];
+    return out;
+  }, [characters]);
 
-  const handleStartChat = (characterId: string) => {
-    onStartChat?.(characterId);
+
+
+  const handleDeleteCharacter = async (characterId: string) => {
+    await removeCharacter(characterId);
   };
-
-  const handleStartGroupChat = (sessionId?: string) => {
-    onStartGroupChat?.(sessionId);
-  };
-
-  const handleStartScene = (sessionId: string) => {
-    onStartScene?.(sessionId);
-  };
-
-  const handleDeleteCharacter = (characterId: string) => {
-    deleteCharacter(characterId);
+  // Room creation handler
+  const handleAddRoom = async () => {
+    if (!newRoomName.trim()) return;
+    await addRoom({
+      id: `${newRoomName.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
+      name: newRoomName,
+      description: '',
+      type: newRoomType,
+      capacity: 5,
+      residents: [],
+      facilities: [],
+      unlocked: true,
+      decorations: [],
+      createdAt: new Date(),
+    });
+    setNewRoomName('');
+    setShowRoomCreator(false);
   };
 
   const handleCharacterClick = (character: any) => {
@@ -143,9 +148,9 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
       <div className="flex-1">
         {viewMode === 'map' ? (
           <HouseMap
-            onStartChat={handleStartChat}
-            onStartGroupChat={handleStartGroupChat}
-            onStartScene={handleStartScene}
+            onStartChat={onStartChat}
+            onStartGroupChat={onStartGroupChat}
+            onStartScene={onStartScene}
           />
         ) : viewMode === 'desktop' ? (
           <DesktopUI />
@@ -164,11 +169,10 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {defaultRooms.map((room) => {
-                      const charactersInRoom = characters?.filter((c: any) =>
+                    {house.rooms.map((room) => {
+                      const charactersInRoom = characters.filter((c: any) =>
                         room.residents.includes(c.id)
-                      ) || [];
-
+                      );
                       return (
                         <Card key={room.id} className="hover:shadow-lg transition-shadow">
                           <CardHeader>
@@ -183,12 +187,10 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
                                 {room.description}
                               </p>
                             )}
-
                             <div className="flex items-center gap-2 mb-3">
                               <Users size={16} />
                               <span className="text-sm">{charactersInRoom.length} residents</span>
                             </div>
-
                             {charactersInRoom.length > 0 && (
                               <div className="flex -space-x-2 mb-3">
                                 {charactersInRoom.slice(0, 4).map((character: any) => (
@@ -206,13 +208,12 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
                                 )}
                               </div>
                             )}
-
                             <div className="flex gap-2">
                               <Button
                                 size="sm"
                                 variant="outline"
                                 className="flex-1"
-                                onClick={() => handleStartGroupChat()}
+                                onClick={() => onStartGroupChat?.()}
                               >
                                 <MessageCircle size={14} className="mr-1" />
                                 Chat
@@ -221,16 +222,31 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
                                 size="sm"
                                 variant="outline"
                                 className="flex-1"
-                                onClick={() => handleStartScene(room.id)}
+                                onClick={() => onStartScene?.(room.id)}
                               >
                                 <Camera size={14} className="mr-1" />
                                 Scene
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="flex-1 text-red-500"
+                                onClick={() => removeRoom(room.id)}
+                              >
+                                <X size={14} className="mr-1" />
+                                Remove
                               </Button>
                             </div>
                           </CardContent>
                         </Card>
                       );
                     })}
+                    <div className="col-span-full">
+                      <Button variant="outline" onClick={() => setShowRoomCreator(true)}>
+                        <Plus size={14} className="mr-1" />
+                        Add Room
+                      </Button>
+                    </div>
                   </div>
                 )}
               </TabsContent>
@@ -251,13 +267,12 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {characters?.map((character: any) => (
+                      {visibleCharacters?.map((character: any) => (
                         <CharacterCard
                           key={`houseview-${character.id}`}
                           character={character}
-                          onStartChat={handleStartChat}
+                          onStartChat={onStartChat ?? (() => {})}
                           onDelete={handleDeleteCharacter}
-                          onClick={handleCharacterClick}
                           compact
                           source="houseview"
                         />
@@ -374,7 +389,7 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
               <X size={16} className="mr-2" />
               Close
             </Button>
-            <Button onClick={() => handleStartChat(selectedCharacter?.id)}>
+            <Button onClick={() => onStartChat?.(selectedCharacter?.id)}>
               <MessageCircle size={16} className="mr-2" />
               Start Chat
             </Button>
@@ -387,6 +402,36 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
         open={showCharacterCreator}
         onOpenChange={setShowCharacterCreator}
       />
+
+      {/* Room Creator Modal */}
+      {showRoomCreator && (
+        <Dialog open={showRoomCreator} onOpenChange={setShowRoomCreator}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add New Room</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <input
+                className="w-full p-2 border rounded"
+                placeholder="Room name"
+                value={newRoomName}
+                onChange={e => setNewRoomName(e.target.value)}
+              />
+              <select
+                className="w-full p-2 border rounded"
+                value={newRoomType}
+                onChange={e => setNewRoomType(e.target.value as any)}
+              >
+                <option value="shared">Shared</option>
+                <option value="private">Private</option>
+              </select>
+              <Button onClick={handleAddRoom} disabled={!newRoomName.trim()}>
+                Add Room
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

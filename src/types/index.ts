@@ -1,6 +1,9 @@
 export interface Character {
   id: string;
   name: string;
+  // Basic demographics
+  gender?: 'female' | 'male' | 'other';
+  age?: number;
   description: string;
   personality: string; // personality selection from list
   appearance: string;
@@ -319,6 +322,8 @@ export interface ChatSession {
   messages: ChatMessage[];
   context?: string;
   active: boolean;
+  messageCount?: number; // total messages in storage
+  endedAt?: Date | null; // when session was closed
   
   // Scene mode specific
   sceneObjectives?: Record<string, string>; // characterId -> objective

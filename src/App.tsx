@@ -3,53 +3,67 @@ import { HouseView } from '@/components/HouseView';
 import { Layout } from '@/components/Layout';
 import { SceneInterface } from '@/components/SceneInterface';
 import { Toaster } from '@/components/ui/sonner';
-import { useCharacters } from '@/hooks/useCharacters';
 import { useChat } from '@/hooks/useChat';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { useSceneMode } from '@/hooks/useSceneMode';
-import { checkPersistence, getDb } from '@/lib/db';
+import { setGlobalStorage } from '@/storage/index';
+import { initStorage } from '@/storage/init';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 function App() {
   const [currentView, setCurrentView] = useState<'house' | 'chat' | 'scene'>('house');
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [dbStatus, setDbStatus] = useState<string>('initializing...');
-  const { createSession, sessions, switchToSession, setActiveSessionId: setChatActiveSessionId } = useChat();
-  const { activeSessions } = useSceneMode();
-  const { characters, isLoading, error } = useCharacters();
+  const [storageReady, setStorageReady] = useState(false);
 
-  // Test database initialization
+  // Initialize storage system first
   useEffect(() => {
-    const testDb = async () => {
+    const initializeStorage = async () => {
       try {
-        console.log('🔧 Testing database initialization...');
-        const { db } = await getDb();
-        console.log('✅ Database initialized successfully!');
+        console.log('🔧 Initializing unified storage system...');
         
-        // Test a simple query
-        const result = db.exec({
-          sql: 'SELECT sqlite_version() as version',
-          rowMode: 'object',
-          callback: (row: any) => console.log('📊 SQLite version query result:', row)
-        });
-        console.log('📊 SQLite version query completed');
+        const storage = await initStorage();
+        setGlobalStorage(storage);
+        console.log('✅ Storage initialized successfully!');
         
-        // Test persistence
-        const persistenceResult = await checkPersistence();
-        console.log('💾 Persistence check result:', persistenceResult);
-        
-        const statusMsg = persistenceResult.isPersistent 
-          ? (persistenceResult.canWrite ? '✅ SQLite ready (manual persist)' : '⚠️ SQLite ready (read-only)')
-          : '⚠️ SQLite ready (in-memory only)';
-        setDbStatus(`${statusMsg} - ${persistenceResult.testData ? 'Data: ' + persistenceResult.testData.slice(0, 20) : 'No data'}`);
+        setStorageReady(true);
       } catch (err) {
-        console.error('❌ Database initialization failed:', err);
-        setDbStatus(`❌ DB failed: ${err}`);
+        console.error('❌ Storage initialization failed:', err);
+        toast.error('Failed to initialize storage');
       }
     };
 
-    testDb();
+    initializeStorage();
   }, []);
+
+  return storageReady ? <AppContent currentView={currentView} setCurrentView={setCurrentView} activeSessionId={activeSessionId} setActiveSessionId={setActiveSessionId} /> : <LoadingScreen />;
+}
+
+function LoadingScreen() {
+  return (
+    <div className="h-screen bg-background flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-muted-foreground">Initializing storage...</p>
+      </div>
+    </div>
+  );
+}
+
+function AppContent({ 
+  currentView, 
+  setCurrentView, 
+  activeSessionId, 
+  setActiveSessionId 
+}: {
+  currentView: 'house' | 'chat' | 'scene';
+  setCurrentView: (view: 'house' | 'chat' | 'scene') => void;
+  activeSessionId: string | null;
+  setActiveSessionId: (id: string | null) => void;
+}) {
+  const { createSession, sessions, switchToSession, setActiveSessionId: setChatActiveSessionId } = useChat();
+  const { activeSessions } = useSceneMode();
+  const { house, isLoading } = useHouseFileStorage();
 
   // Debug logging with error handling
   useEffect(() => {
@@ -57,20 +71,19 @@ function App() {
       const debugInfo = {
         currentView,
         activeSessionId,
-        charactersCount: characters?.length || 0,
+        charactersCount: house?.characters?.length || 0,
         chatSessionsCount: sessions?.length || 0,
         sceneSessionsCount: activeSessions?.length || 0,
-        provider: 'sqlite-based', // TODO: add settings hook for AI provider
-        hasApiKey: false, // TODO: add API key management
-        dbStatus
+        provider: house?.aiSettings?.provider || 'not set',
+        hasApiKey: !!(house?.aiSettings?.apiKey?.trim())
       };
 
       console.log('=== App Debug Information ===');
       console.log('Debug Info:', debugInfo);
       
-      if (characters && characters.length > 0) {
+      if (house?.characters && house.characters.length > 0) {
         console.log('Available Characters:');
-        characters.forEach(char => {
+        house.characters.forEach(char => {
           console.log(`• ${char.name} (${char.id.slice(0, 8)}...)`);
         });
       }
@@ -99,19 +112,19 @@ function App() {
     } catch (error) {
       console.error('Error in debug logging:', error);
     }
-  }, [currentView, activeSessionId, characters, sessions, activeSessions]);
+  }, [currentView, activeSessionId, house?.characters, sessions, activeSessions]);
 
   const handleStartChat = async (characterId: string) => {
     console.log('=== handleStartChat called ===');
     console.log('Character ID:', characterId);
     
     try {
-      if (!characters || characters.length === 0) {
+      if (!house?.characters || house.characters.length === 0) {
         toast.error('No characters available');
         return;
       }
       
-      const character = characters?.find(c => c.id === characterId);
+      const character = house?.characters?.find(c => c.id === characterId);
       if (!character) {
         toast.error('Character not found');
         return;
@@ -145,14 +158,14 @@ function App() {
     
     try {
       if (sessionId) {
-        // Use existing session
+        // Use existing session (individual or group)
         setActiveSessionId(sessionId);
         setChatActiveSessionId(sessionId);
         setCurrentView('chat');
-        toast.success('Started group chat');
+        toast.success('Opened chat');
       } else {
         // Create new group chat with all characters
-        const characterIds = (characters || []).map(c => c.id);
+        const characterIds = (house?.characters || []).map(c => c.id);
         console.log('Character IDs for group chat:', characterIds);
         
         if (characterIds.length > 1) {
@@ -203,30 +216,21 @@ function App() {
     }
   };
 
+  // If activeSessionId is set externally (e.g., via Sidebar switchToSession), ensure we navigate to chat
+  useEffect(() => {
+    if (activeSessionId) {
+      setCurrentView('chat');
+      setChatActiveSessionId(activeSessionId);
+    }
+  }, [activeSessionId, setChatActiveSessionId]);
+
   // Show loading state while file storage is initializing
   if (isLoading) {
     return (
       <div className="h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading characters...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error state if file storage failed
-  if (error) {
-    return (
-      <div className="h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-500 mb-4">Failed to load data: {error?.message || 'Unknown error'}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
-          >
-            Retry
-          </button>
+          <p className="text-muted-foreground">Loading house data...</p>
         </div>
       </div>
     );
@@ -239,14 +243,9 @@ function App() {
         onStartChat={handleStartChat}
         onStartGroupChat={handleStartGroupChat}
         onStartScene={handleStartScene}
-        dbStatus={dbStatus}
       >
         {currentView === 'house' ? (
-          <HouseView 
-            onStartChat={handleStartChat}
-            onStartGroupChat={handleStartGroupChat}
-            onStartScene={handleStartScene}
-          />
+          <HouseView />
         ) : currentView === 'chat' ? (
           <ChatInterface 
             sessionId={activeSessionId} 

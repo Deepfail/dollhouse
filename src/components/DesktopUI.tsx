@@ -2,11 +2,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useCharacters } from '@/hooks/useCharacters';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { Camera, ChatCircle, Monitor, Users } from '@phosphor-icons/react';
 
 export function DesktopUI() {
-  const { characters, isLoading } = useCharacters();
+  const { characters, isLoading } = useHouseFileStorage();
 
   if (isLoading) {
     return (
