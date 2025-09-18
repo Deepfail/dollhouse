@@ -1,15 +1,18 @@
-import { createRoot } from 'react-dom/client'
+import { QueryClientProvider } from '@tanstack/react-query';
+import { createRoot } from 'react-dom/client';
 import { ErrorBoundary } from "react-error-boundary";
 
-import App from './App.tsx'
-import { ErrorFallback } from './ErrorFallback.tsx'
+import App from './App.tsx';
+import { ErrorFallback } from './ErrorFallback.tsx';
+import { queryClient } from './lib/query';
 
-import "./main.css"
-import "./styles/theme.css"
-import "./index.css"
+import "./index.css";
+import "./main.css";
 
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary FallbackComponent={ErrorFallback}>
-    <App />
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>
    </ErrorBoundary>
 )

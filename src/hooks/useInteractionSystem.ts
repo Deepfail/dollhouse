@@ -1,6 +1,6 @@
+import { Character } from '@/types';
 import { useCallback } from 'react';
 import { useRelationshipDynamics } from './useRelationshipDynamics';
-import { Character, ChatMessage } from '@/types';
 
 export function useInteractionSystem() {
   const { updateRelationshipStats, updateSkills, addRelationshipEvent, addSexualEvent, updateRelationshipStatus } = useRelationshipDynamics();
@@ -25,8 +25,8 @@ export function useInteractionSystem() {
   }, []);
 
   // Update sexual skills based on practice/mention
-  const processSkillUpdates = useCallback((characterId: string, character: Character, skillMentions: any) => {
-    const currentSkills = character.skills || {
+  const processSkillUpdates = useCallback((characterId: string, character: Character, skillMentions: Record<string, boolean>) => {
+    const currentSkills: Record<string, number> = character.skills || {
       hands: 0,
       mouth: 0,
       missionary: 0,
@@ -34,7 +34,7 @@ export function useInteractionSystem() {
       cowgirl: 0
     };
 
-    const updatedSkills: any = {};
+    const updatedSkills: Record<string, number> = {};
     let hasUpdates = false;
 
     // Each skill starts at 0% and increases when mentioned/practiced

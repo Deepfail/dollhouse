@@ -1,351 +1,88 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useSceneMode } from '@/hooks/useSceneMode';
+import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { ChatSession, ChatMessage } from '@/types';
-import { 
-  Play, 
-  Pause, 
-  Stop, 
-  PaperPlaneRight,
-  Users,
-  Eye,
-  EyeSlash,
-  Clock,
-  Warning
-} from '@phosphor-icons/react';
+import { useSceneMode } from '@/hooks/useSceneMode';
+import { getDb } from '@/lib/db';
+import { ArrowLeft } from '@phosphor-icons/react';
+import { useEffect, useState } from 'react';
+import { ChatInterface } from './ChatInterface';
 
 interface SceneInterfaceProps {
-  sessionId: string;
-  onClose: () => void;
+  sessionId?: string;
+  onClose?: () => void;
 }
 
-export const SceneInterface: React.FC<SceneInterfaceProps> = ({ sessionId, onClose }) => {
-  const { house } = useHouseFileStorage();
-  const { 
-    activeSessions, 
-    startAutoPlay, 
-    endScene, 
-    pauseScene, 
-    resumeScene, 
-    addUserMessage,
-    loadFromStorage,
-    isProcessing 
-  } = useSceneMode();
-  
-  const [userInput, setUserInput] = useState('');
-  const [showObjectives, setShowObjectives] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  
+export function SceneInterface({ sessionId, onClose }: SceneInterfaceProps) {
+  const { activeSessions, updateSceneGoal } = useSceneMode();
+  const { updateSessionGoal } = useChat();
+  const { characters } = useHouseFileStorage();
   const session = activeSessions.find(s => s.id === sessionId);
-  
-  // Debug logging
-  useEffect(() => {
-    console.log('SceneInterface Debug:', {
-      sessionId,
-      activeSessionsCount: activeSessions.length,
-      sessionFound: !!session,
-      activeSessionIds: activeSessions.map(s => s.id)
-    });
-  }, [sessionId, activeSessions, session]);
-  
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [session?.messages]);
+  const participants = (characters || []).filter(c => session?.participantIds.includes(c.id));
+  const [chatSessionId, setChatSessionId] = useState<string | null>(session?.chatSessionId || null);
 
-  // Load session from storage on mount and when session not found
+  // Attempt to hydrate hiddenGoals and chat link from DB if not present in-memory
   useEffect(() => {
-    // Always load from storage on mount to ensure we have latest data
-    loadFromStorage();
-  }, [loadFromStorage]);
-
-  useEffect(() => {
-    if (!session && sessionId) {
-      // browserStorage disabled - session loading handled by repository
-      console.log('browserStorage session loading disabled - using repository storage');
-    }
-  }, [session, sessionId, loadFromStorage]);
+    (async () => {
+      try {
+        if (!session) return;
+        const { db } = await getDb();
+        // Hydrate chat link if missing
+        if (!chatSessionId) {
+          const keyLink = `scene_chat:${sessionId}`;
+          const rowsLink: any[] = [];
+          db.exec({ sql: 'SELECT value FROM settings WHERE key = ?', bind: [keyLink], rowMode: 'object', callback: (r: any) => rowsLink.push(r) });
+          if (rowsLink.length > 0) {
+            try {
+              const parsed = JSON.parse(rowsLink[0].value || '{}');
+              if (parsed?.chatSessionId) {
+                setChatSessionId(parsed.chatSessionId);
+              }
+            } catch {}
+          }
+        }
+        // Hidden goals hydration (no-op if already present)
+        if (!(session.hiddenGoals && Object.keys(session.hiddenGoals).length > 0)) {
+          const key = `scene_goals:${sessionId}`;
+          const rows: any[] = [];
+          db.exec({ sql: 'SELECT value FROM settings WHERE key = ?', bind: [key], rowMode: 'object', callback: (r: any) => rows.push(r) });
+          if (rows.length > 0) {
+            // Parsed goals are available if needed for future sync.
+            try { JSON.parse(rows[0].value || '{}'); } catch {}
+          }
+        }
+      } catch {}
+    })();
+  }, [session, sessionId, chatSessionId]);
 
   if (!session) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-background">
-        <Card className="max-w-md">
-          <CardContent className="p-8 text-center space-y-4">
-            <Warning className="mx-auto h-12 w-12 text-muted-foreground" />
-            <div>
-              <p className="text-lg font-medium">Scene not found</p>
-              <p className="text-sm text-muted-foreground">
-                The requested scene session could not be found. It may still be loading or may have been removed.
-              </p>
-              <p className="text-xs text-muted-foreground mt-2">
-                Session ID: {sessionId}
-              </p>
-            </div>
-            <Button onClick={onClose} className="mt-4">
-              Back to House
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="p-6 text-center text-muted-foreground">
+        Scene not found or has ended.
+        <div className="mt-3">
+          <Button variant="outline" onClick={onClose}><ArrowLeft size={14} className="mr-1"/>Back</Button>
+        </div>
       </div>
     );
   }
 
-  const isAutoPlaying = session.sceneSettings?.autoPlay && session.active;
-  const participatingCharacters = session.participantIds
-    .map(id => house.characters?.find(c => c.id === id))
-    .filter((character): character is NonNullable<typeof character> => Boolean(character));
-
-  const handleSendMessage = async () => {
-    if (!userInput.trim()) return;
-    
-    await addUserMessage(sessionId, userInput, !isAutoPlaying);
-    setUserInput('');
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
-  const handlePlayPause = () => {
-    if (isAutoPlaying) {
-      pauseScene(sessionId);
-    } else if (session.active) {
-      resumeScene(sessionId);
-    } else {
-      startAutoPlay(sessionId);
-    }
-  };
-
-  const formatTimestamp = (timestamp: Date) => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  };
-
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <Card className="mb-4">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="text-primary" />
-              Scene Session
-              <Badge variant={session.active ? "default" : "secondary"}>
-                {session.active ? "Active" : "Ended"}
-              </Badge>
-              {isProcessing && (
-                <Badge variant="outline" className="animate-pulse">
-                  Processing...
-                </Badge>
-              )}
-            </CardTitle>
-            
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowObjectives(!showObjectives)}
-              >
-                {showObjectives ? <EyeSlash size={16} /> : <Eye size={16} />}
-                Objectives
-              </Button>
-              <Button
-                variant="outline"
-                onClick={onClose}
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-          
-          <div className="flex flex-wrap gap-2">
-            {participatingCharacters.map(character => (
-              <Badge key={character.id} variant="secondary">
-                {character.name}
-              </Badge>
-            ))}
-          </div>
-          
-          {session.context && (
-            <p className="text-sm text-muted-foreground mt-2">
-              {session.context}
-            </p>
+    <div className="p-4 h-full flex flex-col">
+      <div className="flex items-center justify-between pb-3">
+        <div>
+          <h2 className="text-xl font-semibold">{session.name}</h2>
+          {session.description && (
+            <div className="text-sm text-muted-foreground">{session.description}</div>
           )}
-        </CardHeader>
-      </Card>
+        </div>
+        <Button variant="outline" onClick={onClose}><ArrowLeft size={14} className="mr-1"/>Back</Button>
+      </div>
 
-      {/* Objectives Panel */}
-      {showObjectives && session.sceneObjectives && (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle className="text-lg">Secret Objectives</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {Object.entries(session.sceneObjectives).map(([characterId, objective]) => {
-              const character = house.characters?.find(c => c.id === characterId);
-              return (
-                <div key={characterId} className="p-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="outline">{character?.name}</Badge>
-                  </div>
-                  <p className="text-sm">{objective}</p>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
+      {/* Chat fills remaining space; ChatInterface handles Director toggle and participants in-header */}
+      {chatSessionId && (
+        <div className="flex-1 min-h-0 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50 overflow-hidden">
+          <ChatInterface sessionId={chatSessionId} />
+        </div>
       )}
-
-      {/* Chat Messages */}
-      <Card className="flex-1 flex flex-col">
-        <CardContent className="flex-1 flex flex-col p-0">
-          <ScrollArea className="flex-1 p-4">
-            <div className="space-y-4">
-              {session.messages.map((message) => (
-                <MessageBubble 
-                  key={message.id}
-                  message={message}
-                  character={message.characterId ? house.characters?.find(c => c.id === message.characterId) : undefined}
-                />
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-          </ScrollArea>
-          
-          {/* Controls */}
-          <div className="border-t p-4 space-y-4">
-            <div className="flex items-center justify-center gap-2">
-              <Button
-                onClick={handlePlayPause}
-                disabled={!session.active}
-                variant={isAutoPlaying ? "default" : "outline"}
-              >
-                {isAutoPlaying ? <Pause size={16} /> : <Play size={16} />}
-                {isAutoPlaying ? 'Pause' : 'Start Auto-Play'}
-              </Button>
-              
-              <Button
-                onClick={() => endScene(sessionId)}
-                variant="destructive"
-                disabled={!session.active}
-              >
-                <Stop size={16} />
-                End Scene
-              </Button>
-            </div>
-            
-            {/* User Input */}
-            <div className="flex gap-2">
-              <Input
-                placeholder="Add your input to the scene..."
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                disabled={!session.active || isAutoPlaying}
-              />
-              <Button
-                onClick={handleSendMessage}
-                disabled={!userInput.trim() || !session.active || isAutoPlaying}
-              >
-                <PaperPlaneRight size={16} />
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
-};
-
-interface MessageBubbleProps {
-  message: ChatMessage;
-  character?: any;
 }
-
-const MessageBubble: React.FC<MessageBubbleProps> = ({ message, character }) => {
-  const isUser = !message.characterId;
-  const isSystem = message.type === 'system';
-  
-  if (isSystem) {
-    return (
-      <div className="flex justify-center">
-        <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-full text-sm text-muted-foreground">
-          <Clock size={14} />
-          <span>{message.content}</span>
-          <span className="text-xs">
-            {new Date(message.timestamp).toLocaleTimeString([], { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            })}
-          </span>
-        </div>
-      </div>
-    );
-  }
-  
-  return (
-    <div className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
-      {!isUser && (
-        <Avatar className="w-8 h-8">
-          <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-            {character?.name?.[0] || '?'}
-          </AvatarFallback>
-        </Avatar>
-      )}
-      
-      <div className={`max-w-[70%] space-y-1 ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
-        {!isUser && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">{character?.name}</span>
-            <span className="text-xs text-muted-foreground">
-              {new Date(message.timestamp).toLocaleTimeString([], { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })}
-            </span>
-          </div>
-        )}
-        
-        <div
-          className={`
-            px-3 py-2 rounded-lg text-sm
-            ${isUser 
-              ? 'bg-primary text-primary-foreground' 
-              : 'bg-muted border'
-            }
-          `}
-        >
-          {message.content}
-        </div>
-        
-        {isUser && (
-          <span className="text-xs text-muted-foreground">
-            {new Date(message.timestamp).toLocaleTimeString([], { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            })}
-          </span>
-        )}
-      </div>
-      
-      {isUser && (
-        <Avatar className="w-8 h-8">
-          <AvatarFallback className="bg-accent text-accent-foreground text-xs">
-            You
-          </AvatarFallback>
-        </Avatar>
-      )}
-    </div>
-  );
-};

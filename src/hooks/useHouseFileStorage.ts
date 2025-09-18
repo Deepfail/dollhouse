@@ -5,9 +5,9 @@
  * Separates house data from character data for better organization
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { House, Character } from '@/types';
-import { useFileStorage } from './useFileStorage';
+import { storage } from '@/storage';
+import { Character, House } from '@/types';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 const DEFAULT_HOUSE: Partial<House> = {
@@ -53,26 +53,278 @@ const DEFAULT_HOUSE: Partial<House> = {
 };
 
 export function useHouseFileStorage() {
-  // Separate file storage for house and characters
-  const {
-    data: houseData,
-    setData: setHouseData,
-    updateData: updateHouseData,
-    isLoading: houseLoading,
-    error: houseError
-  } = useFileStorage<Partial<House>>('house', DEFAULT_HOUSE);
+  const [houseData, setHouseDataState] = useState<Partial<House>>(DEFAULT_HOUSE);
+  const [characters, setCharactersState] = useState<Character[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const STORAGE_EVENT = 'house-storage-updated';
 
-  const {
-    data: characters,
-    setData: setCharacters,
-    updateData: updateCharacters,
-    isLoading: charactersLoading,
-    error: charactersError
-  } = useFileStorage<Character[]>('characters', []);
+  const dedupeCharacters = useCallback((list: Character[]): Character[] => {
+    const byId = new Set<string>();
+    const byName = new Set<string>();
+    const out: Character[] = [];
+    for (const c of list) {
+      const idKey = c.id;
+      const nameKey = (c.name || '').trim().toLowerCase();
+      if (byId.has(idKey) || (nameKey && byName.has(nameKey))) {
+        continue;
+      }
+      byId.add(idKey);
+      if (nameKey) byName.add(nameKey);
+      out.push(c);
+    }
+    return out;
+  }, []);
 
-  // Combine loading states
-  const isLoading = houseLoading || charactersLoading;
-  const error = houseError || charactersError;
+  // Load data from storage on mount
+  useEffect(() => {
+    let cancelled = false;
+    let retryTimer: any;
+
+    const loadData = async (attempt = 0) => {
+      try {
+        setIsLoading(true);
+
+        if (!storage) {
+          if (attempt < 5) {
+            console.warn('[useHouseFileStorage] Storage not ready, retrying...', attempt + 1);
+            retryTimer = setTimeout(() => loadData(attempt + 1), 300 + attempt * 200);
+            return;
+          } else {
+            console.error('[useHouseFileStorage] Storage not initialized after retries');
+            return;
+          }
+        }
+
+        // Load house data from settings table
+        const savedHouse = await storage.get('settings', 'house');
+        if (savedHouse && (savedHouse as any).value) {
+          try {
+            const houseData = JSON.parse((savedHouse as any).value);
+            if (!cancelled) setHouseDataState(houseData);
+          } catch (e) {
+            console.warn('[useHouseFileStorage] Failed parsing saved house JSON');
+          }
+        }
+
+        // Load characters from settings table
+        let loadedCharacters: any[] | null = null;
+        const savedCharacters = await storage.get('settings', 'characters');
+        if (savedCharacters && (savedCharacters as any).value) {
+          try {
+            const charactersData = JSON.parse((savedCharacters as any).value);
+            if (Array.isArray(charactersData)) {
+              loadedCharacters = charactersData;
+            }
+          } catch (e) {
+            console.warn('[useHouseFileStorage] Failed parsing saved characters JSON');
+          }
+        }
+
+        // Migration fallback: if no characters in settings, look for legacy 'characters' table rows (IndexedDB / other engine)
+        if (!loadedCharacters || loadedCharacters.length === 0) {
+          try {
+            const legacyRows = await storage.query<any>({ table: 'characters' });
+            if (Array.isArray(legacyRows) && legacyRows.length) {
+              console.log('[useHouseFileStorage] Migrating legacy character rows -> settings key');
+              // Each legacy row has profile_json with original character shape (maybe partial)
+              const migrated: Character[] = legacyRows.map(r => {
+                let profile: any = {};
+                try { profile = r.profile_json ? JSON.parse(r.profile_json) : {}; } catch {}
+                return {
+                  // Core identity
+                  id: r.id,
+                  name: r.name || profile.name || 'Unnamed',
+                  // Basic required fields with fallbacks
+                  description: profile.description || profile.bio || '',
+                  personality: profile.personality || profile.prompts?.personality || '',
+                  appearance: profile.appearance || profile.imageDescription || '',
+                  avatar: profile.avatar,
+                  gender: profile.gender,
+                  age: profile.age,
+                  roomId: profile.roomId,
+                  // Stats (ensure structure)
+                  stats: profile.stats || { love:0,happiness:0,wet:0,willing:0,selfEsteem:0,loyalty:0,fight:0,stamina:0,pain:0,experience:0,level:1 },
+                  skills: profile.skills || { hands:0,mouth:0,missionary:0,doggy:0,cowgirl:0 },
+                  role: profile.role || 'character',
+                  personalities: profile.personalities || [],
+                  features: profile.features || [],
+                  classes: profile.classes || [],
+                  unlocks: profile.unlocks || [],
+                  rarity: profile.rarity || 'common',
+                  specialAbility: profile.specialAbility,
+                  preferredRoomType: profile.preferredRoomType,
+                  imageDescription: profile.imageDescription,
+                  physicalStats: profile.physicalStats,
+                  prompts: profile.prompts || { system: profile.prompts?.system || '', personality: profile.prompts?.personality || '', background: profile.prompts?.background || '' },
+                  lastInteraction: profile.lastInteraction ? new Date(profile.lastInteraction) : undefined,
+                  conversationHistory: profile.conversationHistory || [],
+                  memories: profile.memories || [],
+                  preferences: profile.preferences || {},
+                  relationships: profile.relationships || {},
+                  progression: profile.progression || {
+                    level: 1, nextLevelExp: 100, unlockedFeatures: [], achievements: [],
+                    relationshipStatus: 'stranger', affection:0, trust:0, intimacy:0, dominance:50, jealousy:0, possessiveness:0,
+                    sexualExperience:0, kinks:[], limits:[], fantasies:[], unlockedPositions:[], unlockedOutfits:[], unlockedToys:[], unlockedScenarios:[],
+                    relationshipMilestones:[], sexualMilestones:[], significantEvents:[], storyChronicle:[], memorableEvents:[], bonds:{}, sexualCompatibility:{ overall:0,kinkAlignment:0,stylePreference:0 },
+                    userPreferences:{ likes:[], dislikes:[], turnOns:[], turnOffs:[] }
+                  },
+                  createdAt: profile.createdAt ? new Date(profile.createdAt) : new Date(r.created_at || Date.now()),
+                  updatedAt: profile.updatedAt ? new Date(profile.updatedAt) : new Date(r.updated_at || Date.now()),
+                  autoGenerated: profile.autoGenerated
+                } as Character;
+              });
+              loadedCharacters = migrated;
+              // Persist migrated list
+              await saveToStorage('characters', migrated);
+              console.log(`[useHouseFileStorage] Migrated ${migrated.length} character(s) from legacy table.`);
+            }
+          } catch (e) {
+            console.warn('[useHouseFileStorage] Legacy character migration attempt failed:', e);
+          }
+        }
+
+        // Secondary recovery: attempt to read from sqlite-wasm backup (if our unified db previously persisted characters in messages/participants schema)
+        if ((!loadedCharacters || !loadedCharacters.length) && typeof window !== 'undefined') {
+          try {
+            const lsBackup = localStorage.getItem('dollhouse-db-backup');
+            if (lsBackup) {
+              const parsed = JSON.parse(lsBackup);
+              if (parsed && Array.isArray(parsed.characters) && parsed.characters.length) {
+                console.log('[useHouseFileStorage] Recovering characters from sqlite localStorage backup');
+                // sqlite row structure: id, name, avatar_path, bio, traits_json, tags_json, system_prompt
+                const migrated = parsed.characters.map((r: any) => {
+                  let traits: any = {}; let tags: any = {};
+                  try { traits = r.traits_json ? JSON.parse(r.traits_json) : {}; } catch {}
+                  try { tags = r.tags_json ? JSON.parse(r.tags_json) : {}; } catch {}
+                  return {
+                    id: r.id,
+                    name: r.name || 'Unnamed',
+                    description: r.bio || '',
+                    personality: traits.personality || '',
+                    appearance: traits.appearance || '',
+                    avatar: r.avatar_path || traits.avatar,
+                    gender: traits.gender,
+                    age: traits.age,
+                    roomId: traits.roomId,
+                    stats: traits.stats || { love:0,happiness:0,wet:0,willing:0,selfEsteem:0,loyalty:0,fight:0,stamina:0,pain:0,experience:0,level:1 },
+                    skills: traits.skills || { hands:0,mouth:0,missionary:0,doggy:0,cowgirl:0 },
+                    role: traits.role || 'character',
+                    personalities: traits.personalities || [],
+                    features: traits.features || [],
+                    classes: traits.classes || [],
+                    unlocks: traits.unlocks || [],
+                    rarity: traits.rarity || 'common',
+                    specialAbility: traits.specialAbility,
+                    preferredRoomType: traits.preferredRoomType,
+                    imageDescription: traits.imageDescription,
+                    physicalStats: traits.physicalStats,
+                    prompts: traits.prompts || { system: r.system_prompt || '', personality: traits.prompts?.personality || '', background: traits.prompts?.background || '' },
+                    lastInteraction: traits.lastInteraction ? new Date(traits.lastInteraction) : undefined,
+                    conversationHistory: traits.conversationHistory || [],
+                    memories: traits.memories || [],
+                    preferences: traits.preferences || {},
+                    relationships: traits.relationships || {},
+                    progression: traits.progression || {
+                      level: 1, nextLevelExp: 100, unlockedFeatures: [], achievements: [],
+                      relationshipStatus: 'stranger', affection:0, trust:0, intimacy:0, dominance:50, jealousy:0, possessiveness:0,
+                      sexualExperience:0, kinks:[], limits:[], fantasies:[], unlockedPositions:[], unlockedOutfits:[], unlockedToys:[], unlockedScenarios:[],
+                      relationshipMilestones:[], sexualMilestones:[], significantEvents:[], storyChronicle:[], memorableEvents:[], bonds:{}, sexualCompatibility:{ overall:0,kinkAlignment:0,stylePreference:0 },
+                      userPreferences:{ likes:[], dislikes:[], turnOns:[], turnOffs:[] }
+                    },
+                    createdAt: r.created_at ? new Date(r.created_at) : new Date(),
+                    updatedAt: r.updated_at ? new Date(r.updated_at) : new Date(),
+                    autoGenerated: traits.autoGenerated
+                  } as Character;
+                });
+                if (migrated.length) {
+                  loadedCharacters = migrated;
+                  await saveToStorage('characters', migrated);
+                  console.log(`[useHouseFileStorage] Recovered ${migrated.length} character(s) from sqlite backup.`);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('[useHouseFileStorage] sqlite localStorage backup recovery failed:', e);
+          }
+        }
+
+        // Tertiary recovery: look for a raw legacy JSON blob in localStorage (older builds may have stored directly)
+        if ((!loadedCharacters || !loadedCharacters.length) && typeof window !== 'undefined') {
+          try {
+            const legacyRaw = localStorage.getItem('characters');
+            if (legacyRaw) {
+              const parsedLegacy = JSON.parse(legacyRaw);
+              if (Array.isArray(parsedLegacy) && parsedLegacy.length) {
+                console.log('[useHouseFileStorage] Recovering characters from legacy localStorage key');
+                loadedCharacters = parsedLegacy;
+                await saveToStorage('characters', parsedLegacy);
+              }
+            }
+          } catch (e) {
+            console.warn('[useHouseFileStorage] Legacy raw localStorage recovery failed:', e);
+          }
+        }
+
+        if (loadedCharacters && loadedCharacters.length) {
+          const deduped = dedupeCharacters(loadedCharacters as Character[]);
+          if (!cancelled) setCharactersState(deduped);
+          if (deduped.length !== loadedCharacters.length) {
+            await saveToStorage('characters', deduped);
+          }
+          console.log('[useHouseFileStorage] Loaded characters:', deduped.map(c => c.name));
+        } else {
+          console.log('[useHouseFileStorage] No characters found in settings or legacy sources.');
+        }
+      } catch (error) {
+        console.error('Failed to load house data:', error);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    loadData();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, []);
+
+  // Expose an imperative recovery helper for debugging/manual rescue
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).recoverCharacters = async () => {
+        console.log('[recoverCharacters] Manual recovery triggered');
+        // Force re-run of load logic by clearing current state and re-calling load path through a synthetic event
+        try {
+          const event = new CustomEvent('force-recover');
+          window.dispatchEvent(event);
+        } catch {}
+      };
+    }
+  }, []);
+
+  // Save data to storage helper
+  const saveToStorage = useCallback(async (key: string, data: any) => {
+    try {
+      if (!storage) {
+        console.error('Storage not initialized');
+        return false;
+      }
+      // Use settings table for key-value storage
+      await storage.put('settings', { id: key, key: key, value: JSON.stringify(data) });
+      // Broadcast change so all hook instances can refresh
+      try {
+        window.dispatchEvent(new CustomEvent(STORAGE_EVENT, { detail: { key } } as any));
+      } catch {
+        // ignore if not in browser
+      }
+      return true;
+    } catch (error) {
+      console.error(`Failed to save ${key}:`, error);
+      return false;
+    }
+  }, []);
 
   // Normalize house data to ensure required fields exist
   const normalizeHouse = useCallback((house: Partial<House>): House => {
@@ -96,6 +348,59 @@ export function useHouseFileStorage() {
 
   const house = normalizeHouse(houseData);
 
+  // Listen for external updates to keep all instances in sync
+  useEffect(() => {
+    const onStorageUpdate = async (ev: Event) => {
+      const detail = (ev as CustomEvent).detail || {};
+      const key = detail.key as string | undefined;
+
+      try {
+        if (!storage) return;
+        if (!key || key === 'house') {
+          const savedHouse = await storage.get('settings', 'house');
+          if (savedHouse && (savedHouse as any).value) {
+            const parsed = JSON.parse((savedHouse as any).value);
+            setHouseDataState(parsed);
+          }
+        }
+        if (!key || key === 'characters') {
+          const savedCharacters = await storage.get('settings', 'characters');
+          if (savedCharacters && (savedCharacters as any).value) {
+            const parsed = JSON.parse((savedCharacters as any).value);
+            if (Array.isArray(parsed)) {
+              setCharactersState(parsed);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to sync storage update:', e);
+      }
+    };
+
+    try {
+      window.addEventListener(STORAGE_EVENT, onStorageUpdate as any);
+    } catch {
+      // non-browser env
+    }
+    return () => {
+      try {
+        window.removeEventListener(STORAGE_EVENT, onStorageUpdate as any);
+      } catch {
+        // ignore
+      }
+    };
+  }, []);
+
+  // Ensure in-memory state stays deduped even if duplicates slip in
+  useEffect(() => {
+    const deduped = dedupeCharacters(characters);
+    if (deduped.length !== characters.length) {
+      setCharactersState(deduped);
+      // Persist the cleaned list
+      saveToStorage('characters', deduped);
+    }
+  }, [characters, dedupeCharacters, saveToStorage]);
+
   // Character management functions
   const addCharacter = useCallback(async (character: Character): Promise<boolean> => {
     try {
@@ -110,10 +415,13 @@ export function useHouseFileStorage() {
         return false;
       }
 
-      const success = await updateCharacters(current => [...current, character]);
+  const newCharacters = dedupeCharacters([...characters, character]);
+      const success = await saveToStorage('characters', newCharacters);
       
       if (success) {
+        setCharactersState(newCharacters);
         console.log('Character added successfully:', character.name);
+        console.log('[useHouseFileStorage] Characters after add:', newCharacters.map(c => c.name));
         toast.success(`${character.name} joined the house!`);
       }
       
@@ -123,7 +431,7 @@ export function useHouseFileStorage() {
       toast.error('Failed to add character');
       return false;
     }
-  }, [characters, updateCharacters]);
+  }, [characters, saveToStorage]);
 
   const removeCharacter = useCallback(async (characterId: string): Promise<boolean> => {
     try {
@@ -133,11 +441,11 @@ export function useHouseFileStorage() {
         return false;
       }
 
-      const success = await updateCharacters(current => 
-        current.filter(c => c.id !== characterId)
-      );
+  const newCharacters = dedupeCharacters(characters.filter(c => c.id !== characterId));
+      const success = await saveToStorage('characters', newCharacters);
       
       if (success) {
+        setCharactersState(newCharacters);
         console.log('Character removed successfully:', character.name);
         toast.success(`${character.name} left the house`);
       }
@@ -148,19 +456,22 @@ export function useHouseFileStorage() {
       toast.error('Failed to remove character');
       return false;
     }
-  }, [characters, updateCharacters]);
+  }, [characters, saveToStorage]);
 
   const updateCharacter = useCallback(async (characterId: string, updates: Partial<Character>): Promise<boolean> => {
     try {
-      const success = await updateCharacters(current => 
-        current.map(c => 
+      const newCharacters = dedupeCharacters(
+        characters.map(c => 
           c.id === characterId 
             ? { ...c, ...updates, updatedAt: new Date() }
             : c
         )
       );
       
+      const success = await saveToStorage('characters', newCharacters);
+      
       if (success) {
+        setCharactersState(newCharacters);
         console.log('Character updated successfully:', characterId);
       }
       
@@ -170,18 +481,21 @@ export function useHouseFileStorage() {
       toast.error('Failed to update character');
       return false;
     }
-  }, [updateCharacters]);
+  }, [characters, saveToStorage]);
 
   // House management functions
   const updateHouse = useCallback(async (updates: Partial<House>): Promise<boolean> => {
     try {
-      const success = await updateHouseData(current => ({
-        ...current,
+      const newHouseData = {
+        ...houseData,
         ...updates,
         updatedAt: new Date()
-      }));
+      };
+      
+      const success = await saveToStorage('house', newHouseData);
       
       if (success) {
+        setHouseDataState(newHouseData);
         console.log('House updated successfully');
       }
       
@@ -191,17 +505,20 @@ export function useHouseFileStorage() {
       toast.error('Failed to update house');
       return false;
     }
-  }, [updateHouseData]);
+  }, [houseData, saveToStorage]);
 
   const addRoom = useCallback(async (room: House['rooms'][0]): Promise<boolean> => {
     try {
-      const success = await updateHouseData(current => ({
-        ...current,
-        rooms: [...(current.rooms || []), room],
+      const newHouseData = {
+        ...houseData,
+        rooms: [...(houseData.rooms || []), room],
         updatedAt: new Date()
-      }));
+      };
+      
+      const success = await saveToStorage('house', newHouseData);
       
       if (success) {
+        setHouseDataState(newHouseData);
         console.log('Room added successfully:', room.name);
         toast.success(`${room.name} added to the house!`);
       }
@@ -212,17 +529,20 @@ export function useHouseFileStorage() {
       toast.error('Failed to add room');
       return false;
     }
-  }, [updateHouseData]);
+  }, [houseData, saveToStorage]);
 
   const removeRoom = useCallback(async (roomId: string): Promise<boolean> => {
     try {
-      const success = await updateHouseData(current => ({
-        ...current,
-        rooms: (current.rooms || []).filter(r => r.id !== roomId),
+      const newHouseData = {
+        ...houseData,
+        rooms: (houseData.rooms || []).filter(r => r.id !== roomId),
         updatedAt: new Date()
-      }));
+      };
+      
+      const success = await saveToStorage('house', newHouseData);
       
       if (success) {
+        setHouseDataState(newHouseData);
         console.log('Room removed successfully:', roomId);
         toast.success('Room removed from the house');
       }
@@ -233,7 +553,7 @@ export function useHouseFileStorage() {
       toast.error('Failed to remove room');
       return false;
     }
-  }, [updateHouseData]);
+  }, [houseData, saveToStorage]);
 
   // Character room assignment
   const assignCharacterToRoom = useCallback(async (characterId: string, roomId: string): Promise<boolean> => {
@@ -244,9 +564,9 @@ export function useHouseFileStorage() {
       if (!characterSuccess) return false;
 
       // Update room's residents
-      const roomSuccess = await updateHouseData(current => ({
-        ...current,
-        rooms: (current.rooms || []).map(room => 
+      const newHouseData = {
+        ...houseData,
+        rooms: (houseData.rooms || []).map(room => 
           room.id === roomId 
             ? { 
                 ...room, 
@@ -260,9 +580,12 @@ export function useHouseFileStorage() {
               }
         ),
         updatedAt: new Date()
-      }));
+      };
+      
+      const roomSuccess = await saveToStorage('house', newHouseData);
       
       if (roomSuccess) {
+        setHouseDataState(newHouseData);
         console.log('Character assigned to room successfully:', characterId, roomId);
       }
       
@@ -272,7 +595,7 @@ export function useHouseFileStorage() {
       toast.error('Failed to assign character to room');
       return false;
     }
-  }, [updateCharacter, updateHouseData]);
+  }, [updateCharacter, houseData, saveToStorage]);
 
   // Get characters in a specific room
   const getCharactersInRoom = useCallback((roomId: string): Character[] => {
@@ -284,15 +607,20 @@ export function useHouseFileStorage() {
     return house.rooms.filter(room => room.unlocked);
   }, [house.rooms]);
 
+  // Add characters to the house object for backward compatibility
+  const houseWithCharacters = {
+    ...house,
+    characters: characters || []
+  };
+
   return {
     // Data
-    house,
+    house: houseWithCharacters,
     characters,
     
     // Loading and error states
     isLoading,
-    error,
-    hasError: error !== null,
+    hasError: false,
     
     // Character operations
     addCharacter,
@@ -310,8 +638,8 @@ export function useHouseFileStorage() {
     getAvailableRooms,
     
     // Direct access to storage functions if needed
-    setHouseData,
-    setCharacters
+    setHouseData: setHouseDataState,
+    setCharacters: setCharactersState
   };
 }
 

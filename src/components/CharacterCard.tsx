@@ -1,53 +1,53 @@
-import React, { useState, useMemo } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { useMemo, useState } from 'react';
+
 
 import {
-  Heart,
-  Smiley as Smile,
-  ChatCircle as MessageCircle,
-  Gift,
-  House,
-  Trophy,
-  Sparkle,
-  Check,
-  Clock,
-  Crown,
-  Lock,
-  Drop,
-  BookOpen,
-  Eye,
-  ShieldCheck,
-  Lightning,
-  Star,
-  Fire,
-  Users,
-  Calendar,
-  TrendUp,
-  Medal,
-  Pencil,
-  Trash,
-  Image as ImageIcon,
-  Download,
-  Plus
+    BookOpen,
+    Calendar,
+    Check,
+    Crown,
+    Download,
+    Drop,
+    Eye,
+    Fire,
+    Gift,
+    Heart,
+    House,
+    Image as ImageIcon,
+    Lightning,
+    Lock,
+    Medal,
+    ChatCircle as MessageCircle,
+    Pencil,
+    Plus,
+    ShieldCheck,
+    Smiley as Smile,
+    Sparkle,
+    Star,
+    Trash,
+    TrendUp,
+    Trophy,
+    Users
 } from '@phosphor-icons/react';
 
-import { Character } from '@/types';
-import { useFileStorage } from '@/hooks/useFileStorage';
 import { useChat } from '@/hooks/useChat';
+import { useFileStorage } from '@/hooks/useFileStorage';
 import { useRelationshipDynamics } from '@/hooks/useRelationshipDynamics';
+import { repositoryStorage } from '@/hooks/useRepositoryStorage';
 import { useStorySystem } from '@/hooks/useStorySystem';
-import { generatePersonality, generateBackground, generateFeatures, generateSystemPrompt } from '@/lib/characterGenerator';
+import { Character } from '@/types';
 import { toast } from 'sonner';
+import { ImageSettings, ImageSettingsPanel } from './ImageSettingsPanel';
 
 interface GeneratedImage {
   id: string;
@@ -113,6 +113,8 @@ export function CharacterCard({
   const [newImagePrompt, setNewImagePrompt] = useState('');
   const [isCreatingImage, setIsCreatingImage] = useState(false);
   const [isGeneratingImagePrompt, setIsGeneratingImagePrompt] = useState(false);
+  const [showImageSettings, setShowImageSettings] = useState(false);
+  const [imageSettings, setImageSettings] = useState<ImageSettings | null>(null);
   
   // Integrated chat state for DMs tab
   const [dmMessages, setDmMessages] = useState<any[]>([]);
@@ -312,7 +314,32 @@ export function CharacterCard({
       
       // Import AIService dynamically to avoid circular dependencies
       const { AIService } = await import('@/lib/aiService');
-      const imageUrl = await AIService.generateImage(enhancedPrompt);
+      // Load defaults if not yet loaded
+      let settings = imageSettings;
+      if (!settings) {
+        try {
+          const saved = await repositoryStorage.get('image_settings_defaults');
+          if (saved && typeof saved === 'object') {
+            settings = saved as ImageSettings;
+            setImageSettings(settings);
+          }
+        } catch {}
+      }
+
+      const imageUrl = await AIService.generateImage(enhancedPrompt, settings ? {
+        model: settings.model,
+        negative_prompt: settings.negative_prompt,
+        width: settings.width,
+        height: settings.height,
+        steps: settings.steps,
+        cfg_scale: settings.cfg_scale,
+        style_preset: settings.style_preset || undefined,
+        sampler: settings.sampler || undefined,
+        seed: typeof settings.seed === 'number' ? settings.seed : undefined,
+        variants: settings.variants,
+        format: settings.format,
+        hide_watermark: true
+      } : undefined);
       
       if (imageUrl) {
         const newImage: GeneratedImage = {
@@ -426,15 +453,15 @@ Return only the image prompt, nothing else.`;
     return (
       <>
         <Card 
-          className="p-3 hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-primary/20 hover:border-l-primary"
+          className="p-3 bg-zinc-900/90 text-zinc-100 border border-zinc-800 hover:bg-zinc-800/80 hover:shadow-lg transition-all cursor-pointer rounded-xl"
           onClick={() => setShowDetails(true)}
           data-character-id={character.id}
           data-character-source={source}
         >
           <div className="flex items-center gap-3">
-            <Avatar className="w-12 h-12 border-2 border-primary/20">
+            <Avatar className="w-12 h-12 border-2 border-zinc-700">
               <AvatarImage src={character.avatar} alt={character.name} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
+              <AvatarFallback className="bg-zinc-800 text-zinc-200 text-sm font-semibold">
                 {character.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
@@ -447,7 +474,7 @@ Return only the image prompt, nothing else.`;
               </div>
               
               <div className="flex items-center gap-2 mb-2">
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-zinc-800/70 border-zinc-700 text-zinc-200">
                   {character.role || 'Unknown'}
                 </Badge>
                 <span className={`text-[10px] font-medium ${getRelationshipStatusColor(relationshipStatus)}`}>
@@ -458,20 +485,20 @@ Return only the image prompt, nothing else.`;
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <Heart size={10} className="text-red-500" />
-                  <Progress value={stats.love} className="h-1 flex-1" />
-                  <span className="text-[9px] text-muted-foreground w-6">{stats.love}</span>
+                  <Progress value={stats.love} className="h-1 flex-1 bg-zinc-800" />
+                  <span className="text-[9px] text-zinc-400 w-6">{stats.love}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Drop size={10} className="text-pink-500" />
-                  <Progress value={stats.wet} className="h-1 flex-1" />
-                  <span className="text-[9px] text-muted-foreground w-6">{stats.wet}</span>
+                  <Progress value={stats.wet} className="h-1 flex-1 bg-zinc-800" />
+                  <span className="text-[9px] text-zinc-400 w-6">{stats.wet}</span>
                 </div>
               </div>
             </div>
           </div>
           
-          <div className="mt-3 pt-2 border-t border-border/50">
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-2">
+          <div className="mt-3 pt-2 border-t border-zinc-800">
+            <div className="flex items-center justify-between text-[10px] text-zinc-400 mb-2">
               <span>Level {stats.level}</span>
               <span>{achievedMilestones}/{totalMilestones} milestones</span>
             </div>
@@ -538,17 +565,26 @@ Return only the image prompt, nothing else.`;
           </div>
         </Card>
 
+        {showDetails && (
         <Dialog open={showDetails} onOpenChange={setShowDetails}>
-          <DialogContent className="w-full h-full md:w-[90vw] md:max-w-[1200px] md:max-h-[85vh] md:rounded-3xl overflow-hidden p-0 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 md:border-4 border-gray-300 dark:border-gray-600 shadow-2xl">
+          <DialogContent
+            className="w-full h-full md:w-[92vw] md:max-w-[1200px] md:max-h-[88vh] md:rounded-[2.5rem] overflow-hidden p-0 bg-black text-white border-0 shadow-[0_8px_48px_8px_rgba(0,0,0,0.65)]"
+            style={{
+              boxShadow: '0 8px 48px 8px rgba(0,0,0,0.65)',
+              background: '#111',
+              color: 'white',
+              padding: 0
+            }}
+          >
             <DialogHeader className="sr-only">
               <DialogTitle>{character.name} - Character Interface</DialogTitle>
             </DialogHeader>
             {/* iPad-like Device Frame */}
-            <div className="h-full flex flex-col bg-black md:rounded-3xl md:p-1">
+            <div className="h-full flex flex-col bg-black md:rounded-[2.2rem] md:p-2 text-white shadow-2xl backdrop-blur-xl overflow-y-auto max-h-full">
               {/* Screen Area */}
-              <div className="flex-1 bg-white dark:bg-gray-900 md:rounded-[20px] overflow-hidden relative">
+              <div className="flex-1 bg-[#121317] md:rounded-[1.7rem] overflow-y-auto max-h-full relative flex flex-col shadow-xl border border-zinc-800 text-white">
                 {/* Status Bar with Navigation */}
-                <div className="h-12 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 flex items-center justify-between px-4 text-xs font-medium text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
+                <div className="h-12 bg-[#1c1f26] flex items-center justify-between px-4 text-xs font-medium text-zinc-200 border-b border-zinc-800">
                   <div className="flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-green-500"></div>
                     <span className="font-semibold">{character.name}</span>
@@ -572,30 +608,30 @@ Return only the image prompt, nothing else.`;
                   </div>
                 </div>
 
-                <Tabs defaultValue="overview" className="flex-1 flex flex-col">
+                <Tabs defaultValue="overview" className="flex-1 flex flex-col h-full">
                   {/* Enhanced Tab Bar with Character Images */}
-                  <TabsList className="grid grid-cols-6 bg-gray-50 dark:bg-gray-800 m-0 rounded-none border-b border-gray-200 dark:border-gray-700 h-20 p-2">
-                    <TabsTrigger value="overview" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-blue-100 data-[state=active]:text-blue-600 rounded-lg">
+                  <TabsList className="grid grid-cols-6 bg-[#1c1f26] m-0 rounded-none border-b border-zinc-800 h-20 p-2 flex-shrink-0">
+                    <TabsTrigger value="overview" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-zinc-800 data-[state=active]:text-white rounded-lg">
                       <Eye size={24} />
                       <span className="text-xs font-medium">Profile</span>
                     </TabsTrigger>
-                    <TabsTrigger value="stats" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-green-100 data-[state=active]:text-green-600 rounded-lg">
+                    <TabsTrigger value="stats" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-zinc-800 data-[state=active]:text-white rounded-lg">
                       <TrendUp size={24} />
                       <span className="text-xs font-medium">Stats</span>
                     </TabsTrigger>
-                    <TabsTrigger value="feed" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-pink-100 data-[state=active]:text-pink-600 rounded-lg">
+                    <TabsTrigger value="feed" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-zinc-800 data-[state=active]:text-white rounded-lg">
                       <ImageIcon size={24} />
                       <span className="text-xs font-medium">Feed</span>
                     </TabsTrigger>
-                    <TabsTrigger value="dms" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-purple-100 data-[state=active]:text-purple-600 rounded-lg">
+                    <TabsTrigger value="dms" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-zinc-800 data-[state=active]:text-white rounded-lg">
                       <MessageCircle size={24} />
                       <span className="text-xs font-medium">Chat</span>
                     </TabsTrigger>
-                    <TabsTrigger value="memories" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-orange-100 data-[state=active]:text-orange-600 rounded-lg">
+                    <TabsTrigger value="memories" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-zinc-800 data-[state=active]:text-white rounded-lg">
                       <BookOpen size={24} />
                       <span className="text-xs font-medium">Stories</span>
                     </TabsTrigger>
-                    <TabsTrigger value="settings" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-gray-100 data-[state=active]:text-gray-600 rounded-lg">
+                    <TabsTrigger value="settings" className="flex flex-col items-center gap-1 h-full data-[state=active]:bg-zinc-800 data-[state=active]:text-white rounded-lg">
                       <Pencil size={24} />
                       <span className="text-xs font-medium">Settings</span>
                     </TabsTrigger>
@@ -607,11 +643,11 @@ Return only the image prompt, nothing else.`;
                       <div className="p-6">
                 <TabsContent value="overview" className="space-y-6 mt-0">
                   {/* Character Profile Header - Prominent Image and START Button */}
-                  <Card className="p-6 bg-gradient-to-br from-white via-gray-50 to-white dark:from-gray-800 dark:via-gray-900 dark:to-gray-800 border-0 shadow-xl">
+                  <Card className="p-6 bg-zinc-900/90 text-zinc-100 border border-zinc-800 shadow-xl rounded-2xl">
                     <div className="flex flex-col items-center text-center mb-6">
-                      <Avatar className="w-32 h-32 border-4 border-white shadow-xl ring-4 ring-primary/20 mb-4">
+                      <Avatar className="w-32 h-32 border-4 border-zinc-700 shadow-xl ring-4 ring-zinc-700/40 mb-4">
                         <AvatarImage src={character.avatar} alt={character.name} />
-                        <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-white text-3xl font-bold">
+                        <AvatarFallback className="bg-zinc-800 text-white text-3xl font-bold">
                           {character.name.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
@@ -621,23 +657,26 @@ Return only the image prompt, nothing else.`;
                         {getRarityIcon(character.rarity)}
                       </div>
                       
-                      <Badge variant="default" className="bg-gradient-to-r from-primary to-primary/80 text-white px-4 py-2 text-sm mb-4">
+                      <Badge variant="default" className="bg-zinc-800 text-zinc-100 border border-zinc-700 px-4 py-2 text-sm mb-4">
                         {character.role || 'No role'} • Level {stats.level}
+                        {typeof character.age === 'number' && character.age > 0 && (
+                          <> • {character.age} Years Old</>
+                        )}
                       </Badge>
 
                       {/* Story Status and START Button */}
                       {characterSessions.length === 0 ? (
                         <div className="w-full max-w-sm">
-                          <div className="mb-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl border border-green-200 dark:border-green-800">
-                            <h3 className="font-semibold text-green-800 dark:text-green-300 mb-2">Ready to Begin</h3>
-                            <p className="text-sm text-green-600 dark:text-green-400">
+                          <div className="mb-4 p-4 bg-gradient-to-r from-emerald-900/20 to-emerald-800/10 rounded-xl border border-emerald-800/60">
+                            <h3 className="font-semibold text-emerald-300 mb-2">Ready to Begin</h3>
+                            <p className="text-sm text-emerald-400">
                               Start your story with {character.name}. She's new to the house and feeling uncertain about everything.
                             </p>
                           </div>
                           <Button 
                             onClick={() => onStartChat(character.id)}
                             size="lg" 
-                            className="w-full h-12 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold text-lg shadow-lg"
+                            className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-lg shadow-lg"
                           >
                             <Star size={20} className="mr-2" />
                             START STORY
@@ -645,16 +684,16 @@ Return only the image prompt, nothing else.`;
                         </div>
                       ) : (
                         <div className="w-full max-w-sm">
-                          <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
-                            <h3 className="font-semibold text-blue-800 dark:text-blue-300 mb-2">Story in Progress</h3>
-                            <p className="text-sm text-blue-600 dark:text-blue-400">
+                          <div className="mb-4 p-4 bg-gradient-to-r from-indigo-900/20 to-blue-900/10 rounded-xl border border-indigo-800/60">
+                            <h3 className="font-semibold text-indigo-300 mb-2">Story in Progress</h3>
+                            <p className="text-sm text-indigo-400">
                               Continue your ongoing story with {character.name}. You've had {totalMessages} conversations.
                             </p>
                           </div>
                           <Button 
                             onClick={() => onStartChat(character.id)}
                             size="lg" 
-                            className="w-full h-12 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold text-lg shadow-lg"
+                            className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-lg shadow-lg"
                           >
                             <MessageCircle size={20} className="mr-2" />
                             CONTINUE STORY
@@ -663,14 +702,14 @@ Return only the image prompt, nothing else.`;
                       )}
 
                         {/* Social Media Style Stats Row */}
-                        <div className="flex gap-8 text-center mt-6">
+                        <div className="flex gap-8 text-center mt-6 text-zinc-300">
                           <div>
-                            <div className="text-2xl font-bold text-primary">{characterSessions.length}</div>
-                            <div className="text-sm text-muted-foreground">Chats</div>
+                            <div className="text-2xl font-bold text-zinc-100">{characterSessions.length}</div>
+                            <div className="text-sm text-zinc-400">Chats</div>
                           </div>
                           <div>
-                            <div className="text-2xl font-bold text-primary">{totalMessages}</div>
-                            <div className="text-sm text-muted-foreground">Messages</div>
+                            <div className="text-2xl font-bold text-zinc-100">{totalMessages}</div>
+                            <div className="text-sm text-zinc-400">Messages</div>
                           </div>
                           <div>
                             <div className="text-2xl font-bold text-primary">{achievedMilestones}</div>
@@ -680,16 +719,24 @@ Return only the image prompt, nothing else.`;
                     </div>
 
                     {/* Description */}
-                    <div className="mb-6 p-4 bg-white/50 dark:bg-gray-800/50 rounded-lg border border-gray-200/50 dark:border-gray-700/50">
+                    <div className="mb-6 p-4 bg-[#18181b] rounded-lg border border-gray-800">
                       <p className="text-sm leading-relaxed">{character.description || 'No description available'}</p>
                     </div>
+
+                    {/* Appearance Description */}
+                    {character.appearance && (
+                      <div className="mb-6 p-4 bg-[#18181b] rounded-lg border border-gray-800">
+                        <h4 className="text-sm font-semibold text-muted-foreground mb-2">Appearance</h4>
+                        <p className="text-sm leading-relaxed">{character.appearance}</p>
+                      </div>
+                    )}
 
                     {/* Physical Stats - Instagram Profile Style */}
                     {character.physicalStats && (
                       <div className="mb-6">
                         <h4 className="text-sm font-semibold text-muted-foreground mb-3">Physical Info</h4>
                         <div className="grid grid-cols-2 gap-3">
-                          <div className="flex items-center justify-between p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg">
+                          <div className="flex items-center justify-between p-3 bg-[#23272f] rounded-lg">
                             <span className="text-sm font-medium text-muted-foreground">Hair Color</span>
                             <span className="text-sm font-semibold">{character.physicalStats.hairColor}</span>
                           </div>
@@ -711,10 +758,10 @@ Return only the image prompt, nothing else.`;
 
                     {/* Personality Tags */}
                     <div className="mb-6">
-                      <h4 className="text-sm font-semibold text-muted-foreground mb-3">Personality</h4>
+                      <h4 className="text-sm font-semibold text-gray-300 mb-3">Personality</h4>
                       <div className="flex flex-wrap gap-2">
                         {character.personalities?.map((personality) => (
-                          <Badge key={personality} variant="outline" className="bg-white/70 dark:bg-gray-800/70 border-primary/20 text-primary hover:bg-primary/10">
+                          <Badge key={personality} variant="outline" className="bg-[#23272f] border-primary/20 text-primary hover:bg-primary/10">
                             {personality}
                           </Badge>
                         ))}
@@ -723,10 +770,10 @@ Return only the image prompt, nothing else.`;
 
                     {/* Features Tags */}
                     <div className="mb-6">
-                      <h4 className="text-sm font-semibold text-muted-foreground mb-3">Features</h4>
+                      <h4 className="text-sm font-semibold text-gray-300 mb-3">Features</h4>
                       <div className="flex flex-wrap gap-2">
                         {character.features?.map((feature) => (
-                          <Badge key={feature} variant="secondary" className="bg-gradient-to-r from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 text-purple-700 dark:text-purple-300">
+                          <Badge key={feature} variant="secondary" className="bg-[#23272f] text-purple-200">
                             {feature}
                           </Badge>
                         ))}
@@ -788,9 +835,9 @@ Return only the image prompt, nothing else.`;
                   </Card>
                 </TabsContent>
 
-                <TabsContent value="feed" className="flex-1 flex flex-col p-0 m-0">
+                <TabsContent value="feed" className="mt-0 h-full flex flex-col">
                   {/* Mobile Phone-style Header */}
-                  <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
+                  <div className="bg-[#18181b] border-b border-gray-800 sticky top-0 z-10 flex-shrink-0">
                     {/* Status Bar Mockup */}
                     <div className="flex justify-between items-center px-4 py-1 text-xs bg-black text-white">
                       <span>9:41</span>
@@ -802,7 +849,7 @@ Return only the image prompt, nothing else.`;
                     </div>
                     
                     {/* Feed Header */}
-                    <div className="flex items-center justify-between p-4">
+                    <div className="flex items-center justify-between p-4 bg-[#23272f] rounded-lg">
                       <div className="flex items-center gap-3">
                         <Avatar className="w-8 h-8 border border-gray-200 dark:border-gray-700">
                           <AvatarImage src={character.avatar} alt={character.name} />
@@ -821,7 +868,7 @@ Return only the image prompt, nothing else.`;
                         onClick={() => setShowCreateImage(!showCreateImage)}
                         variant="ghost"
                         size="sm"
-                        className="p-2 rounded-lg border-2 border-dashed border-gray-300 hover:border-primary hover:bg-primary/5"
+                        className="p-2 rounded-lg border-2 border-dashed border-gray-700 hover:border-primary hover:bg-primary/10"
                       >
                         <Plus size={18} className="text-primary" />
                       </Button>
@@ -829,7 +876,7 @@ Return only the image prompt, nothing else.`;
 
                     {/* Create Post Interface */}
                     {showCreateImage && (
-                      <div className="border-t border-gray-200 dark:border-gray-800 p-4 bg-gray-50 dark:bg-gray-800/50">
+                      <div className="border-t border-gray-800 p-4 bg-[#23272f]">
                         <div className="flex items-start gap-3">
                           <Avatar className="w-8 h-8 border border-gray-200 dark:border-gray-700">
                             <AvatarImage src={character.avatar} alt={character.name} />
@@ -843,8 +890,29 @@ Return only the image prompt, nothing else.`;
                               value={newImagePrompt}
                               onChange={(e) => setNewImagePrompt(e.target.value)}
                               rows={3}
-                              className="resize-none border-0 bg-white dark:bg-gray-900 rounded-xl shadow-sm"
+                              className="resize-none border-0 bg-[#18181b] text-white rounded-xl shadow-sm"
                             />
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowImageSettings(v => !v)}
+                                className="rounded-full"
+                              >
+                                {showImageSettings ? 'Hide Settings' : 'Image Settings'}
+                              </Button>
+                              <div className="text-xs text-gray-400">
+                                {imageSettings 
+                                  ? `${imageSettings.model} • ${imageSettings.width}x${imageSettings.height}, ${imageSettings.steps} steps, CFG ${imageSettings.cfg_scale}`
+                                  : 'Defaults'}
+                              </div>
+                            </div>
+                            {showImageSettings && (
+                              <ImageSettingsPanel
+                                value={imageSettings || undefined}
+                                onChange={(s) => setImageSettings(s)}
+                              />
+                            )}
                             <div className="flex gap-2">
                               <Button
                                 onClick={handleCreateImage}
@@ -883,7 +951,7 @@ Return only the image prompt, nothing else.`;
                   </div>
 
                   {/* Instagram-style Feed Content */}
-                  <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
+                  <div className="flex-1 overflow-y-auto bg-[#18181b] min-h-0">
                     {characterImages.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full text-center px-6 py-12">
                         <div className="w-20 h-20 bg-gradient-to-br from-pink-100 to-purple-100 dark:from-pink-900/30 dark:to-purple-900/30 rounded-full flex items-center justify-center mb-6">
@@ -896,10 +964,12 @@ Return only the image prompt, nothing else.`;
                       </div>
                     ) : (
                       <div className="space-y-0">
-                        {characterImages.map((image, index) => (
-                          <div key={image.id} className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
+                        {characterImages
+                          .filter(img => typeof img.imageUrl === 'string' && img.imageUrl.trim().length > 0)
+                          .map((image, index) => (
+                          <div key={image.id} className="bg-[#23272f] border-b border-gray-800">
                             {/* Post Header */}
-                            <div className="flex items-center justify-between p-3">
+                            <div className="flex items-center justify-between p-3 bg-[#18181b] rounded-t-lg">
                               <div className="flex items-center gap-3">
                                 <Avatar className="w-8 h-8 border border-gray-200 dark:border-gray-700">
                                   <AvatarImage src={character.avatar} alt={character.name} />
@@ -925,7 +995,7 @@ Return only the image prompt, nothing else.`;
                             </div>
 
                             {/* Post Image - Edge to Edge */}
-                            <div className="relative aspect-square bg-gray-100 dark:bg-gray-800">
+                            <div className="relative aspect-square bg-[#23272f]">
                               <img
                                 src={image.imageUrl}
                                 alt={image.caption || `${character.name}'s post`}
@@ -938,7 +1008,7 @@ Return only the image prompt, nothing else.`;
                             </div>
 
                             {/* Post Actions */}
-                            <div className="p-3 space-y-2">
+                            <div className="p-3 space-y-2 bg-[#23272f] rounded-b-lg">
                               {/* Action Buttons */}
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
@@ -1009,14 +1079,14 @@ Return only the image prompt, nothing else.`;
                         ))}
                         
                         {/* Bottom spacing for mobile */}
-                        <div className="h-6 bg-gray-50 dark:bg-gray-900"></div>
+                        <div className="h-6 bg-[#18181b]"></div>
                       </div>
                     )}
                   </div>
                 </TabsContent>
 
-                <TabsContent value="dms" className="flex-1 flex flex-col">
-                  <div className="flex flex-col h-full bg-gradient-to-b from-blue-50 to-white dark:from-gray-800 dark:to-gray-900">
+                <TabsContent value="dms" className="mt-0 h-full flex flex-col">
+                  <div className="flex flex-col h-full bg-gradient-to-b from-blue-50 to-white dark:from-gray-800 dark:to-gray-900 min-h-0">
                     {/* Chat Header - iPhone/iPad Style */}
                     <div className="flex items-center gap-3 p-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
                       <Avatar className="w-10 h-10 ring-2 ring-blue-200">
@@ -1128,127 +1198,137 @@ Return only the image prompt, nothing else.`;
                   </div>
                 </TabsContent>
 
-                <TabsContent value="stats" className="space-y-4">
-                  {/* Main Character Stats */}
-                  <Card className="p-4">
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
-                      <Heart size={16} />
-                      Main Stats
+                <TabsContent value="stats" className="space-y-6">
+                  {/* Redesigned Main Character Stats */}
+                  <Card className="p-6 bg-gradient-to-br from-black/90 to-gray-900/95 border-0 shadow-xl">
+                    <h4 className="font-bold mb-6 text-xl flex items-center gap-3 text-white">
+                      <Heart size={22} className="text-pink-400" />
+                      Character Stats
                     </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Love</span>
-                          <span className="font-medium">{stats.love}%</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {/* Love */}
+                      <div className="flex flex-col gap-2 p-4 rounded-xl bg-gradient-to-r from-pink-900/40 to-pink-700/20 shadow">
+                        <div className="flex items-center gap-2">
+                          <Heart size={18} className="text-pink-400" />
+                          <span className="font-semibold text-pink-200">Love</span>
+                          <span className="ml-auto font-bold text-pink-100">{stats.love}%</span>
                         </div>
-                        <Progress value={stats.love} className="h-2" />
+                        <Progress value={stats.love} className="h-2 bg-pink-900/30" style={{backgroundColor:'#831843'}} />
                       </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Happiness</span>
-                          <span className="font-medium">{stats.happiness}%</span>
+                      {/* Happiness */}
+                      <div className="flex flex-col gap-2 p-4 rounded-xl bg-gradient-to-r from-yellow-900/40 to-yellow-700/20 shadow">
+                        <div className="flex items-center gap-2">
+                          <Smile size={18} className="text-yellow-300" />
+                          <span className="font-semibold text-yellow-100">Happiness</span>
+                          <span className="ml-auto font-bold text-yellow-50">{stats.happiness}%</span>
                         </div>
-                        <Progress value={stats.happiness} className="h-2" />
+                        <Progress value={stats.happiness} className="h-2 bg-yellow-900/30" style={{backgroundColor:'#b45309'}} />
                       </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Wet</span>
-                          <span className="font-medium">{stats.wet}%</span>
+                      {/* Wet */}
+                      <div className="flex flex-col gap-2 p-4 rounded-xl bg-gradient-to-r from-blue-900/40 to-pink-900/20 shadow">
+                        <div className="flex items-center gap-2">
+                          <Drop size={18} className="text-blue-400" />
+                          <span className="font-semibold text-blue-100">Wet</span>
+                          <span className="ml-auto font-bold text-blue-50">{stats.wet}%</span>
                         </div>
-                        <Progress value={stats.wet} className="h-2" />
+                        <Progress value={stats.wet} className="h-2 bg-blue-900/30" style={{backgroundColor:'#1e40af'}} />
                       </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Willingness</span>
-                          <span className="font-medium">{stats.willing}%</span>
+                      {/* Willingness */}
+                      <div className="flex flex-col gap-2 p-4 rounded-xl bg-gradient-to-r from-green-900/40 to-green-700/20 shadow">
+                        <div className="flex items-center gap-2">
+                          <Lightning size={18} className="text-green-400" />
+                          <span className="font-semibold text-green-100">Willingness</span>
+                          <span className="ml-auto font-bold text-green-50">{stats.willing}%</span>
                         </div>
-                        <Progress value={stats.willing} className="h-2" />
+                        <Progress value={stats.willing} className="h-2 bg-green-900/30" style={{backgroundColor:'#166534'}} />
                       </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Self Esteem</span>
-                          <span className="font-medium">{stats.selfEsteem}%</span>
+                      {/* Self Esteem */}
+                      <div className="flex flex-col gap-2 p-4 rounded-xl bg-gradient-to-r from-purple-900/40 to-purple-700/20 shadow">
+                        <div className="flex items-center gap-2">
+                          <Star size={18} className="text-purple-300" />
+                          <span className="font-semibold text-purple-100">Self Esteem</span>
+                          <span className="ml-auto font-bold text-purple-50">{stats.selfEsteem}%</span>
                         </div>
-                        <Progress value={stats.selfEsteem} className="h-2" />
+                        <Progress value={stats.selfEsteem} className="h-2 bg-purple-900/30" style={{backgroundColor:'#6d28d9'}} />
                       </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Loyalty</span>
-                          <span className="font-medium">{stats.loyalty}%</span>
+                      {/* Loyalty */}
+                      <div className="flex flex-col gap-2 p-4 rounded-xl bg-gradient-to-r from-indigo-900/40 to-indigo-700/20 shadow">
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck size={18} className="text-indigo-300" />
+                          <span className="font-semibold text-indigo-100">Loyalty</span>
+                          <span className="ml-auto font-bold text-indigo-50">{stats.loyalty}%</span>
                         </div>
-                        <Progress value={stats.loyalty} className="h-2" />
+                        <Progress value={stats.loyalty} className="h-2 bg-indigo-900/30" style={{backgroundColor:'#3730a3'}} />
                       </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Fight</span>
-                          <span className="font-medium">{stats.fight}%</span>
+                      {/* Fight */}
+                      <div className="flex flex-col gap-2 p-4 rounded-xl bg-gradient-to-r from-red-900/40 to-red-700/20 shadow">
+                        <div className="flex items-center gap-2">
+                          <Fire size={18} className="text-red-400" />
+                          <span className="font-semibold text-red-100">Fight</span>
+                          <span className="ml-auto font-bold text-red-50">{stats.fight}%</span>
                         </div>
-                        <Progress value={stats.fight} className="h-2" />
+                        <Progress value={stats.fight} className="h-2 bg-red-900/30" style={{backgroundColor:'#b91c1c'}} />
                       </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Stamina</span>
-                          <span className="font-medium">{stats.stamina}%</span>
+                      {/* Stamina */}
+                      <div className="flex flex-col gap-2 p-4 rounded-xl bg-gradient-to-r from-emerald-900/40 to-emerald-700/20 shadow">
+                        <div className="flex items-center gap-2">
+                          <TrendUp size={18} className="text-emerald-300" />
+                          <span className="font-semibold text-emerald-100">Stamina</span>
+                          <span className="ml-auto font-bold text-emerald-50">{stats.stamina}%</span>
                         </div>
-                        <Progress value={stats.stamina} className="h-2" />
+                        <Progress value={stats.stamina} className="h-2 bg-emerald-900/30" style={{backgroundColor:'#065f46'}} />
                       </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Pain Tolerance</span>
-                          <span className="font-medium">{stats.pain}%</span>
+                      {/* Pain Tolerance */}
+                      <div className="flex flex-col gap-2 p-4 rounded-xl bg-gradient-to-r from-gray-900/40 to-gray-700/20 shadow">
+                        <div className="flex items-center gap-2">
+                          <Medal size={18} className="text-gray-300" />
+                          <span className="font-semibold text-gray-100">Pain Tolerance</span>
+                          <span className="ml-auto font-bold text-gray-50">{stats.pain}%</span>
                         </div>
-                        <Progress value={stats.pain} className="h-2" />
+                        <Progress value={stats.pain} className="h-2 bg-gray-900/30" style={{backgroundColor:'#374151'}} />
                       </div>
                     </div>
                   </Card>
 
                   {/* Level and Experience */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Card className="p-4">
-                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                    <Card className="p-4 bg-gradient-to-br from-black/90 to-gray-900/95 border-0 shadow-xl">
+                      <h4 className="font-semibold mb-3 flex items-center gap-2 text-white">
                         <Trophy size={16} />
                         Experience & Level
                       </h4>
                       <div className="space-y-3">
-                        <div className="text-center p-4 bg-muted/50 rounded-lg">
+                        <div className="text-center p-4 bg-gray-800/70 rounded-lg">
                           <div className="text-3xl font-bold text-primary">Level {stats.level}</div>
-                          <div className="text-sm text-muted-foreground mt-1">Current Level</div>
+                          <div className="text-sm text-gray-300 mt-1">Current Level</div>
                         </div>
-                        
                         <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
+                          <div className="flex justify-between text-sm text-gray-200">
                             <span>Experience</span>
                             <span>{stats.experience}/{progression.nextLevelExp}</span>
                           </div>
                           <Progress 
                             value={(stats.experience / progression.nextLevelExp) * 100} 
-                            className="h-2" 
+                            className="h-2 bg-gray-900/30" 
+                            style={{backgroundColor:'#374151'}}
                           />
                         </div>
                       </div>
                     </Card>
 
-                    <Card className="p-4">
-                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                    <Card className="p-4 bg-gradient-to-br from-black/90 to-gray-900/95 border-0 shadow-xl">
+                      <h4 className="font-semibold mb-3 flex items-center gap-2 text-white">
                         <Sparkle size={16} />
                         Achievements
                       </h4>
                       <div className="space-y-2">
                         {progression.achievements?.map((achievement) => (
-                          <div key={achievement} className="flex items-center gap-2 p-2 bg-muted/30 rounded">
+                          <div key={achievement} className="flex items-center gap-2 p-2 bg-gray-800/70 rounded">
                             <Medal size={16} className="text-amber-500" />
-                            <span className="text-sm">{achievement}</span>
+                            <span className="text-sm text-gray-100">{achievement}</span>
                           </div>
                         )) || (
-                          <div className="text-center py-4 text-muted-foreground">
+                          <div className="text-center py-4 text-gray-400">
                             No achievements yet
                           </div>
                         )}
@@ -1257,124 +1337,112 @@ Return only the image prompt, nothing else.`;
                   </div>
 
                   {/* Relationship Dynamics */}
-                  <Card className="p-4">
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                  <Card className="p-4 bg-gradient-to-br from-black/90 to-gray-900/95 border-0 shadow-xl">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2 text-white">
                       <Heart size={16} />
                       Relationship Dynamics
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-sm text-pink-200">
                           <span>Affection</span>
                           <span className="font-medium">{progression.affection || 0}%</span>
                         </div>
-                        <Progress value={progression.affection || 0} className="h-2" />
+                        <Progress value={progression.affection || 0} className="h-2 bg-pink-900/30" style={{backgroundColor:'#831843'}} />
                       </div>
-                      
                       <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-sm text-blue-200">
                           <span>Trust</span>
                           <span className="font-medium">{progression.trust || 0}%</span>
                         </div>
-                        <Progress value={progression.trust || 0} className="h-2" />
+                        <Progress value={progression.trust || 0} className="h-2 bg-blue-900/30" style={{backgroundColor:'#1e40af'}} />
                       </div>
-
                       <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-sm text-purple-200">
                           <span>Intimacy</span>
                           <span className="font-medium">{progression.intimacy || 0}%</span>
                         </div>
-                        <Progress value={progression.intimacy || 0} className="h-2" />
+                        <Progress value={progression.intimacy || 0} className="h-2 bg-purple-900/30" style={{backgroundColor:'#6d28d9'}} />
                       </div>
                     </div>
-
-                    <div className="mt-4 pt-4 border-t">
-                      <div className="text-center p-4 bg-muted/50 rounded-lg">
-                        <div className={`text-2xl font-bold ${getRelationshipStatusColor(relationshipStatus)}`}>
-                          {relationshipStatus.replace('_', ' ').toUpperCase()}
-                        </div>
-                        <div className="text-sm text-muted-foreground mt-1">Current Status</div>
+                    <div className="mt-4 pt-4 border-t border-gray-800">
+                      <div className="text-center p-4 bg-gray-800/70 rounded-lg">
+                        <div className={`text-2xl font-bold ${getRelationshipStatusColor(relationshipStatus)}`}>{relationshipStatus.replace('_', ' ').toUpperCase()}</div>
+                        <div className="text-sm text-gray-300 mt-1">Current Status</div>
                       </div>
                     </div>
                   </Card>
 
                   {/* Sexual Progression */}
-                  <Card className="p-4">
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                  <Card className="p-4 bg-gradient-to-br from-black/90 to-gray-900/95 border-0 shadow-xl">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2 text-white">
                       <Fire size={16} />
                       Sexual Progression
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                       <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-sm text-red-200">
                           <span>Experience</span>
                           <span className="font-medium">{progression.sexualExperience || 0}%</span>
                         </div>
-                        <Progress value={progression.sexualExperience || 0} className="h-2" />
+                        <Progress value={progression.sexualExperience || 0} className="h-2 bg-red-900/30" style={{backgroundColor:'#b91c1c'}} />
                       </div>
-                      
                       <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-sm text-green-200">
                           <span>Willingness</span>
                           <span className="font-medium">{stats.willing || 0}%</span>
                         </div>
-                        <Progress value={stats.willing || 0} className="h-2" />
+                        <Progress value={stats.willing || 0} className="h-2 bg-green-900/30" style={{backgroundColor:'#166534'}} />
                       </div>
-
                       <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-sm text-purple-200">
                           <span>Self Esteem</span>
                           <span className="font-medium">{stats.selfEsteem || 0}%</span>
                         </div>
-                        <Progress value={stats.selfEsteem || 0} className="h-2" />
+                        <Progress value={stats.selfEsteem || 0} className="h-2 bg-purple-900/30" style={{backgroundColor:'#6d28d9'}} />
                       </div>
                     </div>
-
                     {/* Sexual Skills */}
-                    <div className="border-t pt-4">
-                      <h5 className="font-medium mb-3 flex items-center gap-2">
+                    <div className="border-t border-gray-800 pt-4">
+                      <h5 className="font-medium mb-3 flex items-center gap-2 text-white">
                         <Lightning size={16} />
                         Sexual Skills
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
+                          <div className="flex justify-between text-sm text-pink-200">
                             <span>Hands (Handjobs, Stroking)</span>
                             <span className="font-medium">{skills.hands}%</span>
                           </div>
-                          <Progress value={skills.hands} className="h-2" />
+                          <Progress value={skills.hands} className="h-2 bg-pink-900/30" style={{backgroundColor:'#831843'}} />
                         </div>
-
                         <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
+                          <div className="flex justify-between text-sm text-blue-200">
                             <span>Mouth (Blowjobs, Tongue)</span>
                             <span className="font-medium">{skills.mouth}%</span>
                           </div>
-                          <Progress value={skills.mouth} className="h-2" />
+                          <Progress value={skills.mouth} className="h-2 bg-blue-900/30" style={{backgroundColor:'#1e40af'}} />
                         </div>
-
                         <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
+                          <div className="flex justify-between text-sm text-yellow-200">
                             <span>Missionary</span>
                             <span className="font-medium">{skills.missionary}%</span>
                           </div>
-                          <Progress value={skills.missionary} className="h-2" />
+                          <Progress value={skills.missionary} className="h-2 bg-yellow-900/30" style={{backgroundColor:'#b45309'}} />
                         </div>
-
                         <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
+                          <div className="flex justify-between text-sm text-purple-200">
                             <span>Doggy</span>
                             <span className="font-medium">{skills.doggy}%</span>
                           </div>
-                          <Progress value={skills.doggy} className="h-2" />
+                          <Progress value={skills.doggy} className="h-2 bg-purple-900/30" style={{backgroundColor:'#6d28d9'}} />
                         </div>
-
                         <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
+                          <div className="flex justify-between text-sm text-pink-200">
                             <span>Cowgirl</span>
                             <span className="font-medium">{skills.cowgirl}%</span>
                           </div>
-                          <Progress value={skills.cowgirl} className="h-2" />
+                          <Progress value={skills.cowgirl} className="h-2 bg-pink-900/30" style={{backgroundColor:'#831843'}} />
                         </div>
                       </div>
                     </div>
@@ -1495,19 +1563,19 @@ Return only the image prompt, nothing else.`;
                     <div className="space-y-3">
                       <div>
                         <label className="text-sm font-medium">System Prompt</label>
-                        <div className="mt-1 p-3 bg-muted/30 rounded text-xs text-muted-foreground max-h-20 overflow-y-auto">
+                        <div className="mt-1 p-3 bg-[#23272f] text-zinc-200 rounded border border-zinc-700 text-xs max-h-20 overflow-y-auto">
                           {character.prompts?.system || '—'}
                         </div>
                       </div>
                       <div>
                         <label className="text-sm font-medium">Personality Prompt</label>
-                        <div className="mt-1 p-3 bg-muted/30 rounded text-xs text-muted-foreground max-h-20 overflow-y-auto">
+                        <div className="mt-1 p-3 bg-[#23272f] text-zinc-200 rounded border border-zinc-700 text-xs max-h-20 overflow-y-auto">
                           {character.prompts?.personality || '—'}
                         </div>
                       </div>
                       <div>
                         <label className="text-sm font-medium">Background</label>
-                        <div className="mt-1 p-3 bg-muted/30 rounded text-xs text-muted-foreground max-h-20 overflow-y-auto">
+                        <div className="mt-1 p-3 bg-[#23272f] text-zinc-200 rounded border border-zinc-700 text-xs max-h-20 overflow-y-auto">
                           {character.prompts?.background || '—'}
                         </div>
                       </div>
@@ -1524,7 +1592,7 @@ Return only the image prompt, nothing else.`;
                             {isGeneratingImagePrompt ? 'Generating...' : 'Generate'}
                           </Button>
                         </div>
-                        <div className="mt-1 p-3 bg-muted/30 rounded text-xs text-muted-foreground max-h-20 overflow-y-auto">
+                        <div className="mt-1 p-3 bg-[#23272f] text-zinc-200 rounded border border-zinc-700 text-xs max-h-20 overflow-y-auto">
                           {character.imageDescription || '—'}
                         </div>
                       </div>
@@ -1644,30 +1712,6 @@ Return only the image prompt, nothing else.`;
                 </TabsContent>
 
                 {/* Close all other TabsContent areas */}
-                <TabsContent value="stats" className="mt-0">
-                  {/* Stats content would go here - keeping existing functionality */}
-                  <div className="p-4">Stats view not implemented in this update</div>
-                </TabsContent>
-
-                <TabsContent value="feed" className="mt-0">
-                  {/* Feed content would go here - keeping existing functionality */}
-                  <div className="p-4">Feed view not implemented in this update</div>
-                </TabsContent>
-
-                <TabsContent value="dms" className="mt-0">
-                  {/* DMs content would go here - keeping existing functionality */}
-                  <div className="p-4">DMs view not implemented in this update</div>
-                </TabsContent>
-
-                <TabsContent value="memories" className="mt-0">
-                  {/* Memories content would go here - keeping existing functionality */}
-                  <div className="p-4">Stories view not implemented in this update</div>
-                </TabsContent>
-
-                <TabsContent value="settings" className="mt-0">
-                  {/* Settings content would go here - keeping existing functionality */}
-                  <div className="p-4">Settings view not implemented in this update</div>
-                </TabsContent>
 
                       </div>
                     </ScrollArea>
@@ -1676,7 +1720,8 @@ Return only the image prompt, nothing else.`;
               </div>
             </div>
           </DialogContent>
-        </Dialog>
+  </Dialog>
+  )}
 
         {/* Image Detail Modal */}
         {selectedImage && (
@@ -1720,125 +1765,7 @@ Return only the image prompt, nothing else.`;
         </Dialog>
       )}
 
-      <Card className="p-4 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setShowDetails(true)}>
-        <div className="flex items-start gap-3 mb-4">
-          <Avatar className="w-12 h-12">
-            <AvatarImage src={character.avatar} alt={character.name} />
-            <AvatarFallback className="bg-primary text-primary-foreground">
-              {character.name.slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <h4 className="font-medium">{character.name}</h4>
-              {getRarityIcon(character.rarity)}
-              {character.role && (
-                <Badge variant="outline" className="text-xs">
-                  {character.role}
-                </Badge>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground line-clamp-2">
-              {character.description}
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-2 mb-4">
-          <div className="flex items-center gap-2 text-xs">
-            <Heart size={12} className="text-red-500" />
-            <Progress value={stats.love} className="h-1 flex-1" />
-            <span className="text-muted-foreground w-8">{stats.love}%</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            <Smile size={12} className="text-yellow-500" />
-            <Progress value={stats.happiness} className="h-1 flex-1" />
-            <span className="text-muted-foreground w-8">{stats.happiness}%</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            <Drop size={12} className="text-pink-500" />
-            <Progress value={stats.wet} className="h-1 flex-1" />
-            <span className="text-muted-foreground w-8">{stats.wet}%</span>
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            className="flex-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              onStartChat(character.id);
-            }}
-          >
-            <MessageCircle size={14} className="mr-1" />
-            Chat
-          </Button>
-          {onEdit && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit(character);
-              }}
-            >
-              <Pencil size={14} />
-            </Button>
-          )}
-          {onDelete && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Trash size={14} />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Character</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to delete {character.name}? This action cannot be undone and will permanently remove the character from your house, including all their conversations and progress.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction 
-                    onClick={() => onDelete(character.id)}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  >
-                    Delete Character
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => {
-              e.stopPropagation();
-              onGift?.(character.id);
-            }}
-          >
-            <Gift size={14} />
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => {
-              e.stopPropagation();
-              onMove?.(character.id);
-            }}
-          >
-            <House size={14} />
-          </Button>
-        </div>
-      </Card>
+      {/* Full preview card must not render in compact mode */}
       </>
     );
   }

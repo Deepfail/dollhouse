@@ -1,20 +1,69 @@
-import { useState, useEffect } from 'react';
-import { Layout } from '@/components/Layout';
-import { HouseView } from '@/components/HouseView';
 import { ChatInterface } from '@/components/ChatInterface';
+import { HouseView } from '@/components/HouseView';
+import { Layout } from '@/components/Layout';
 import { SceneInterface } from '@/components/SceneInterface';
-import { useChat } from '@/hooks/useChat';
-import { useSceneMode } from '@/hooks/useSceneMode';
-import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { Toaster } from '@/components/ui/sonner';
+import { useChat } from '@/hooks/useChat';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { useSceneMode } from '@/hooks/useSceneMode';
+import { setGlobalStorage } from '@/storage/index';
+import { initStorage } from '@/storage/init';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 function App() {
   const [currentView, setCurrentView] = useState<'house' | 'chat' | 'scene'>('house');
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [storageReady, setStorageReady] = useState(false);
+
+  // Initialize storage system first
+  useEffect(() => {
+    const initializeStorage = async () => {
+      try {
+        console.log('🔧 Initializing unified storage system...');
+        
+        const storage = await initStorage();
+        setGlobalStorage(storage);
+        console.log('✅ Storage initialized successfully!');
+        
+        setStorageReady(true);
+      } catch (err) {
+        console.error('❌ Storage initialization failed:', err);
+        toast.error('Failed to initialize storage');
+      }
+    };
+
+    initializeStorage();
+  }, []);
+
+  return storageReady ? <AppContent currentView={currentView} setCurrentView={setCurrentView} activeSessionId={activeSessionId} setActiveSessionId={setActiveSessionId} /> : <LoadingScreen />;
+}
+
+function LoadingScreen() {
+  return (
+    <div className="h-screen bg-background flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-muted-foreground">Initializing storage...</p>
+      </div>
+    </div>
+  );
+}
+
+function AppContent({ 
+  currentView, 
+  setCurrentView, 
+  activeSessionId, 
+  setActiveSessionId 
+}: {
+  currentView: 'house' | 'chat' | 'scene';
+  setCurrentView: (view: 'house' | 'chat' | 'scene') => void;
+  activeSessionId: string | null;
+  setActiveSessionId: (id: string | null) => void;
+}) {
   const { createSession, sessions, switchToSession, setActiveSessionId: setChatActiveSessionId } = useChat();
   const { activeSessions } = useSceneMode();
-  const { house, isLoading, error } = useHouseFileStorage();
+  const { house, isLoading } = useHouseFileStorage();
 
   // Debug logging with error handling
   useEffect(() => {
@@ -84,7 +133,7 @@ function App() {
       // Clear any existing active session to avoid conflicts
       setActiveSessionId(null);
       
-      const sessionId = createSession('individual', [characterId]);
+      const sessionId = await createSession('individual', [characterId]);
       console.log('createSession returned:', sessionId);
       
       if (sessionId) {
@@ -109,18 +158,18 @@ function App() {
     
     try {
       if (sessionId) {
-        // Use existing session
+        // Use existing session (individual or group)
         setActiveSessionId(sessionId);
         setChatActiveSessionId(sessionId);
         setCurrentView('chat');
-        toast.success('Started group chat');
+        toast.success('Opened chat');
       } else {
         // Create new group chat with all characters
         const characterIds = (house?.characters || []).map(c => c.id);
         console.log('Character IDs for group chat:', characterIds);
         
         if (characterIds.length > 1) {
-          const newSessionId = createSession('group', characterIds);
+          const newSessionId = await createSession('group', characterIds);
           console.log('Group session created:', newSessionId);
           
           if (newSessionId) {
@@ -167,6 +216,14 @@ function App() {
     }
   };
 
+  // If activeSessionId is set externally (e.g., via Sidebar switchToSession), ensure we navigate to chat
+  useEffect(() => {
+    if (activeSessionId) {
+      setCurrentView('chat');
+      setChatActiveSessionId(activeSessionId);
+    }
+  }, [activeSessionId, setChatActiveSessionId]);
+
   // Show loading state while file storage is initializing
   if (isLoading) {
     return (
@@ -174,23 +231,6 @@ function App() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading house data...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error state if file storage failed
-  if (error) {
-    return (
-      <div className="h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-500 mb-4">Failed to load house data: {error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
-          >
-            Retry
-          </button>
         </div>
       </div>
     );

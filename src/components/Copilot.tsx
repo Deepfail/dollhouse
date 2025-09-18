@@ -1,42 +1,39 @@
-import { useState, useEffect, useRef } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { QuickActionsManager } from '@/components/QuickActionsManager';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useChat } from '@/hooks/useChat';
 import { useFileStorage } from '@/hooks/useFileStorage';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { useQuickActions } from '@/hooks/useQuickActions';
-import { useChat } from '@/hooks/useChat';
 import { useSceneMode } from '@/hooks/useSceneMode';
-import { QuickActionsManager } from '@/components/QuickActionsManager';
-import { CopilotUpdate, ChatMessage } from '@/types';
 import { AIService } from '@/lib/aiService';
-import { toast } from 'sonner';
+import { CopilotUpdate } from '@/types';
 import {
-  Robot,
-  Bell,
-  CheckCircle,
-  Warning as AlertTriangle,
-  Info,
-  Heart,
-  BatteryMedium as Battery,
-  Smiley as Smile,
-  Star,
-  Clock,
-  Key,
-  CheckCircle as Check,
-  XCircle as X,
-  PaperPlaneRight,
-  Chat,
-  House,
-  Bed,
-  ChartBar,
-  Lightning,
-  Shield,
-  Gift
+    Warning as AlertTriangle,
+    BatteryMedium as Battery,
+    Bed,
+    Bell,
+    ChartBar,
+    Chat,
+    CheckCircle,
+    Clock,
+    Gift,
+    Heart,
+    House,
+    Info,
+    Lightning,
+    PaperPlaneRight,
+    Robot,
+    Shield,
+    Smiley as Smile,
+    Star
 } from '@phosphor-icons/react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 interface CopilotMessage {
   id: string;
@@ -53,19 +50,38 @@ interface CopilotProps {
 }
 
 export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: CopilotProps = {}) {
-  const { house } = useHouseFileStorage();
+  const { house, characters } = useHouseFileStorage();
   const { quickActions, executeAction } = useQuickActions();
   const { createSession, setActiveSessionId } = useChat();
   const { createSceneSession } = useSceneMode();
   const { data: updates, setData: setUpdates } = useFileStorage<CopilotUpdate[]>('copilot-updates.json', []);
-  const { data: chatMessages, setData: setChatMessages } = useFileStorage<CopilotMessage[]>('copilot-chat.json', []);
+  const { data: persistedChatMessages, setData: setPersistedChatMessages } = useFileStorage<CopilotMessage[]>('copilot-chat.json', []);
   const { data: forceUpdate } = useFileStorage<number>('settings-force-update.json', 0);
+  
+  // Use local state for immediate UI updates, sync with persisted storage
+  const [chatMessages, setChatMessages] = useState<CopilotMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  // Sync local state with persisted storage
+  useEffect(() => {
+    if (persistedChatMessages && persistedChatMessages.length > 0) {
+      setChatMessages(persistedChatMessages);
+    }
+  }, [persistedChatMessages]);
+
+  // Persist messages to storage when local state changes
+  const persistMessages = useCallback(async (messages: CopilotMessage[]) => {
+    try {
+      await setPersistedChatMessages(messages);
+    } catch (error) {
+      console.error('Failed to persist chat messages:', error);
+    }
+  }, [setPersistedChatMessages]);
 
   const safeUpdates = updates || [];
   const safeChatMessages = chatMessages || [];
@@ -121,7 +137,7 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
       const match = message.match(pattern);
       if (match) {
         let characterName = match[1];
-        const character = house.characters?.find(c =>
+        const character = characters?.find(c =>
           c.name.toLowerCase() === characterName.toLowerCase()
         );
         if (character) {
@@ -133,9 +149,13 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
     return null;
   };
 
-  // Parse natural language commands for custom scenes
-  const parseCustomSceneCommand = async (message: string): Promise<{ characterId: string; action: string; context: string; customPrompt?: string } | null> => {
-    // Look for patterns like "send [character] to/into my room", "bring [character] here", etc.
+  // Parse natural language commands for custom scenes or chat launches
+  const parseCustomSceneCommand = async (message: string): Promise<
+    | { type: 'chat'; characterId: string; prompt: string }
+    | { type: 'scene'; characterId: string; context: string; customPrompt?: string }
+    | null
+  > => {
+    // Patterns for "send [character] to my room" etc. (should launch chat, not scene)
     const sendPatterns = [
       /send\s+(\w+)\s+(?:to|into)\s+my\s+room/i,
       /bring\s+(\w+)\s+(?:to|into)\s+my\s+room/i,
@@ -150,26 +170,24 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
       /i\s+want\s+(\w+)\s+in\s+my\s+room/i,
       /i\s+want\s+to\s+(?:be\s+with|see)\s+(\w+)\s+in\s+(?:my\s+)?room/i
     ];
-
     for (const pattern of sendPatterns) {
       const match = message.match(pattern);
       if (match) {
         const characterName = match[1];
-        const character = house.characters?.find(c =>
+        const character = characters?.find(c =>
           c.name.toLowerCase() === characterName.toLowerCase()
         );
-
         if (character) {
           return {
+            type: 'chat',
             characterId: character.id,
-            action: 'send_to_room',
-            context: `User has invited ${character.name} into their private room for an intimate encounter.`
+            prompt: `${character.name} has just been asked to go to your room.`
           };
         }
       }
     }
 
-    // Check for direct custom prompt commands like "copilot I want you to..."
+    // Check for direct custom prompt commands like "copilot I want you to..." (scene)
     const customPromptPattern = /copilot\s+i\s+want\s+you\s+to\s+(.+)/i;
     const match = message.match(customPromptPattern);
     if (match) {
@@ -182,13 +200,12 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
         /(\w+)\s+to/i,
         /have\s+(\w+)/i
       ];
-
       let characterId: string | null = null;
       for (const pattern of characterPatterns) {
         const charMatch = customPrompt.match(pattern);
         if (charMatch) {
           const characterName = charMatch[1];
-          const character = house.characters?.find(c =>
+          const character = characters?.find(c =>
             c.name.toLowerCase() === characterName.toLowerCase()
           );
           if (character) {
@@ -197,22 +214,19 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
           }
         }
       }
-
       // If no specific character found, use the first available character
-      if (!characterId && house.characters && house.characters.length > 0) {
-        characterId = house.characters[0].id;
+      if (!characterId && characters && characters.length > 0) {
+        characterId = characters[0].id;
       }
-
       if (characterId) {
         return {
+          type: 'scene',
           characterId,
-          action: 'custom_scene',
           context: `User wants a custom scene: ${customPrompt}`,
           customPrompt
         };
       }
     }
-
     return null;
   };
 
@@ -450,7 +464,10 @@ Stay in character as ${character.name}. Respond naturally and immersively to con
       }
 
       // Create a new scene session using the scene mode system
-      const sessionId = await createSceneSession([characterId], objectives, sceneDescription, { autoPlay: false });
+      const sessionId = await createSceneSession([characterId], {
+        name: customPrompt ? `Custom scene with ${character.name}` : `Intimate scene with ${character.name}`,
+        description: sceneDescription
+      });
 
       if (sessionId) {
         toast.success(customPrompt ? `Created custom scene with ${character.name}` : `Created intimate scene with ${character.name}`);
@@ -486,9 +503,11 @@ Stay in character as ${character.name}. Respond naturally and immersively to con
           : "Master I provide you anything and everything you need to train these girls into anything you want them to be. I can carry out missions to fimd new ones for you, or setup field trips for you and a girl or girls. Or if you prefer a multiple choice game format, just let me know!",
         timestamp: new Date()
       };
-      setChatMessages([welcomeMessage]);
+      const newMessages = [welcomeMessage];
+      setChatMessages(newMessages);
+      persistMessages(newMessages);
     }
-  }, []);
+  }, [safeChatMessages.length, house.copilotPrompt, persistMessages]);
 
   const sendMessage = async () => {
     if (!inputMessage.trim()) return;
@@ -501,7 +520,9 @@ Stay in character as ${character.name}. Respond naturally and immersively to con
     };
 
     // Add user message
-    setChatMessages([...(chatMessages || []), userMessage]);
+    const newMessages = [...chatMessages, userMessage];
+    setChatMessages(newMessages);
+    persistMessages(newMessages);
     setInputMessage('');
     setIsTyping(true);
 
@@ -523,7 +544,7 @@ Stay in character as ${character.name}. Respond naturally and immersively to con
       const imagePrompt = parseImageGenerationCommand(userMessage.content);
       if (imagePrompt) {
         try {
-          const imageResult = await AIService.generateImage(imagePrompt);
+          const imageResult = await AIService.generateImage(imagePrompt, { hide_watermark: true });
           if (imageResult) {
             const imageMessage: CopilotMessage = {
               id: `image-${Date.now()}`,
@@ -532,7 +553,9 @@ Stay in character as ${character.name}. Respond naturally and immersively to con
               imageData: imageResult,
               timestamp: new Date()
             };
-            setChatMessages([...(chatMessages || []), imageMessage]);
+            const newMessages = [...chatMessages, imageMessage];
+            setChatMessages(newMessages);
+            persistMessages(newMessages);
             toast.success('Image generated successfully!');
           } else {
             throw new Error('No image data returned');
@@ -545,34 +568,55 @@ Stay in character as ${character.name}. Respond naturally and immersively to con
             content: "I apologize, but I couldn't generate that image right now. Please check your Venice AI settings and try again.",
             timestamp: new Date()
           };
-          setChatMessages([...(chatMessages || []), errorMessage]);
+          const newMessages = [...chatMessages, errorMessage];
+          setChatMessages(newMessages);
+          persistMessages(newMessages);
           toast.error('Failed to generate image');
         }
         setIsTyping(false);
         return;
       }
 
-      // Check if this is a custom scene command
-      const sceneCommand = await parseCustomSceneCommand(userMessage.content);
-      if (sceneCommand) {
-        await createCustomSceneChat(sceneCommand.characterId, sceneCommand.context, sceneCommand.customPrompt);
-        setIsTyping(false);
-        return;
+      // Check if this is a custom scene or chat launch command
+      const sceneOrChatCommand = await parseCustomSceneCommand(userMessage.content);
+      if (sceneOrChatCommand) {
+        if (sceneOrChatCommand.type === 'chat') {
+          // Launch chat interface with the girl and set the prompt
+          if (onStartChat) {
+            onStartChat(sceneOrChatCommand.characterId);
+            // Optionally, you could persist a system message with the prompt
+            const promptMessage: CopilotMessage = {
+              id: `prompt-${Date.now()}`,
+              sender: 'copilot',
+              content: sceneOrChatCommand.prompt,
+              timestamp: new Date()
+            };
+            const newMessages = [...chatMessages, promptMessage];
+            setChatMessages(newMessages);
+            persistMessages(newMessages);
+          }
+          setIsTyping(false);
+          return;
+        } else if (sceneOrChatCommand.type === 'scene') {
+          await createCustomSceneChat(sceneOrChatCommand.characterId, sceneOrChatCommand.context, sceneOrChatCommand.customPrompt);
+          setIsTyping(false);
+          return;
+        }
       }
 
       // Generate copilot response using OpenRouter
       const houseContext = {
-        characterCount: house.characters.length,
-        avgRelationship: house.characters.length > 0
-          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.love, 0) / house.characters.length)
+        characterCount: (house?.characters || []).length,
+        avgRelationship: (house?.characters || []).length > 0
+          ? Math.round((house?.characters || []).reduce((acc, c) => acc + c.stats.love, 0) / (house?.characters || []).length)
           : 0,
-        avgHappiness: house.characters.length > 0
-          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.happiness, 0) / house.characters.length)
+        avgHappiness: (house?.characters || []).length > 0
+          ? Math.round((house?.characters || []).reduce((acc, c) => acc + c.stats.happiness, 0) / (house?.characters || []).length)
           : 0,
-        avgEnergy: house.characters.length > 0
-          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.wet, 0) / house.characters.length)
+        avgEnergy: (house?.characters || []).length > 0
+          ? Math.round((house?.characters || []).reduce((acc, c) => acc + c.stats.wet, 0) / (house?.characters || []).length)
           : 0,
-        characters: house.characters.map(c => ({ name: c.name, role: c.role, stats: c.stats })),
+        characters: (house?.characters || []).map(c => ({ name: c.name, role: c.role, stats: c.stats })),
         aiProvider: house.aiSettings?.provider,
         hasApiKey: !!house.aiSettings?.apiKey
       };
@@ -641,7 +685,9 @@ Remember our conversation history and build upon previous interactions. Referenc
         timestamp: new Date()
       };
 
-      setChatMessages([...(chatMessages || []), copilotMessage]);
+      const newMessages = [...chatMessages, copilotMessage];
+      setChatMessages(newMessages);
+      persistMessages(newMessages);
     } catch (error) {
       console.error('Error generating copilot response:', error);
       const errorMessage: CopilotMessage = {
@@ -650,7 +696,9 @@ Remember our conversation history and build upon previous interactions. Referenc
         content: "I apologize, but I'm having trouble processing your message right now. Please try again or check your AI settings.",
         timestamp: new Date()
       };
-      setChatMessages([...(chatMessages || []), errorMessage]);
+      const newMessages = [...chatMessages, errorMessage];
+      setChatMessages(newMessages);
+      persistMessages(newMessages);
       toast.error('Failed to get copilot response');
     } finally {
       setIsTyping(false);
@@ -1498,7 +1546,10 @@ Remember our conversation history and build upon previous interactions. Referenc
       }];
 
       // Create a new scene session
-      const sessionId = await createSceneSession([characterId], objectives, context, { autoPlay: false });
+      const sessionId = await createSceneSession([characterId], {
+        name: `Scenario with ${character.name}`,
+        description: context
+      });
 
       if (sessionId) {
         toast.success(`Started scenario with ${character.name}!`);
@@ -1552,30 +1603,30 @@ Remember our conversation history and build upon previous interactions. Referenc
   const unhandledUpdates = safeUpdates.filter(u => !u.handled);
 
   return (
-    <div className="h-full flex flex-col bg-card">
+  <div className="h-full flex flex-col bg-[#18181b] text-white rounded-2xl shadow-xl">
       {/* Header */}
-      <div className="p-6 border-b border-border">
+  <div className="p-6 border-b border-zinc-800 bg-[#101014] rounded-t-2xl">
         <div className="flex items-center gap-3 mb-4">
           <div className="relative">
             <Robot size={24} className="text-accent" />
             {isOnline && (
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-card"></div>
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-[#18181b]"></div>
             )}
           </div>
           <div>
-            <h2 className="text-xl font-bold">AI Assistant</h2>
-            <p className="text-sm text-muted-foreground">
+            <h2 className="text-xl font-bold text-white">AI Assistant</h2>
+            <p className="text-sm text-zinc-400">
               {isOnline ? 'Monitoring & Managing Your House' : 'Offline'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Badge variant={unhandledUpdates.length > 0 ? 'destructive' : 'secondary'}>
+          <Badge variant={unhandledUpdates.length > 0 ? 'destructive' : 'secondary'} className="bg-zinc-900 border-zinc-700 text-accent">
             {unhandledUpdates.length} pending
           </Badge>
           {unhandledUpdates.length > 0 && (
-            <Button size="sm" variant="ghost" onClick={clearAllUpdates}>
+            <Button size="sm" variant="ghost" className="text-white" onClick={clearAllUpdates}>
               Clear All
             </Button>
           )}
@@ -1583,8 +1634,8 @@ Remember our conversation history and build upon previous interactions. Referenc
       </div>
 
       {/* Tabs for Status and Chat */}
-      <Tabs defaultValue="status" className="flex-1 flex flex-col">
-        <TabsList className="grid w-full grid-cols-2 mx-6 mt-4">
+  <Tabs defaultValue="status" className="flex-1 flex flex-col text-white">
+  <TabsList className="grid w-full grid-cols-2 mx-6 mt-4 bg-zinc-900 rounded-lg">
           <TabsTrigger value="status" className="flex items-center gap-2">
             <House size={16} />
             House
@@ -1595,19 +1646,19 @@ Remember our conversation history and build upon previous interactions. Referenc
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="status" className="flex-1 flex flex-col mt-4 min-h-0 max-h-[70vh]">
+  <TabsContent value="status" className="flex-1 flex flex-col mt-4 min-h-0 max-h-[70vh]">
           {/* House Overview */}
           <div className="p-4 space-y-4">
             <div>
               <h3 className="font-medium mb-3">House Status</h3>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                <Card className="p-3">
+                <Card className="p-3 bg-zinc-900 border-zinc-800 text-white">
                   <div className="flex items-center gap-2">
                     <Heart size={16} className="text-red-500" />
                     <div>
                       <p className="font-medium">
-                        {house.characters.length > 0
-                          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.love, 0) / house.characters.length)
+                        {(house?.characters || []).length > 0
+                          ? Math.round((house?.characters || []).reduce((acc, c) => acc + c.stats.love, 0) / (house?.characters || []).length)
                           : 0}%
                       </p>
                       <p className="text-xs text-muted-foreground">Avg Relationship</p>
@@ -1615,13 +1666,13 @@ Remember our conversation history and build upon previous interactions. Referenc
                   </div>
                 </Card>
 
-                <Card className="p-3">
+                <Card className="p-3 bg-zinc-900 border-zinc-800 text-white">
                   <div className="flex items-center gap-2">
                     <Smile size={16} className="text-yellow-500" />
                     <div>
                       <p className="font-medium">
-                        {house.characters.length > 0
-                          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.happiness, 0) / house.characters.length)
+                        {(house?.characters || []).length > 0
+                          ? Math.round((house?.characters || []).reduce((acc, c) => acc + c.stats.happiness, 0) / (house?.characters || []).length)
                           : 0}%
                       </p>
                       <p className="text-xs text-muted-foreground">Avg Happiness</p>
@@ -1629,13 +1680,13 @@ Remember our conversation history and build upon previous interactions. Referenc
                   </div>
                 </Card>
 
-                <Card className="p-3">
+                <Card className="p-3 bg-zinc-900 border-zinc-800 text-white">
                   <div className="flex items-center gap-2">
                     <Battery size={16} className="text-blue-500" />
                     <div>
                       <p className="font-medium">
-                        {house.characters.length > 0
-                          ? Math.round(house.characters.reduce((acc, c) => acc + c.stats.wet, 0) / house.characters.length)
+                        {(house?.characters || []).length > 0
+                          ? Math.round((house?.characters || []).reduce((acc, c) => acc + c.stats.wet, 0) / (house?.characters || []).length)
                           : 0}%
                       </p>
                       <p className="text-xs text-muted-foreground">Avg Wet</p>
@@ -1643,7 +1694,7 @@ Remember our conversation history and build upon previous interactions. Referenc
                   </div>
                 </Card>
 
-                <Card className="p-3">
+                <Card className="p-3 bg-zinc-900 border-zinc-800 text-white">
                   <div className="flex items-center gap-2">
                     <Clock size={16} className="text-purple-500" />
                     <div>
@@ -1667,10 +1718,10 @@ Remember our conversation history and build upon previous interactions. Referenc
               <h3 className="font-medium">Recent Updates</h3>
             </div>
 
-            <ScrollArea className="flex-1 px-4 min-h-0 max-h-[40vh]">
+            <ScrollArea className="flex-1 px-4 min-h-0 max-h-[40vh] bg-transparent">
               <div className="space-y-2 pb-4">
                 {safeUpdates.length === 0 ? (
-                  <Card className="p-4 text-center text-muted-foreground">
+                  <Card className="p-4 text-center bg-zinc-900 text-zinc-400 border-zinc-800">
                     <Robot size={24} className="mx-auto mb-2 opacity-50" />
                     <p className="text-sm">All quiet for now</p>
                     <p className="text-xs">Your girls are behaving... for the moment 😉</p>
@@ -1686,10 +1737,10 @@ Remember our conversation history and build upon previous interactions. Referenc
                       return (
                         <Card
                           key={update.id}
-                          className={`p-3 ${update.handled ? 'opacity-60' : ''} ${
-                            update.priority === 'high' ? 'border-red-200' :
-                            update.priority === 'medium' ? 'border-yellow-200' : ''
-                          } ${update.type === 'scenario' ? 'cursor-pointer hover:bg-accent/50 border-pink-200' : ''}`}
+                          className={`p-3 bg-zinc-900 border-zinc-800 text-white ${update.handled ? 'opacity-60' : ''} ${
+                            update.priority === 'high' ? 'border-red-400' :
+                            update.priority === 'medium' ? 'border-yellow-400' : ''
+                          } ${update.type === 'scenario' ? 'cursor-pointer hover:bg-accent/50 border-pink-400' : ''}`}
                           onClick={update.type === 'scenario' && !update.handled ? () => handleScenarioAction(update) : undefined}
                         >
                           <div className="flex items-start gap-3">
@@ -1778,10 +1829,10 @@ Remember our conversation history and build upon previous interactions. Referenc
           </div>
         </TabsContent>
 
-        <TabsContent value="chat" className="flex-1 flex flex-col mt-4 min-h-0 max-h-[60vh]">
+  <TabsContent value="chat" className="flex-1 flex flex-col mt-4 min-h-0 max-h-[60vh]">
           {/* Chat Messages */}
           <div className="flex-1 flex flex-col min-h-0">
-            <ScrollArea className="flex-1 px-4 max-h-[50vh]" ref={chatScrollRef}>
+            <ScrollArea className="flex-1 px-4 max-h-[50vh] bg-transparent" ref={chatScrollRef}>
               <div className="space-y-4 pb-4">
                 {safeChatMessages.map(message => (
                   <div
@@ -1791,8 +1842,8 @@ Remember our conversation history and build upon previous interactions. Referenc
                     <div
                       className={`max-w-[80%] rounded-lg p-3 ${
                         message.sender === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-muted-foreground'
+                          ? 'bg-accent text-white'
+                          : 'bg-zinc-900 text-zinc-200'
                       }`}
                     >
                       {message.imageData && (
@@ -1815,7 +1866,7 @@ Remember our conversation history and build upon previous interactions. Referenc
 
                 {isTyping && (
                   <div className="flex justify-start">
-                    <div className="bg-muted text-muted-foreground rounded-lg p-3 max-w-[80%]">
+                    <div className="bg-zinc-900 text-zinc-200 rounded-lg p-3 max-w-[80%]">
                       <div className="flex items-center gap-1">
                         <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
                         <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
@@ -1828,7 +1879,7 @@ Remember our conversation history and build upon previous interactions. Referenc
             </ScrollArea>
 
             {/* Chat Input */}
-            <div className="p-4 border-t border-border">
+            <div className="p-4 border-t border-zinc-800 bg-[#101014] rounded-b-2xl">
               <div className="flex gap-2">
                 <Input
                   value={inputMessage}
@@ -1836,13 +1887,13 @@ Remember our conversation history and build upon previous interactions. Referenc
                   onKeyPress={handleKeyPress}
                   placeholder="Tell me what you desire - create scenes, check on your girls, or just chat about your fantasies..."
                   disabled={isTyping}
-                  className="flex-1"
+                  className="flex-1 bg-zinc-900 text-white border-zinc-700 placeholder-zinc-500"
                 />
                 <Button
                   onClick={sendMessage}
                   disabled={!inputMessage.trim() || isTyping}
                   size="sm"
-                  className="flex-shrink-0"
+                  className="flex-shrink-0 bg-accent text-white"
                 >
                   <PaperPlaneRight size={16} />
                 </Button>

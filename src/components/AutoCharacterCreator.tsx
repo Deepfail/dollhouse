@@ -1,15 +1,14 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Slider } from '@/components/ui/slider';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { useAutoCharacterCreator } from '@/hooks/useAutoCharacterCreator';
-import { Sparkle, Plus, Gear, Clock, Users, Crown, Star, Diamond } from '@phosphor-icons/react';
+import { Clock, Crown, Diamond, Gear, Plus, Sparkle, Star, Users } from '@phosphor-icons/react';
+import React, { useState } from 'react';
 import { toast } from 'sonner';
 
 // Available character themes from the generator
@@ -53,13 +52,14 @@ export const AutoCharacterCreator: React.FC = () => {
     setIsCreatingNow(true);
     try {
       const character = await createRandomCharacter();
-      const rarityIcon = RARITY_CONFIG[character.rarity].icon;
+      const rarityIcon = RARITY_CONFIG[character.rarity as keyof typeof RARITY_CONFIG].icon;
       toast.success(`Created ${character.rarity} character: ${character.name}`, {
         icon: React.createElement(rarityIcon, { size: 16 })
       });
     } catch (error) {
       console.error('Failed to create character:', error);
-      if (error.toString().includes('already exists') || error.toString().includes('Recent character')) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('already exists') || errorMessage.includes('Recent character')) {
         toast.warning('Character creation skipped to prevent duplicates');
       } else {
         toast.error('Failed to create character');

@@ -1,18 +1,17 @@
-import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useSettings, useSetting } from '@/hooks/useSettings';
+import { Textarea } from '@/components/ui/textarea';
+import { useSetting, useSettings } from '@/hooks/useSettings';
 import { CopilotPreset } from '@/lib/llm';
-import { Settings, Plus, Edit2, Trash2, Check } from '@phosphor-icons/react';
-import { toast } from 'sonner';
 import { uuid } from '@/lib/uuid';
+import { Check, PencilSimple, Plus, Trash } from '@phosphor-icons/react';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
 export function CopilotPresets() {
   const { setSetting } = useSettings();
@@ -22,7 +21,7 @@ export function CopilotPresets() {
   const [showDialog, setShowDialog] = useState(false);
   const [editingPreset, setEditingPreset] = useState<CopilotPreset | null>(null);
   
-  const presets: CopilotPreset[] = presetsData ? JSON.parse(presetsData) : [
+  const presets: CopilotPreset[] = Array.isArray(presetsData) ? presetsData : [
     {
       id: 'default',
       name: 'Default',
@@ -242,7 +241,7 @@ export function CopilotPresets() {
                     size="sm"
                     onClick={() => handleEditPreset(preset)}
                   >
-                    <Edit2 className="w-4 h-4" />
+                    <PencilSimple className="w-4 h-4" />
                   </Button>
                   {preset.id !== 'default' && (
                     <Button
@@ -250,7 +249,7 @@ export function CopilotPresets() {
                       size="sm"
                       onClick={() => handleDeletePreset(preset.id)}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash className="w-4 h-4" />
                     </Button>
                   )}
                 </div>

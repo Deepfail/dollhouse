@@ -1,17 +1,17 @@
-import { useState } from 'react';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from 'react-resizable-panels';
+import { CharacterCreatorRepo } from '@/components/CharacterCreatorRepo';
+import { CopilotPresets } from '@/components/CopilotPresets';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useCharacters } from '@/hooks/useCharacters';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { useSettings } from '@/hooks/useSettings';
-import { CopilotPresets } from '@/components/CopilotPresets';
-import { CharacterCreatorRepo } from '@/components/CharacterCreatorRepo';
-import { MessageCircle, Settings, Plus, User } from '@phosphor-icons/react';
+import { ChatCircle, Gear, Plus, User } from '@phosphor-icons/react';
+import { useState } from 'react';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 export function DesktopShell() {
-  const { characters, isLoading } = useCharacters();
+  const { characters, isLoading } = useHouseFileStorage();
   const { setSetting } = useSettings();
   const [showCharacterCreator, setShowCharacterCreator] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<any>(null);
@@ -37,13 +37,9 @@ export function DesktopShell() {
 
   return (
     <div className="h-screen bg-background">
-      <ResizablePanelGroup 
-        direction="horizontal" 
-        onLayout={handleLayout}
-        className="h-full"
-      >
+      <PanelGroup direction="horizontal" onLayout={handleLayout} className="h-full">
         {/* Left Panel - Character Roster */}
-        <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+        <Panel defaultSize={25} minSize={20} maxSize={40}>
           <div className="h-full flex flex-col border-r">
             <div className="p-4 border-b">
               <div className="flex items-center justify-between mb-4">
@@ -106,7 +102,7 @@ export function DesktopShell() {
                       </div>
                       <div className="flex gap-1 mt-3">
                         <Button size="sm" variant="outline" className="flex-1">
-                          <MessageCircle className="w-3 h-3 mr-1" />
+                          <ChatCircle className="w-3 h-3 mr-1" />
                           Chat
                         </Button>
                         <Button 
@@ -118,7 +114,7 @@ export function DesktopShell() {
                             setShowCharacterCreator(true);
                           }}
                         >
-                          <Settings className="w-3 h-3" />
+                          <Gear className="w-3 h-3" />
                         </Button>
                       </div>
                     </CardContent>
@@ -127,12 +123,12 @@ export function DesktopShell() {
               )}
             </div>
           </div>
-        </ResizablePanel>
+        </Panel>
 
-        <ResizableHandle withHandle />
+        <PanelResizeHandle />
 
         {/* Middle Panel - Main Content */}
-        <ResizablePanel defaultSize={50} minSize={30}>
+        <Panel defaultSize={50} minSize={30}>
           <div className="h-full flex flex-col">
             <div className="p-4 border-b">
               <h1 className="text-2xl font-bold">Character House</h1>
@@ -217,12 +213,12 @@ export function DesktopShell() {
               )}
             </div>
           </div>
-        </ResizablePanel>
+        </Panel>
 
-        <ResizableHandle withHandle />
+        <PanelResizeHandle />
 
         {/* Right Panel - Copilot */}
-        <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+        <Panel defaultSize={25} minSize={20} maxSize={40}>
           <div className="h-full flex flex-col border-l">
             <div className="p-4 border-b">
               <h2 className="text-lg font-semibold">Copilot</h2>
@@ -233,8 +229,8 @@ export function DesktopShell() {
               <CopilotPresets />
             </div>
           </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </Panel>
+      </PanelGroup>
 
       {/* Character Creator Dialog */}
       <CharacterCreatorRepo

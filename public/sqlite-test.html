@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQLite WASM Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #fff; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #2d4a2d; }
+        .error { background: #4a2d2d; }
+        .info { background: #2d3a4a; }
+        pre { background: #2a2a2a; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>SQLite WASM Initialization Test</h1>
+    <div id="status">Testing...</div>
+    <div id="logs"></div>
+
+    <script type="module">
+        const statusEl = document.getElementById('status');
+        const logsEl = document.getElementById('logs');
+        
+        function log(message, type = 'info') {
+            console.log(message);
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = message;
+            logsEl.appendChild(div);
+        }
+
+        async function testSQLite() {
+            try {
+                log('🔧 Loading and initializing SQLite3 module...', 'info');
+                
+                // Import using the official pattern
+                const sqlite3InitModule = (await import('@sqlite.org/sqlite-wasm')).default;
+                
+                const sqlite3 = await sqlite3InitModule({
+                    print: (...args) => log(`[SQLite] ${args.join(' ')}`, 'info'),
+                    printErr: (...args) => log(`[SQLite Error] ${args.join(' ')}`, 'error'),
+                });
+                
+                log('✅ Done initializing SQLite3!', 'success');
+                log(`📦 SQLite version: ${sqlite3.version.libVersion}`, 'success');
+                
+                // Test database creation - try OPFS first
+                let db;
+                try {
+                    db = new sqlite3.oo1.DB('file:test.sqlite3?vfs=opfs', 'ct');
+                    log('✅ OPFS database created successfully', 'success');
+                } catch (opfsErr) {
+                    log(`⚠️ OPFS not available: ${opfsErr.message}`, 'info');
+                    db = new sqlite3.oo1.DB();
+                    log('✅ In-memory database created successfully', 'success');
+                }
+                
+                // Test simple query
+                const result = db.exec('SELECT sqlite_version() as version');
+                log(`📊 Query result: ${JSON.stringify(result)}`, 'success');
+                
+                // Test table creation
+                db.exec(`
+                    CREATE TABLE IF NOT EXISTS test_table (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                `);
+                log('✅ Table created successfully', 'success');
+                
+                // Test insert
+                db.exec(`INSERT INTO test_table (name) VALUES ('Test Entry')`);
+                log('✅ Data inserted successfully', 'success');
+                
+                // Test select
+                const selectResult = db.exec('SELECT * FROM test_table');
+                log(`📊 Select result: ${JSON.stringify(selectResult)}`, 'success');
+                
+                statusEl.textContent = '✅ All tests passed!';
+                statusEl.className = 'status success';
+                
+            } catch (err) {
+                log(`❌ Error: ${err.message}`, 'error');
+                log(`Stack: ${err.stack}`, 'error');
+                statusEl.textContent = `❌ Test failed: ${err.message}`;
+                statusEl.className = 'status error';
+            }
+        }
+
+        testSQLite();
+    </script>
+</body>
+</html>

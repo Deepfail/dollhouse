@@ -1,5 +1,6 @@
-import { getSetting } from '@/repo/settings';
+import { repositoryStorage } from '@/hooks/useRepositoryStorage';
 import { queryClient, queryKeys } from '@/lib/query';
+import { getSetting } from '@/repo/settings';
 
 export interface LLMParams {
   temperature?: number;
@@ -21,6 +22,7 @@ export interface CharacterDraft {
   tags?: string[];
   assets?: string[];
   system_prompt?: string;
+  appearance?: string;
 }
 
 /**
@@ -47,14 +49,44 @@ export async function getActivePreset(): Promise<CopilotPreset | null> {
  */
 export async function getApiConfig() {
   try {
+    // Try new unified settings first
+    const houseConfig = await repositoryStorage.get('house_config') as any;
+    if (houseConfig?.aiSettings) {
+      const settings = houseConfig.aiSettings;
+      const textProvider = settings.textProvider || 'openrouter';
+      
+      // Get provider-specific settings
+      let apiKey = '';
+      let textModel = '';
+      let textApiUrl = '';
+      
+      if (textProvider === 'venice') {
+        apiKey = settings.veniceTextApiKey || settings.textApiKey || '';
+        textModel = settings.veniceTextModel || settings.textModel || 'venice-large';
+        textApiUrl = settings.veniceTextApiUrl || settings.textApiUrl || '';
+      } else {
+        apiKey = settings.openrouterTextApiKey || settings.textApiKey || '';
+        textModel = settings.openrouterTextModel || settings.textModel || 'deepseek/deepseek-chat-v3.1';
+        textApiUrl = '';
+      }
+      
+      return { 
+        provider: textProvider, 
+        apiKey, 
+        apiUrl: textApiUrl,
+        model: textModel
+      };
+    }
+    
+    // Fallback to legacy settings
     const provider = await getSetting('ai_provider') || 'openrouter';
     const apiKey = await getSetting('ai_api_key') || '';
     const apiUrl = await getSetting('ai_api_url') || '';
     
-    return { provider, apiKey, apiUrl };
+    return { provider, apiKey, apiUrl, model: 'deepseek/deepseek-chat-v3.1' };
   } catch (error) {
     console.error('Error getting API config:', error);
-    return { provider: 'openrouter', apiKey: '', apiUrl: '' };
+    return { provider: 'openrouter', apiKey: '', apiUrl: '', model: 'deepseek/deepseek-chat-v3.1' };
   }
 }
 
@@ -98,7 +130,7 @@ export async function generateCharacterDraft(
       })
       .join('\n');
 
-    const userPrompt = `Generate enhanced character details for the following character:
+  const userPrompt = `Generate enhanced character details for the following character:
 
 ${characterContext}
 
@@ -109,6 +141,7 @@ Please provide a JSON response with any combination of these fields that would e
 - traits: Object with physical/personality traits as key-value pairs
 - tags: Array of relevant tags/categories
 - system_prompt: AI system instructions for roleplaying this character
+- appearance: A vivid, tasteful physical appearance description focused on overall looks and outfits. Keep it under 150 words. Highlight clothing style and how cute or attractive she looks in it; include non-explicit body type descriptors (e.g., petite, slim, curvy, busty, flat chest, athletic, thick thighs, bubble butt) when relevant. Avoid explicit sexual content, age mentions, or graphic details.
 
 Focus on making the character more interesting and detailed while maintaining consistency.`;
 
@@ -145,17 +178,17 @@ Focus on making the character more interesting and detailed while maintaining co
  * Make API call to configured LLM provider
  */
 async function callLLMAPI(
-  config: { provider: string; apiKey: string; apiUrl?: string },
+  config: { provider: string; apiKey: string; apiUrl?: string; model?: string },
   systemPrompt: string,
   userPrompt: string,
   params?: LLMParams
 ): Promise<string> {
-  const { provider, apiKey, apiUrl } = config;
+  const { provider, apiKey, apiUrl, model } = config;
 
   if (provider === 'openrouter') {
-    return callOpenRouter(apiKey, systemPrompt, userPrompt, params);
+    return callOpenRouter(apiKey, systemPrompt, userPrompt, model, params);
   } else if (provider === 'venice') {
-    return callVenice(apiKey, systemPrompt, userPrompt, params);
+    return callVenice(apiKey, systemPrompt, userPrompt, model, apiUrl, params);
   } else if (apiUrl) {
     return callCustomAPI(apiUrl, apiKey, systemPrompt, userPrompt, params);
   } else {
@@ -167,6 +200,7 @@ async function callOpenRouter(
   apiKey: string,
   systemPrompt: string,
   userPrompt: string,
+  model?: string,
   params?: LLMParams
 ): Promise<string> {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -178,7 +212,7 @@ async function callOpenRouter(
       'X-Title': 'Dollhouse Character Creator',
     },
     body: JSON.stringify({
-      model: 'deepseek/deepseek-chat',
+      model: model || 'deepseek/deepseek-chat-v3.1',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -201,28 +235,43 @@ async function callVenice(
   apiKey: string,
   systemPrompt: string,
   userPrompt: string,
+  model?: string,
+  apiUrl?: string,
   params?: LLMParams
 ): Promise<string> {
-  const response = await fetch('https://api.venice.ai/api/v1/chat/completions', {
+  const baseUrl = apiUrl || 'https://api.venice.ai/api/v1';
+  const response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'venice/anthropic/claude-3-sonnet',
+      model: model || 'llama-3.3-70b',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      temperature: params?.temperature || 0.8,
-      max_tokens: params?.max_tokens || 1000,
-      top_p: params?.top_p || 0.9,
+      temperature: params?.temperature ?? 0.8,
+      max_tokens: params?.max_tokens ?? 1000,
+      top_p: params?.top_p ?? 0.9,
+      venice_parameters: {
+        enable_web_search: 'auto',
+        enable_web_citations: true,
+        include_venice_system_prompt: true,
+        strip_thinking_response: false
+      }
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`Venice API error: ${response.statusText}`);
+    const raw = await response.text();
+    if (response.status === 401) throw new Error('401 Unauthorized: Invalid Venice AI API key.');
+    if (response.status === 402) throw new Error('402 Payment Required: Check Venice AI billing.');
+    if (response.status === 403) throw new Error('403 Forbidden: Venice AI key not permitted.');
+    if (response.status === 429) throw new Error('429 Rate limit exceeded.');
+    if (response.status >= 500) throw new Error(`Venice API server error (${response.status}).`);
+    throw new Error(`Venice API error: ${raw || response.statusText}`);
   }
 
   const data = await response.json();

@@ -1,315 +1,360 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { useSceneMode } from '@/hooks/useSceneMode';
-import { AIService } from '@/lib/aiService';
-import { SceneObjective } from '@/types';
-import { FilmStrip, Users, Target, Play, Plus, X } from '@phosphor-icons/react';
+import { getDb, saveDatabase } from '@/lib/db';
+import { Camera, Play, Users } from '@phosphor-icons/react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 interface SceneCreatorProps {
-  onSceneCreated: (sessionId: string) => void;
+  onSceneCreated?: (sessionId: string) => void;
 }
 
-export const SceneCreator: React.FC<SceneCreatorProps> = ({ onSceneCreated }) => {
-  const { house } = useHouseFileStorage();
-  const { createSceneSession } = useSceneMode();
-  
+export function SceneCreator({ onSceneCreated }: SceneCreatorProps) {
+  const { characters } = useHouseFileStorage();
+  const { createSceneSession, updateSceneSession } = useSceneMode();
+  const { createSession } = useChat();
+  const [sceneName, setSceneName] = useState('');
+  const [sceneDescription, setSceneDescription] = useState('');
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
-  const [objectives, setObjectives] = useState<Record<string, string>>({});
-  const [sceneContext, setSceneContext] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [hiddenGoals, setHiddenGoals] = useState<Record<string, { goal: string; priority: 'low' | 'medium' | 'high' }>>({});
 
-  const handleCharacterToggle = (characterId: string) => {
-    setSelectedCharacters(prev => {
-      if (prev.includes(characterId)) {
-        const newSelection = prev.filter(id => id !== characterId);
-        // Remove objective for deselected character
-        setObjectives(prevObj => {
-          const newObj = { ...prevObj };
-          delete newObj[characterId];
-          return newObj;
-        });
-        return newSelection;
-      } else {
-        return [...prev, characterId];
+  // Keep hidden goals in sync with selection
+  useEffect(() => {
+    setHiddenGoals(prev => {
+      const next: Record<string, { goal: string; priority: 'low' | 'medium' | 'high' }> = {};
+      for (const id of selectedCharacters) {
+        next[id] = prev[id] || { goal: '', priority: 'medium' };
       }
+      return next;
     });
-  };
-
-  const handleObjectiveChange = (characterId: string, objective: string) => {
-    setObjectives(prev => ({
-      ...prev,
-      [characterId]: objective
-    }));
-  };
-
-  const generateRandomObjectives = async () => {
-    if (selectedCharacters.length < 2) {
-      toast.error('Select at least 2 characters first');
-      return;
-    }
-
-    const charactersInfo = selectedCharacters.map(id => {
-      const char = house.characters?.find(c => c.id === id);
-      return `${char?.name} (${char?.personality})`;
-    }).join(', ');
-
-    const objectivePrompt = `Generate unique secret objectives for ${selectedCharacters.length} characters in a scene.
-      
-Characters: ${charactersInfo}
-Scene context: ${sceneContext || 'A social gathering'}
-
-Create objectives that:
-- Are achievable through conversation and social interaction
-- Create potential for interesting conflicts or alliances
-- Are not directly opposing but create natural tension
-- Fit each character's personality
-
-Format as JSON object with character names as keys and objectives as values.
-Each objective should be 1-2 sentences describing what the character wants to achieve.`;
-
-    try {
-      // Use OpenRouter for objective generation
-      // Let AIService handle API key validation
-
-      const responseContent = await AIService.generateResponse(objectivePrompt);
-      
-      if (!responseContent) {
-        throw new Error('No response from AI service');
-      }
-      
-      // Try to parse as JSON, fallback to simple text parsing
-      let generatedObjectives: Record<string, string> = {};
-      
-      try {
-        generatedObjectives = JSON.parse(responseContent);
-      } catch {
-        // If JSON parsing fails, create simple objectives
-        selectedCharacters.forEach((characterId, index) => {
-          const character = house.characters?.find(c => c.id === characterId);
-          if (character) {
-            generatedObjectives[character.name] = `Objective ${index + 1}: Engage meaningfully with other characters based on your personality.`;
-          }
-        });
-      }
-      
-      const mappedObjectives: Record<string, string> = {};
-      selectedCharacters.forEach(characterId => {
-        const character = house.characters?.find(c => c.id === characterId);
-        if (character && generatedObjectives[character.name]) {
-          mappedObjectives[characterId] = generatedObjectives[character.name];
-        }
-      });
-      
-      setObjectives(mappedObjectives);
-      toast.success('Random objectives generated!');
-    } catch (error) {
-      console.error('Failed to generate objectives:', error);
-      toast.error('Failed to generate objectives. Try entering them manually.');
-    }
-  };
+  }, [selectedCharacters]);
 
   const handleCreateScene = async () => {
-    if (selectedCharacters.length < 2) {
-      toast.error('Select at least 2 characters');
+    if (!sceneName.trim()) {
+      toast.error('Scene name is required');
       return;
     }
 
-    const missingObjectives = selectedCharacters.filter(id => !objectives[id]?.trim());
-    if (missingObjectives.length > 0) {
-      toast.error('All characters need objectives');
+    if (selectedCharacters.length === 0) {
+      toast.error('Select at least one character for the scene');
       return;
     }
 
     setIsCreating(true);
     try {
-      const sceneObjectives: SceneObjective[] = selectedCharacters.map(id => ({
-        characterId: id,
-        objective: objectives[id],
-        secret: true,
-        priority: 'medium'
-      }));
+      // First, create a scene session (in-memory)
+      const sessionId = createSceneSession(selectedCharacters, {
+        name: sceneName,
+        description: sceneDescription,
+        hiddenGoals
+      });
 
-      const sessionId = await createSceneSession(
-        selectedCharacters,
-        sceneObjectives,
-        sceneContext || 'A spontaneous gathering where characters interact based on their secret objectives.'
-      );
+      if (sessionId) {
+        // Then, create a backing chat session of type 'scene' so AI can act on hidden goals
+        let chatSessionId: string | null = null;
+        try {
+          chatSessionId = await createSession('scene', selectedCharacters, {
+            hiddenGoals: Object.fromEntries(
+              Object.entries(hiddenGoals).map(([cid, v]) => [cid, { goal: v.goal, priority: v.priority }])
+            )
+          });
+        } catch (e) {
+          console.warn('Failed to create backing chat session for scene:', e);
+        }
 
-      console.log('Scene created with ID:', sessionId);
-      onSceneCreated(sessionId);
-      
-      // Reset form
-      setSelectedCharacters([]);
-      setObjectives({});
-      setSceneContext('');
-      
+        // Persist mapping scene -> chat in settings and update scene session
+        try {
+          if (chatSessionId) {
+            const { db } = await getDb();
+            const key = `scene_chat:${sessionId}`;
+            const serialized = JSON.stringify({ chatSessionId });
+            const before: any[] = [];
+            db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: any) => before.push(r) });
+            db.exec({ sql: 'UPDATE settings SET value = ? WHERE key = ?', bind: [serialized, key] });
+            const after: any[] = [];
+            db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: any) => after.push(r) });
+            const changed = (after[0]?.c ?? 0) - (before[0]?.c ?? 0);
+            if (changed === 0) {
+              db.exec({ sql: 'INSERT INTO settings (key, value) VALUES (?, ?)', bind: [key, serialized] });
+            }
+            await saveDatabase();
+            updateSceneSession(sessionId, { chatSessionId });
+          }
+        } catch (e) {
+          console.warn('Failed to persist scene->chat mapping:', e);
+        }
+
+        toast.success(`Scene "${sceneName}" created!`);
+        onSceneCreated?.(sessionId);
+        // Reset form
+        setSceneName('');
+        setSceneDescription('');
+        setSelectedCharacters([]);
+        setHiddenGoals({});
+      } else {
+        toast.error('Failed to create scene');
+      }
     } catch (error) {
+      console.error('Error creating scene:', error);
       toast.error('Failed to create scene');
     } finally {
       setIsCreating(false);
     }
   };
 
-  const removeCharacter = (characterId: string) => {
-    setSelectedCharacters(prev => prev.filter(id => id !== characterId));
-    setObjectives(prev => {
-      const newObj = { ...prev };
-      delete newObj[characterId];
-      return newObj;
-    });
+  const toggleCharacter = (characterId: string) => {
+    setSelectedCharacters(prev =>
+      prev.includes(characterId)
+        ? prev.filter(id => id !== characterId)
+        : [...prev, characterId]
+    );
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FilmStrip className="text-primary" />
-          Scene Creator
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Create interactive scenes where characters pursue secret objectives
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        
-        {/* Character Selection */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-2">
-              <Users size={16} />
-              Select Characters ({selectedCharacters.length})
-            </Label>
-          </div>
-          
+    <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        <Camera size={20} />
+        <h2 className="text-xl font-semibold">Scene Creator</h2>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Create New Scene</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="space-y-2">
-            {(house.characters || []).map(character => (
-              <div
-                key={character.id}
-                className={`
-                  p-3 border rounded-lg cursor-pointer transition-colors
-                  ${selectedCharacters.includes(character.id) 
-                    ? 'border-primary bg-primary/10' 
-                    : 'border-border hover:border-primary/50'
-                  }
-                `}
-                onClick={() => handleCharacterToggle(character.id)}
-              >
-                <div className="flex items-start gap-3">
-                  <Checkbox 
+            <Label htmlFor="scene-name">Scene Name</Label>
+            <Input
+              id="scene-name"
+              placeholder="e.g., Beach Party, Study Session, Date Night"
+              value={sceneName}
+              onChange={(e) => setSceneName(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="scene-description">Scene Description (Optional)</Label>
+            <Textarea
+              id="scene-description"
+              placeholder="Describe the scene setting, mood, and what the characters will do..."
+              value={sceneDescription}
+              onChange={(e) => setSceneDescription(e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Select Characters</Label>
+            <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
+              {characters?.map((character) => (
+                <div
+                  key={character.id}
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    selectedCharacters.includes(character.id)
+                      ? 'bg-accent border-primary'
+                      : 'hover:bg-accent/50'
+                  }`}
+                  onClick={() => toggleCharacter(character.id)}
+                >
+                  <input
+                    type="checkbox"
                     checked={selectedCharacters.includes(character.id)}
-                    onChange={() => {}} // Handled by parent onClick
-                    className="mt-0.5 flex-shrink-0"
+                    onChange={() => toggleCharacter(character.id)}
+                    className="rounded"
                   />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm leading-tight break-words">
-                      {character.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground break-words leading-relaxed">
-                      {character.role}
-                    </p>
+                  <div className="flex items-center gap-3 flex-1">
+                    <img
+                      src={character.avatar}
+                      alt={character.name}
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                    <div>
+                      <div className="font-medium text-sm">{character.name}</div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Level {character.progression?.level || 1}</span>
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {character.rarity}
+                        </Badge>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
+              ))}
 
-        {/* Selected Characters & Objectives */}
-        {selectedCharacters.length > 0 && (
-          <>
-            <Separator />
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-2">
-                  <Target size={16} />
-                  Character Objectives
-                </Label>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={generateRandomObjectives}
-                >
-                  <Plus size={16} />
-                  Generate Random
-                </Button>
-              </div>
-              
-              <div className="space-y-3">
-                {selectedCharacters.map(characterId => {
-                  const character = house.characters?.find(c => c.id === characterId);
-                  if (!character) return null;
-                  
-                  return (
-                    <div key={characterId} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary">{character.name}</Badge>
-                          <span className="text-sm text-muted-foreground">
-                            ({character.role})
-                          </span>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeCharacter(characterId)}
-                        >
-                          <X size={16} />
-                        </Button>
-                      </div>
-                      <Textarea
-                        placeholder={`What is ${character.name}'s secret objective in this scene?`}
-                        value={objectives[characterId] || ''}
-                        onChange={(e) => handleObjectiveChange(characterId, e.target.value)}
-                        rows={2}
-                        className="resize-none"
-                      />
-                    </div>
-                  );
-                })}
-              </div>
+              {(!characters || characters.length === 0) && (
+                <div className="text-center text-muted-foreground py-8">
+                  <Users size={32} className="mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No characters available</p>
+                  <p className="text-xs">Create characters first to start scenes</p>
+                </div>
+              )}
             </div>
-          </>
-        )}
+          </div>
 
-        {/* Scene Context */}
-        <div className="space-y-2">
-          <Label>Scene Context (Optional)</Label>
-          <Textarea
-            placeholder="Describe the setting and situation where characters will interact..."
-            value={sceneContext}
-            onChange={(e) => setSceneContext(e.target.value)}
-            rows={3}
-            className="resize-none"
-          />
-        </div>
+          <div className="flex items-center justify-between pt-4">
+            <div className="text-sm text-muted-foreground">
+              {selectedCharacters.length} character{selectedCharacters.length !== 1 ? 's' : ''} selected
+            </div>
+            <Button
+              onClick={handleCreateScene}
+              disabled={isCreating || !sceneName.trim() || selectedCharacters.length === 0}
+            >
+              {isCreating ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Play size={16} className="mr-2" />
+                  Create Scene
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Create Button */}
-        <Button 
-          onClick={handleCreateScene}
-          disabled={selectedCharacters.length < 2 || isCreating}
-          className="w-full"
-          size="lg"
-        >
-          <Play size={20} />
-          {isCreating ? 'Creating Scene...' : 'Start Scene'}
-        </Button>
+      {/* Hidden Objectives */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Hidden Objectives</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {selectedCharacters.length === 0 && (
+            <div className="text-sm text-muted-foreground">
+              Select participants above to set their secret objectives.
+            </div>
+          )}
+          {selectedCharacters.map((id) => {
+            const ch = (characters || []).find(c => c.id === id);
+            if (!ch) return null;
+            const goal = hiddenGoals[id]?.goal || '';
+            const priority = hiddenGoals[id]?.priority || 'medium';
+            return (
+              <div key={id} className="space-y-2 p-3 rounded-md border border-zinc-800 bg-zinc-900">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="font-medium">{ch.name}</div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs">Priority</Label>
+                    <Select
+                      value={priority}
+                      onValueChange={(val: 'low' | 'medium' | 'high') =>
+                        setHiddenGoals(prev => ({
+                          ...prev,
+                          [id]: { goal: prev[id]?.goal || '', priority: val }
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-[130px] h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Textarea
+                  value={goal}
+                  onChange={(e) =>
+                    setHiddenGoals(prev => ({
+                      ...prev,
+                      [id]: { goal: e.target.value, priority: prev[id]?.priority || 'medium' }
+                    }))
+                  }
+                  placeholder={`What does ${ch.name} secretly want to achieve in this scene? (only visible to you)`}
+                  rows={3}
+                />
+                <div className="text-xs text-muted-foreground">
+                  These are secret objectives to guide behavior. They will not be shown to other characters.
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
 
-        {selectedCharacters.length < 2 && (
-          <p className="text-sm text-muted-foreground text-center">
-            Select at least 2 characters to create a scene
-          </p>
-        )}
-      </CardContent>
-    </Card>
+      {/* Quick Scene Templates */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Quick Scene Templates</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Button
+              variant="outline"
+              className="justify-start h-auto p-4"
+              onClick={() => {
+                setSceneName('Casual Chat');
+                setSceneDescription('A relaxed conversation in the common room');
+                setSelectedCharacters(characters?.slice(0, 2).map(c => c.id) || []);
+              }}
+            >
+              <div className="text-left">
+                <div className="font-medium">Casual Chat</div>
+                <div className="text-xs text-muted-foreground">Relaxed conversation</div>
+              </div>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="justify-start h-auto p-4"
+              onClick={() => {
+                setSceneName('Study Session');
+                setSceneDescription('Focused learning and discussion');
+                setSelectedCharacters(characters?.slice(0, 3).map(c => c.id) || []);
+              }}
+            >
+              <div className="text-left">
+                <div className="font-medium">Study Session</div>
+                <div className="text-xs text-muted-foreground">Learning together</div>
+              </div>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="justify-start h-auto p-4"
+              onClick={() => {
+                setSceneName('Date Night');
+                setSceneDescription('Romantic evening with special activities');
+                setSelectedCharacters(characters?.slice(0, 2).map(c => c.id) || []);
+              }}
+            >
+              <div className="text-left">
+                <div className="font-medium">Date Night</div>
+                <div className="text-xs text-muted-foreground">Romantic evening</div>
+              </div>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="justify-start h-auto p-4"
+              onClick={() => {
+                setSceneName('Party Time');
+                setSceneDescription('Fun gathering with games and activities');
+                setSelectedCharacters(characters?.map(c => c.id) || []);
+              }}
+            >
+              <div className="text-left">
+                <div className="font-medium">Party Time</div>
+                <div className="text-xs text-muted-foreground">Group celebration</div>
+              </div>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
-};
+}

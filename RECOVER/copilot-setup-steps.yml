@@ -1,0 +1,37 @@
+# GitHub Copilot & Coding Agent Setup Steps
+
+steps:
+  - name: Install GitHub Copilot Extension
+    description: Ensure the GitHub Copilot extension is installed in VS Code for AI-powered code suggestions.
+    extension: github.copilot
+
+  - name: Install Copilot Chat Extension
+    description: Install Copilot Chat for conversational AI assistance and agent features.
+    extension: github.copilot-chat
+
+  - name: Enable Copilot for All Languages
+    description: Configure Copilot to work with all supported languages in VS Code settings.
+    settings:
+      - "copilot.enable": true
+      - "copilot.languages": ["*", "typescript", "javascript", "python", "markdown"]
+
+  - name: Recommended VS Code Settings
+    description: Optimize VS Code settings for Copilot and agent responsiveness.
+    settings:
+      - "editor.inlineSuggest.enabled": true
+      - "editor.quickSuggestions": true
+      - "editor.suggestOnTriggerCharacters": true
+      - "editor.tabCompletion": "on"
+      - "editor.codeActionsOnSave": { "source.organizeImports": true }
+
+  - name: Workspace Trust
+    description: Mark workspace as trusted for full Copilot and agent functionality.
+    action: "Set workspace as trusted in VS Code."
+
+  - name: Update Extensions
+    description: Keep Copilot and related extensions up to date for best performance.
+    action: "Regularly check for extension updates."
+
+  - name: Review Agent Feedback
+    description: Provide feedback to Copilot Chat to improve agent relevance and responsiveness.
+    action: "Use thumbs up/down and comments in Copilot Chat."
