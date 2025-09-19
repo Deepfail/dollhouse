@@ -1,30 +1,30 @@
-import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { useFileStorage } from '@/hooks/useFileStorage';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { AIService } from '@/lib/aiService';
 import { fileStorage } from '@/lib/fileStorage';
 import { AVAILABLE_MODELS } from '@/types';
-import { AIService } from '@/lib/aiService';
-import { toast } from 'sonner';
-import { 
-  Brain, 
-  House as Home,
-  Gear,
-  Key,
-  Image,
+import {
+  Brain,
   CaretDown,
-  CaretUp
+  CaretUp,
+  Gear,
+  House as Home,
+  Image,
+  Key
 } from '@phosphor-icons/react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 interface HouseSettingsProps {
   open: boolean;
@@ -566,11 +566,14 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                                 <SelectValue placeholder="Select image model" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="venice-sd35">Venice SD3.5 - Default high quality</SelectItem>
+                                <SelectItem value="venice-sd35">Venice SD3.5 - Default</SelectItem>
                                 <SelectItem value="hidream">HiDream I1 - High quality</SelectItem>
                                 <SelectItem value="qwen-image">Qwen Image - Highest quality</SelectItem>
-                                <SelectItem value="lustify-sdxl">Lustify SDXL - Uncensored</SelectItem>
-                                <SelectItem value="wai-Illustrious">WAI Illustrious - Anime</SelectItem>
+                                <SelectItem value="lustify-sdxl">Lustify - Uncensored</SelectItem>
+                                <SelectItem value="wai-Illustrious">Anime Uncensored</SelectItem>
+                                <SelectItem value="pony-realism">Pony Uncensored</SelectItem>
+                                <SelectItem value="flux-dev">High Quality</SelectItem>
+                                <SelectItem value="flux-dev-uncensored">High Quality Uncensored</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>

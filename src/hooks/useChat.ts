@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AIService } from '../lib/aiService';
 import { getDb, saveDatabase } from '../lib/db';
 import { uuid } from '../lib/uuid';
@@ -9,10 +9,29 @@ import { useHouseFileStorage } from './useHouseFileStorage';
 export function useChat() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const { characters, updateCharacter } = useHouseFileStorage(); // Use unified character storage
 
-  const loadSessions = useCallback(async () => {
+  // Prevent overlapping loads & allow suppression of broadcast events to avoid feedback loops
+  const loadingRef = useRef(false);
+  const lastLoadTsRef = useRef(0);
+  const lastSignatureRef = useRef<string | null>(null);
+
+  const loadSessions = useCallback(async (options?: { suppressBroadcast?: boolean; force?: boolean }) => {
     try {
+      const nowMs = Date.now();
+      if (!options?.force) {
+        if (loadingRef.current) {
+          // Avoid re-entrant loads that can cause thrash
+          return sessions;
+        }
+        // Simple throttle: ignore calls within 400ms unless forced
+        if (nowMs - lastLoadTsRef.current < 400) {
+          return sessions;
+        }
+      }
+      lastLoadTsRef.current = nowMs;
+      loadingRef.current = true;
       console.log('🔄 Loading chat sessions...');
       const { db } = await getDb();
       
@@ -78,13 +97,33 @@ export function useChat() {
         });
       }
 
-      console.log('✅ Loaded', loadedSessions.length, 'sessions with participants');
-      setSessions(loadedSessions);
+      // Build a lightweight signature (ids + updated_at timestamps) to detect real changes
+      const signature = loadedSessions
+        .map(s => `${s.id}:${s.updatedAt.getTime()}:${s.messageCount}`)
+        .join('|');
+
+      if (signature !== lastSignatureRef.current) {
+        console.log('✅ Loaded', loadedSessions.length, 'sessions with participants (changed)');
+        lastSignatureRef.current = signature;
+        setSessions(loadedSessions);
+        setSessionsLoaded(true);
+        if (!options?.suppressBroadcast) {
+          try { window.dispatchEvent(new CustomEvent('chat-sessions-updated')); } catch {}
+        }
+      } else {
+        // Silent no-op; avoid log spam
+        // Optionally still mark loaded flag if first time
+        if (!sessionsLoaded) setSessionsLoaded(true);
+      }
       return loadedSessions;
     } catch (error) {
       console.error('❌ Failed to load sessions:', error);
+      setSessionsLoaded(true);
       return [];
+    } finally {
+      loadingRef.current = false;
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getSessionMessages = useCallback(async (sessionId: string): Promise<ChatMessage[]> => {
@@ -522,6 +561,8 @@ Respond as ${character.name} in character. Keep your response natural and conver
 
       await loadSessions();
       setActiveSessionId(sessionId);
+      try { localStorage.setItem('active_chat_session', sessionId); } catch {}
+      try { window.dispatchEvent(new CustomEvent('chat-active-session-changed', { detail: { sessionId } })); } catch {}
       return sessionId;
     } catch (error) {
       console.error('❌ Failed to create session:', error);
@@ -587,6 +628,8 @@ Respond as ${character.name} in character. Keep your response natural and conver
       });
       await saveDatabase();
       setActiveSessionId(sessionId);
+      try { localStorage.setItem('active_chat_session', sessionId); } catch {}
+      try { window.dispatchEvent(new CustomEvent('chat-active-session-changed', { detail: { sessionId } })); } catch {}
       await loadSessions();
     } catch (e) {
       console.warn('Failed to switch/open session', e);
@@ -607,12 +650,39 @@ Respond as ${character.name} in character. Keep your response natural and conver
   // Load sessions on mount
   useEffect(() => {
     loadSessions();
+    // On mount, adopt existing active session from localStorage
+    try {
+      const stored = localStorage.getItem('active_chat_session');
+      if (stored) {
+        setActiveSessionId(stored);
+      }
+    } catch {}
+    // Event listeners to sync across multiple hook instances
+    const onSessionsUpdated = () => {
+      // Reload without rebroadcast to avoid event storm
+      loadSessions({ suppressBroadcast: true });
+    };
+    const onActiveChanged = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      if (detail.sessionId) setActiveSessionId(detail.sessionId);
+    };
+    try {
+      window.addEventListener('chat-sessions-updated', onSessionsUpdated);
+      window.addEventListener('chat-active-session-changed', onActiveChanged as any);
+    } catch {}
+    return () => {
+      try {
+        window.removeEventListener('chat-sessions-updated', onSessionsUpdated);
+        window.removeEventListener('chat-active-session-changed', onActiveChanged as any);
+      } catch {}
+    };
   }, [loadSessions]);
 
   return {
     sessions: sessions || [],
     activeSessionId,
     setActiveSessionId,
+    sessionsLoaded,
     loadSessions,
     getSessionMessages,
     sendMessage,

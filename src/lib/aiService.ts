@@ -376,12 +376,8 @@ export class AIService {
       // Map deprecated models to current alternatives
   const rawModel = options?.model || houseConfig?.aiSettings?.imageModel || 'venice-sd35';
       const deprecatedMap: Record<string, string> = {
-        'flux-dev': 'qwen-image',
-        'flux-dev-uncensored': 'lustify-sdxl',
-        'stable-diffusion-3.5': 'qwen-image',
-        'pony-realism': 'lustify-sdxl',
-        // Common user-entered/legacy aliases
-        'wai-Illustrious': 'qwen-image',
+        // Provide any legacy aliases here if needed
+        'hidream-v1': 'hidream'
       };
       const imageModel = deprecatedMap[rawModel] || rawModel;
 
@@ -404,7 +400,7 @@ export class AIService {
       // Venice AI API endpoint
       const apiUrl = imageApiUrl || 'https://api.venice.ai/api/v1';
 
-      // Build request per Venice native API /image/generate
+      // Build request per Venice native API /image/generate (extend for hidream)
       const reqWidth = options?.width || 1024;
       const reqHeight = options?.height || 1024;
       // Steps: clamp by model constraints (e.g., qwen-image <= 8)
@@ -412,6 +408,12 @@ export class AIService {
       const modelKey = String(imageModel || '').toLowerCase();
       if (modelKey === 'qwen-image' || modelKey.includes('qwen-image')) {
         reqSteps = Math.min(reqSteps, 8);
+      }
+      // Provide sensible defaults for hidream if user hasn't overridden
+      if (modelKey === 'hidream') {
+        // hidream tends to work well with cfg 10 and 30 steps
+        if (options?.cfg_scale === undefined) options = { ...(options||{}), cfg_scale: 10 };
+        if (options?.steps === undefined) reqSteps = 30;
       }
       const reqCfg = options?.cfg_scale ?? 7.5;
       const reqSeed = options?.seed ?? Math.floor(Math.random() * 1_000_000);
@@ -431,6 +433,7 @@ export class AIService {
         // Default to hiding watermark unless explicitly disabled
         hide_watermark: options?.hide_watermark ?? true,
       };
+      // hidream does not support style_preset/sampler in some deployments; still pass if provided
       if (options?.negative_prompt) requestBody.negative_prompt = options.negative_prompt;
       if (options?.style_preset) requestBody.style_preset = options.style_preset;
       if (options?.sampler) requestBody.sampler = options.sampler;

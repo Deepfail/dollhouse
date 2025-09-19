@@ -61,58 +61,18 @@ function AppContent({
   activeSessionId: string | null;
   setActiveSessionId: (id: string | null) => void;
 }) {
-  const { createSession, sessions, switchToSession, setActiveSessionId: setChatActiveSessionId } = useChat();
+  const { createSession, sessions, switchToSession, setActiveSessionId: setChatActiveSessionId, sessionsLoaded, activeSessionId: hookActive } = useChat();
   const { activeSessions } = useSceneMode();
   const { house, isLoading } = useHouseFileStorage();
 
   // Debug logging with error handling
   useEffect(() => {
     try {
-      const debugInfo = {
-        currentView,
-        activeSessionId,
-        charactersCount: house?.characters?.length || 0,
-        chatSessionsCount: sessions?.length || 0,
-        sceneSessionsCount: activeSessions?.length || 0,
-        provider: house?.aiSettings?.provider || 'not set',
-        hasApiKey: !!(house?.aiSettings?.apiKey?.trim())
-      };
-
-      console.log('=== App Debug Information ===');
-      console.log('Debug Info:', debugInfo);
-      
-      if (house?.characters && house.characters.length > 0) {
-        console.log('Available Characters:');
-        house.characters.forEach(char => {
-          console.log(`• ${char.name} (${char.id.slice(0, 8)}...)`);
-        });
-      }
-      
-      if (sessions && sessions.length > 0) {
-        console.log('Available Sessions:');
-        sessions.forEach(session => {
-          console.log(`• ${session.type} - ${session.id.slice(0, 8)}... (${session.participantIds?.length || 0} participants)`);
-        });
-      }
-      
-      if (activeSessionId) {
-        const activeSession = sessions?.find(s => s.id === activeSessionId);
-        console.log('Active Session Found:', activeSession ? 'YES' : 'NO');
-        if (activeSession) {
-          console.log('Active Session Details:', {
-            id: activeSession.id.slice(0, 8) + '...',
-            type: activeSession.type,
-            messageCount: activeSession.messages?.length || 0,
-            participants: activeSession.participantIds?.length || 0
-          });
-        }
-      }
-      
-      console.log('=== End App Debug ===');
-    } catch (error) {
-      console.error('Error in debug logging:', error);
-    }
-  }, [currentView, activeSessionId, house?.characters, sessions, activeSessions]);
+      const activeId = activeSessionId || hookActive;
+      const debugInfo = { currentView, activeId, sessionsLoaded, sessionCount: sessions.length };
+      console.log('[AppDebug]', debugInfo);
+    } catch {}
+  }, [currentView, activeSessionId, hookActive, sessionsLoaded, sessions.length]);
 
   const handleStartChat = async (characterId: string) => {
     console.log('=== handleStartChat called ===');
@@ -218,11 +178,17 @@ function AppContent({
 
   // If activeSessionId is set externally (e.g., via Sidebar switchToSession), ensure we navigate to chat
   useEffect(() => {
-    if (activeSessionId) {
+    const id = activeSessionId || hookActive;
+    if (id) {
       setCurrentView('chat');
-      setChatActiveSessionId(activeSessionId);
+      setChatActiveSessionId(id);
+    } else if (sessionsLoaded && sessions.length > 0 && currentView === 'chat') {
+      // If we tried to go to chat but no active session, adopt most recent
+      const fallback = sessions[0].id;
+      setActiveSessionId(fallback);
+      setChatActiveSessionId(fallback);
     }
-  }, [activeSessionId, setChatActiveSessionId]);
+  }, [activeSessionId, hookActive, sessionsLoaded, sessions, currentView, setChatActiveSessionId]);
 
   // Show loading state while file storage is initializing
   if (isLoading) {

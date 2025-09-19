@@ -5,7 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { getDb } from '@/lib/db';
-import { ArrowLeft, CaretDown, CaretUp, ChatCircle, PaperPlane, Users } from '@phosphor-icons/react';
+import { ArrowLeft, CaretDown, CaretUp, ChatCircle, PaperPlane, Users, ArrowClockwise } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -122,14 +122,32 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
   if (!session) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <ChatCircle size={48} className="mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-semibold mb-2">Chat Session Not Found</h3>
-          <p className="text-muted-foreground mb-4">The requested chat session could not be loaded.</p>
-          <Button onClick={onBack}>
-            <ArrowLeft size={16} className="mr-2" />
-            Back to House
-          </Button>
+        <div className="text-center space-y-4 max-w-sm">
+          <ChatCircle size={48} className="mx-auto text-muted-foreground" />
+          <div>
+            <h3 className="text-lg font-semibold mb-2">Chat Session Not Found</h3>
+            <p className="text-muted-foreground text-sm">It may have been deleted or state has not finished syncing. You can retry loading the last active session.</p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Button variant="outline" onClick={onBack}>
+              <ArrowLeft size={16} className="mr-2" /> Back to House
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                try {
+                  const fallback = localStorage.getItem('active_chat_session');
+                  if (fallback) {
+                    window.dispatchEvent(new CustomEvent('chat-active-session-changed', { detail: { sessionId: fallback } }));
+                  } else {
+                    window.dispatchEvent(new CustomEvent('chat-sessions-updated'));
+                  }
+                } catch {}
+              }}
+            >
+              <ArrowClockwise size={16} className="mr-2" /> Retry
+            </Button>
+          </div>
         </div>
       </div>
     );

@@ -39,7 +39,10 @@ const MODEL_OPTIONS = [
   { value: 'venice-sd35', label: 'venice-sd35 — Default choice, Eliza-optimized ($0.01)' },
   { value: 'hidream', label: 'hidream — Production-ready generation ($0.01)' },
   { value: 'lustify-sdxl', label: 'lustify-sdxl — Uncensored content ($0.01)' },
-  { value: 'wai-Illustrious', label: 'wai-Illustrious — Anime/NSFW capable' }
+  { value: 'wai-Illustrious', label: 'wai-Illustrious — Anime/NSFW capable' },
+  { value: 'pony-realism', label: 'Pony Uncensored' },
+  { value: 'flux-dev', label: 'FLUX' },
+  { value: 'flux-dev-uncensored', label: 'FLUX Uncensored' }
 ];
 
 const FORMAT_OPTIONS: Array<ImageSettings['format']> = ['webp', 'png', 'jpeg'];
@@ -93,6 +96,15 @@ export function ImageSettingsPanel({
 
   return (
     <div className="space-y-4 p-3 bg-[#18181b] rounded-xl border border-gray-800">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => update({ model: 'hidream', cfg_scale: 10, steps: 30, width: 1024, height: 1024 })}
+        >
+          Hidream Preset
+        </Button>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>Model</Label>

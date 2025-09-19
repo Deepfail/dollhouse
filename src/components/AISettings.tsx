@@ -10,13 +10,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { repositoryStorage } from '@/hooks/useRepositoryStorage';
 import { AIService } from '@/lib/aiService';
 import {
-    CheckCircle,
-    Eye,
-    EyeSlash,
-    Gear,
-    Sparkle,
-    TestTube,
-    XCircle
+  CheckCircle,
+  Eye,
+  EyeSlash,
+  Gear,
+  Sparkle,
+  TestTube,
+  XCircle
 } from '@phosphor-icons/react';
 import React, { useState } from 'react';
 import { toast } from 'sonner';
@@ -413,11 +413,14 @@ export function AISettings({ children }: AISettingsProps) {
                             <SelectValue placeholder="Select model" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="qwen-image">qwen-image — Highest quality, multimodal editing ($0.01)</SelectItem>
-                            <SelectItem value="venice-sd35">venice-sd35 — Default choice, Eliza-optimized ($0.01)</SelectItem>
-                            <SelectItem value="hidream">hidream — Production-ready generation ($0.01)</SelectItem>
-                            <SelectItem value="lustify-sdxl">lustify-sdxl — Uncensored content ($0.01)</SelectItem>
-                            <SelectItem value="wai-Illustrious">wai-Illustrious — Anime/NSFW capable</SelectItem>
+                                <SelectItem value="venice-sd35">Venice SD3.5 - Default</SelectItem>
+                                <SelectItem value="hidream">HiDream I1 - High quality</SelectItem>
+                                <SelectItem value="qwen-image">Qwen Image - Highest quality</SelectItem>
+                                <SelectItem value="lustify-sdxl">Lustify - Uncensored</SelectItem>
+                                <SelectItem value="wai-Illustrious">Anime Uncensored</SelectItem>
+                                <SelectItem value="pony-realism">Pony Uncensored</SelectItem>
+                                <SelectItem value="flux-dev">High Quality</SelectItem>
+                                <SelectItem value="flux-dev-uncensored">High Quality Uncensored</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
