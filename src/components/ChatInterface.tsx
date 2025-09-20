@@ -1,418 +1,341 @@
+import { useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { getDb } from '@/lib/db';
-import { ArrowLeft, CaretDown, CaretUp, ChatCircle, PaperPlane, Users, ArrowClockwise } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
-
+import { 
+  ArrowLeft, 
+  ChatCircle, 
+  Heart,
+  User,
+  ChartBar,
+  Gear,
+  CheckCircle,
+  Crown,
+  WifiHigh,
+  BatteryMedium
+} from '@phosphor-icons/react';
 
 interface ChatInterfaceProps {
   sessionId?: string | null;
   onBack?: () => void;
-  onStartChat?: (characterId: string) => Promise<void>;
-  onStartGroupChat?: (sessionId?: string) => Promise<void>;
+  onStartChat?: (characterId: string) => void;
+  onStartGroupChat?: (sessionId?: string) => void;
 }
 
 export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat }: ChatInterfaceProps) {
   const { characters } = useHouseFileStorage();
-  const { sessions, sendMessage, getSessionMessages, updateSessionGoal } = useChat();
-  const [message, setMessage] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const [sessionMessages, setSessionMessages] = useState<any[]>([]);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
-  const [reactions, setReactions] = useState<Record<string, Record<string, number>>>({});
+  const { sessions } = useChat();
+  const [activeTab, setActiveTab] = useState('profile');
 
   const session = sessions?.find((s: any) => s.id === sessionId);
   const sessionCharacters = characters?.filter((c: any) => session?.participantIds.includes(c.id)) || [];
-  const [showDirector, setShowDirector] = useState(false);
-  const [hiddenGoals, setHiddenGoals] = useState<Record<string, { goal: string; priority: string }>>({});
-
-  useEffect(() => {
-    if (!sessionId) {
-      setSessionMessages([]);
-      return;
-    }
-
-    const loadMessages = async () => {
-      setIsLoadingMessages(true);
-      try {
-        const messages = await getSessionMessages(sessionId);
-        setSessionMessages(messages);
-      } catch (error) {
-        console.error('Failed to load messages:', error);
-        setSessionMessages([]);
-      } finally {
-        setIsLoadingMessages(false);
-      }
-    };
-
-    loadMessages();
-  }, [sessionId, getSessionMessages]);
-
-  // Load hidden goals for this chat session from DB
-  useEffect(() => {
-    const loadGoals = async () => {
-      try {
-        if (!sessionId) {
-          setHiddenGoals({});
-          return;
-        }
-        const { db } = await getDb();
-        const rows: any[] = [];
-        db.exec({
-          sql: 'SELECT character_id, goal_text, priority FROM session_goals WHERE session_id = ?',
-          bind: [sessionId],
-          rowMode: 'object',
-          callback: (r: any) => rows.push(r)
-        });
-        const byChar: Record<string, { goal: string; priority: string }> = {};
-        for (const r of rows) {
-          byChar[r.character_id] = { goal: r.goal_text, priority: r.priority };
-        }
-        setHiddenGoals(byChar);
-      } catch (e) {
-        console.warn('Failed to load hidden goals:', e);
-        setHiddenGoals({});
-      }
-    };
-    loadGoals();
-  }, [sessionId]);
-
-  useEffect(() => {
-    if (!session) {
-      console.log('No session found for ID:', sessionId);
-    } else {
-      console.log('Chat session loaded:', session);
-    }
-  }, [session, sessionId]);
-
-  const handleSendMessage = async () => {
-    if (!message.trim() || !sessionId || isSending) return;
-
-    setIsSending(true);
-    setIsTyping(true);
-    try {
-      await sendMessage(sessionId, message.trim(), 'user');
-      setMessage('');
-      
-      // Reload messages
-      const messages = await getSessionMessages(sessionId);
-      setSessionMessages(messages);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      toast.error('Failed to send message');
-    } finally {
-      setIsSending(false);
-      setIsTyping(false);
-    }
+  
+  // Get the main character for profile display
+  const mainCharacter = sessionCharacters[0] || characters?.[0];
+  
+  // Mock stats for the design
+  const stats = {
+    love: 65,
+    wet: 45,
+    trust: 78,
+    confidence: 82,
+    intelligence: 94,
+    creativity: 89,
+    humor: 71,
+    kindness: 92,
+    adventurous: 63
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
-  if (!session) {
+  if (!mainCharacter) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center space-y-4 max-w-sm">
           <ChatCircle size={48} className="mx-auto text-muted-foreground" />
           <div>
-            <h3 className="text-lg font-semibold mb-2">Chat Session Not Found</h3>
-            <p className="text-muted-foreground text-sm">It may have been deleted or state has not finished syncing. You can retry loading the last active session.</p>
+            <h3 className="text-lg font-semibold mb-2">No Character Selected</h3>
+            <p className="text-muted-foreground text-sm">Select a character from the sidebar to view their profile.</p>
           </div>
-          <div className="flex flex-col gap-2">
-            <Button variant="outline" onClick={onBack}>
-              <ArrowLeft size={16} className="mr-2" /> Back to House
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                try {
-                  const fallback = localStorage.getItem('active_chat_session');
-                  if (fallback) {
-                    window.dispatchEvent(new CustomEvent('chat-active-session-changed', { detail: { sessionId: fallback } }));
-                  } else {
-                    window.dispatchEvent(new CustomEvent('chat-sessions-updated'));
-                  }
-                } catch {}
-              }}
-            >
-              <ArrowClockwise size={16} className="mr-2" /> Retry
-            </Button>
-          </div>
+          <Button variant="outline" onClick={onBack}>
+            <ArrowLeft size={16} className="mr-2" /> Back to House
+          </Button>
         </div>
       </div>
     );
   }
 
-  // Simple helpers
-  const toggleReaction = (msgId: string, emoji: string) => {
-    setReactions(prev => {
-      const current = prev[msgId] || {};
-      const has = current[emoji] && current[emoji] > 0;
-      const next = { ...current };
-      if (has) delete next[emoji]; else next[emoji] = 1;
-      return { ...prev, [msgId]: next };
-    });
-  };
-
-  const parseImageFromContent = (text: string): { isImage: boolean; src?: string; caption?: string } => {
-    if (!text) return { isImage: false };
-    const trimmed = text.trim();
-    if (trimmed.startsWith('data:image')) return { isImage: true, src: trimmed, caption: '' };
-    const match = trimmed.match(/(https?:\/\/\S+\.(?:png|jpg|jpeg|webp|gif))(.*)$/i);
-    if (match) {
-      const url = match[1];
-      const rest = match[2]?.trim() || '';
-      const onlyUrl = trimmed === url;
-      return { isImage: true, src: url, caption: onlyUrl ? '' : rest };
-    }
-    return { isImage: false };
-  };
-
-  // Seen/delivered status for the latest user message
-  const lastUserIndex = [...sessionMessages].map((m, i) => ({ m, i })).filter(x => !x.m.characterId).pop()?.i ?? -1;
-  const seenAfterLastUser = lastUserIndex >= 0 && sessionMessages.slice(lastUserIndex + 1).some(m => !!m.characterId);
-
   return (
-    <div className="h-full flex flex-col bg-gradient-to-b from-white to-zinc-50 dark:from-zinc-900 dark:to-zinc-950">
-      {/* Header */}
-      <div className="flex items-center justify-between p-3 sm:p-4 border-b bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/40 dark:bg-zinc-900/60">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={onBack}>
-            <ArrowLeft size={16} />
-          </Button>
-          <div>
-            <h1 className="text-base sm:text-lg font-semibold">
-              {session.type === 'group' ? 'Group Chat' : 'Individual Chat'}
-            </h1>
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
-              <Users size={14} />
-              <span>{sessionCharacters.length} participant{sessionCharacters.length !== 1 ? 's' : ''}</span>
-            </div>
-          </div>
-        </div>
-        {/* Director Panel Toggle */}
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowDirector(v => !v)}>
-            {showDirector ? <CaretUp size={14} className="mr-1" /> : <CaretDown size={14} className="mr-1" />}
-            Director
-          </Button>
-        </div>
-        {/* Participant Avatars */}
-        <div className="hidden sm:flex -space-x-2">
-          {sessionCharacters.slice(0, 4).map((character) => (
-            <Avatar key={character.id} className="w-8 h-8 border-2 border-white shadow-sm">
-              <AvatarImage src={character.avatar} alt={character.name} />
-              <AvatarFallback className="text-xs">
-                {character.name.slice(0, 2)}
-              </AvatarFallback>
-            </Avatar>
-          ))}
-          {sessionCharacters.length > 4 && (
-            <div className="w-8 h-8 bg-zinc-200 dark:bg-zinc-700 rounded-full border-2 border-white flex items-center justify-center text-xs">
-              +{sessionCharacters.length - 4}
-            </div>
-          )}
+    <div className="h-full flex flex-col bg-[#1a1a1a] text-white">
+      {/* Status Bar */}
+      <div className="bg-[#0f0f0f] h-[32px] flex items-center justify-between px-6 text-white text-xs flex-shrink-0">
+        <span className="font-medium">9:41</span>
+        <div className="flex items-center gap-1">
+          <WifiHigh size={16} className="text-white" />
+          <WifiHigh size={16} className="text-white" />
+          <BatteryMedium size={16} className="text-white" />
         </div>
       </div>
 
-      {/* Director Panel Content */}
-      {showDirector && (
-        <div className="border-b p-3 sm:p-4 bg-white/60 dark:bg-zinc-900/50 text-sm">
-          <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-3">
-            {sessionCharacters.map((c: any) => {
-              const g = hiddenGoals[c.id];
-              return (
-                <div key={c.id} className="p-3 rounded-lg border bg-white shadow-sm dark:bg-zinc-900/70 space-y-2">
-                  <div className="font-medium">{c.name}</div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="text-muted-foreground">Priority</span>
-                    <select
-                      className="px-2 py-1 rounded-md border bg-white dark:bg-zinc-800 text-xs"
-                      value={g?.priority || 'medium'}
-                      onChange={async (e) => {
-                        const pr = (e.target.value as 'low'|'medium'|'high');
-                        const text = g?.goal || '';
-                        if (!sessionId) return;
-                        await updateSessionGoal(sessionId, c.id, text, pr);
-                        // Update local state immediately for responsiveness
-                        setHiddenGoals(prev => ({ ...prev, [c.id]: { goal: text, priority: pr } }));
-                      }}
-                    >
-                      <option value="low">low</option>
-                      <option value="medium">medium</option>
-                      <option value="high">high</option>
-                    </select>
-                  </div>
-                  <textarea
-                    className="w-full min-h-[80px] text-sm rounded-md border bg-white dark:bg-zinc-800 p-2"
-                    placeholder="Enter or edit hidden objective..."
-                    defaultValue={g?.goal || ''}
-                    onBlur={async (e) => {
-                      const text = e.target.value;
-                      const pr = (g?.priority as 'low'|'medium'|'high') || 'medium';
-                      if (!sessionId) return;
-                      await updateSessionGoal(sessionId, c.id, text, pr);
-                      setHiddenGoals(prev => ({ ...prev, [c.id]: { goal: text, priority: pr } }));
-                    }}
-                  />
-                  {!g?.goal && (
-                    <div className="text-[11px] text-muted-foreground">Tip: click into the box to set a secret objective.</div>
-                  )}
-                </div>
-              );
-            })}
+      {/* Header */}
+      <div className="bg-[#1a1a1a] h-[73px] border-b border-gray-700 px-4 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <Avatar className="w-10 h-10">
+            <AvatarImage src={mainCharacter.avatar} alt={mainCharacter.name} />
+            <AvatarFallback>{mainCharacter.name?.slice(0, 2)}</AvatarFallback>
+          </Avatar>
+          <div>
+            <h2 className="text-white font-semibold">{mainCharacter.name}</h2>
+            <p className="text-[#43e97b] text-xs">Online now</p>
           </div>
         </div>
-      )}
-
-      {/* Messages */}
-      <ScrollArea className="flex-1 p-3 sm:p-4">
-        <div className="space-y-3 sm:space-y-4 max-w-3xl md:max-w-4xl mx-auto">
-          {sessionMessages.length === 0 ? (
-            <div className="text-center text-muted-foreground py-12">
-              <ChatCircle size={32} className="mx-auto mb-4 opacity-50" />
-              <p>No messages yet. Start the conversation!</p>
-            </div>
-          ) : (
-            sessionMessages.map((msg: any) => {
-              const sender = characters?.find(c => c.id === msg.characterId);
-              const isUser = !msg.characterId; // User messages have null characterId
-              const isSystem = typeof msg.content === 'string' && msg.content.startsWith('[System] ');
-              const img = !isSystem ? parseImageFromContent(String(msg.content || '')) : { isImage: false };
-
-              return (
-                <div key={msg.id} className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
-                  {!isUser && (
-                    <Avatar className="w-8 h-8 flex-shrink-0 shadow-sm">
-                      <AvatarImage src={sender?.avatar} alt={sender?.name} />
-                      <AvatarFallback className="text-xs">
-                        {sender?.name?.slice(0, 2) || '?'}
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
-
-                  <div className={`group relative max-w-[75%] sm:max-w-[70%] ${isUser ? 'order-first' : ''}`}>
-                    {!isUser && sender && !isSystem && (
-                      <div className="text-xs text-muted-foreground mb-1">
-                        {sender.name}
-                      </div>
-                    )}
-
-                    {isSystem ? (
-                      <div className="rounded-md px-3 py-2 bg-amber-100 text-amber-900 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-200 dark:border-amber-800">
-                        <p className="text-xs whitespace-pre-wrap">{msg.content.replace('[System] ', '')}</p>
-                      </div>
-                    ) : (
-                      <div
-                        className={`rounded-2xl px-3 py-2 shadow ${
-                          isUser
-                            ? 'bg-blue-600 text-white dark:bg-blue-500'
-                            : 'bg-white border border-zinc-200 dark:bg-zinc-800 dark:border-zinc-700'
-                        }`}
-                        onDoubleClick={() => toggleReaction(msg.id, '❤️')}
-                      >
-                        {img.isImage && img.src ? (
-                          <div className="overflow-hidden rounded-xl mb-1">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={img.src} alt={img.caption || 'image'} className="max-h-96 w-full object-cover" />
-                          </div>
-                        ) : null}
-                        {(!img.isImage || (img.caption && img.caption.length > 0)) && (
-                          <p className="text-sm whitespace-pre-wrap">{img.isImage ? img.caption : msg.content}</p>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className="text-[11px] text-muted-foreground">
-                        {new Date(msg.timestamp).toLocaleTimeString()}
-                        {isUser && msg === sessionMessages[lastUserIndex] && (
-                          <span className="ml-2">{seenAfterLastUser ? 'Seen' : 'Delivered'}</span>
-                        )}
-                      </div>
-                      {/* Reactions strip */}
-                      {reactions[msg.id] && Object.keys(reactions[msg.id]).length > 0 && (
-                        <div className="flex items-center gap-1 text-xs rounded-full px-2 py-0.5 bg-white border border-zinc-200 shadow-sm dark:bg-zinc-800 dark:border-zinc-700">
-                          {Object.entries(reactions[msg.id]).map(([emoji, count]) => (
-                            <span key={emoji} className="inline-flex items-center gap-1">
-                              <span>{emoji}</span>
-                              <span className="text-[10px] text-muted-foreground">{count}</span>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Quick reaction picker on hover */}
-                    {!isSystem && (
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -right-2 -top-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-full shadow px-2 py-0.5 text-sm">
-                        {['❤️','😂','👍','😮'].map(e => (
-                          <button key={e} className="mx-0.5" onClick={() => toggleReaction(msg.id, e)} aria-label={`React ${e}`}>
-                            {e}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {isUser && (
-                    <Avatar className="w-8 h-8 flex-shrink-0">
-                      <AvatarFallback className="text-xs">You</AvatarFallback>
-                    </Avatar>
-                  )}
-                </div>
-              );
-            })
-          )}
-          {/* Typing indicator */}
-          {isTyping && sessionCharacters.length > 0 && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground pl-10">
-              <div className="w-6 h-6 rounded-full bg-white border border-zinc-200 dark:bg-zinc-800 dark:border-zinc-700 flex items-center justify-center shadow-sm">
-                <span className="inline-flex">
-                  <span className="w-1 h-1 bg-zinc-400 rounded-full animate-bounce [animation-delay:-.3s] mr-0.5"></span>
-                  <span className="w-1 h-1 bg-zinc-400 rounded-full animate-bounce [animation-delay:-.15s] mr-0.5"></span>
-                  <span className="w-1 h-1 bg-zinc-400 rounded-full animate-bounce"></span>
-                </span>
-              </div>
-              <span>{sessionCharacters[0].name}{sessionCharacters.length > 1 ? ' and others' : ''} are typing…</span>
-            </div>
-          )}
-        </div>
-      </ScrollArea>
-
-      {/* Message Input */}
-      <div className="p-3 sm:p-4 border-t bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/40 dark:bg-zinc-900/60">
-        <div className="max-w-3xl md:max-w-4xl mx-auto flex gap-2">
-          <Input
-            placeholder="Type your message..."
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            disabled={isSending}
-            className="flex-1 bg-white dark:bg-zinc-800"
-          />
-          <Button
-            onClick={handleSendMessage}
-            disabled={!message.trim() || isSending}
-            size="sm"
-          >
-            {isSending ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            ) : (
-              <PaperPlane size={16} />
-            )}
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm">
+            <ChatCircle size={16} className="text-gray-400" />
+          </Button>
+          <Button variant="ghost" size="sm">
+            <CheckCircle size={16} className="text-gray-400" />
           </Button>
         </div>
+      </div>
+
+      {/* Stats Bar */}
+      <div className="bg-neutral-800 h-[34px] border-b border-gray-700 shadow-[0px_-1px_22.6px_0px_#ff1372] flex items-center justify-center px-3 flex-shrink-0">
+        <div className="flex items-center justify-between w-full max-w-[358px] text-xs">
+          {/* Love */}
+          <div className="flex items-center gap-2">
+            <Heart size={14} className="text-red-400" />
+            <span className="text-gray-300">Love</span>
+            <div className="w-8 h-1.5 bg-gray-600 rounded-full">
+              <div className="w-5 h-1.5 bg-gradient-to-r from-red-400 to-[#ff1372] rounded-full"></div>
+            </div>
+            <span className="text-red-400 font-semibold">{stats.love}%</span>
+          </div>
+          
+          {/* Wet */}
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3.5 bg-blue-400 rounded-sm"></div>
+            <span className="text-gray-300">Wet</span>
+            <div className="w-8 h-1.5 bg-gray-600 rounded-full">
+              <div className="w-3 h-1.5 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full"></div>
+            </div>
+            <span className="text-blue-400 font-semibold">{stats.wet}%</span>
+          </div>
+          
+          {/* Trust */}
+          <div className="flex items-center gap-2">
+            <Crown size={14} className="text-green-400" />
+            <span className="text-gray-300">Trust</span>
+            <div className="w-8 h-1.5 bg-gray-600 rounded-full">
+              <div className="w-6 h-1.5 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full"></div>
+            </div>
+            <span className="text-green-400 font-semibold">{stats.trust}%</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Content Area */}
+      <div className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full p-4">
+          {/* Character Profile */}
+          <div className="space-y-6">
+            {/* Main Avatar and Info */}
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="relative">
+                <Avatar className="w-32 h-32 border-4 border-[#667eea]">
+                  <AvatarImage src={mainCharacter.avatar} alt={mainCharacter.name} />
+                  <AvatarFallback className="text-2xl">{mainCharacter.name?.slice(0, 2)}</AvatarFallback>
+                </Avatar>
+                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-[#43e97b] rounded-full border-4 border-[#1a1a1a] flex items-center justify-center">
+                  <CheckCircle size={12} className="text-white" />
+                </div>
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-white">{mainCharacter.name}</h1>
+                <p className="text-[#667eea]">Age 26</p>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="bg-[rgba(38,38,38,0.6)] rounded-xl p-4 border border-[rgba(55,65,81,0.3)]">
+              <div className="flex items-center gap-2 mb-3">
+                <User size={18} className="text-white" />
+                <h3 className="text-white font-semibold">Description</h3>
+              </div>
+              <p className="text-gray-300 text-sm leading-relaxed">
+                {mainCharacter.description || "Sarah is a talented UX/UI designer with a passion for creating beautiful and functional digital experiences. She has a warm personality and loves working with innovative teams. Her creative mind is always buzzing with new ideas, and she approaches every project with enthusiasm and dedication."}
+              </p>
+            </div>
+
+            {/* Appearance */}
+            <div className="bg-[rgba(38,38,38,0.6)] rounded-xl p-4 border border-[rgba(55,65,81,0.3)]">
+              <div className="flex items-center gap-2 mb-3">
+                <User size={18} className="text-white" />
+                <h3 className="text-white font-semibold">Appearance</h3>
+              </div>
+              <p className="text-gray-300 text-sm leading-relaxed mb-3">
+                {mainCharacter.appearance || "Sarah has long, silky black hair that cascades down to her shoulders. Her expressive brown eyes sparkle with intelligence and warmth. She has a petite frame and carries herself with confidence and grace."}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary" className="bg-[rgba(102,126,234,0.2)] text-[#667eea] border-none">Petite</Badge>
+                <Badge variant="secondary" className="bg-[rgba(236,72,153,0.2)] text-[#ff1372] border-none">Brown Eyes</Badge>
+                <Badge variant="secondary" className="bg-[rgba(79,172,254,0.2)] text-[#4facfe] border-none">Black Hair</Badge>
+                <Badge variant="secondary" className="bg-[rgba(67,233,123,0.2)] text-[#43e97b] border-none">Elegant</Badge>
+              </div>
+            </div>
+
+            {/* Personality */}
+            <div className="bg-[rgba(38,38,38,0.6)] rounded-xl p-4 border border-[rgba(55,65,81,0.3)]">
+              <div className="flex items-center gap-2 mb-3">
+                <Heart size={18} className="text-white" />
+                <h3 className="text-white font-semibold">Personality</h3>
+              </div>
+              <p className="text-gray-300 text-sm leading-relaxed mb-3">
+                {mainCharacter.personality || "Sarah is naturally curious and loves learning new things. She's empathetic and always tries to understand others' perspectives. Her creative nature makes her approach problems from unique angles, and she has a gentle but determined personality."}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary" className="bg-[rgba(102,126,234,0.2)] text-[#667eea] border-none">Creative</Badge>
+                <Badge variant="secondary" className="bg-[rgba(236,72,153,0.2)] text-[#ff1372] border-none">Empathetic</Badge>
+                <Badge variant="secondary" className="bg-[rgba(79,172,254,0.2)] text-[#4facfe] border-none">Curious</Badge>
+                <Badge variant="secondary" className="bg-[rgba(67,233,123,0.2)] text-[#43e97b] border-none">Determined</Badge>
+                <Badge variant="secondary" className="bg-[rgba(250,112,154,0.2)] text-[#fa709a] border-none">Gentle</Badge>
+              </div>
+            </div>
+
+            {/* Character Stats */}
+            <div className="bg-[rgba(38,38,38,0.6)] rounded-xl p-4 border border-[rgba(55,65,81,0.3)]">
+              <h3 className="text-white font-semibold mb-4">Character Stats</h3>
+              <div className="space-y-3">
+                {Object.entries(stats).map(([key, value]) => (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="text-gray-300 text-xs capitalize">{key}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-12 h-1.5 bg-[rgba(55,65,81,0.5)] rounded-full">
+                        <div 
+                          className={`h-1.5 rounded-full ${
+                            key === 'confidence' ? 'bg-[#667eea]' :
+                            key === 'intelligence' ? 'bg-[#4facfe]' :
+                            key === 'creativity' ? 'bg-[#ff1372]' :
+                            key === 'humor' ? 'bg-[#43e97b]' :
+                            key === 'kindness' ? 'bg-[#fa709a]' :
+                            'bg-red-400'
+                          }`}
+                          style={{ width: `${(value / 100) * 100}%` }}
+                        ></div>
+                      </div>
+                      <span className={`text-xs font-semibold ${
+                        key === 'confidence' ? 'text-[#667eea]' :
+                        key === 'intelligence' ? 'text-[#4facfe]' :
+                        key === 'creativity' ? 'text-[#ff1372]' :
+                        key === 'humor' ? 'text-[#43e97b]' :
+                        key === 'kindness' ? 'text-[#fa709a]' :
+                        'text-red-400'
+                      }`}>{value}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* History */}
+            <div className="bg-[rgba(38,38,38,0.6)] rounded-xl p-4 border border-[rgba(55,65,81,0.3)]">
+              <h3 className="text-white font-semibold mb-4">History</h3>
+              
+              {/* Story Summary */}
+              <div className="bg-[rgba(15,15,15,0.7)] rounded-lg p-3 mb-4">
+                <h4 className="text-[#667eea] text-sm font-medium mb-2">Story Summary</h4>
+                <p className="text-gray-300 text-xs leading-relaxed">
+                  Sarah joined the creative community 6 months ago. She's been working on building her portfolio and 
+                  has shown remarkable growth in her design skills. Recently, she's been more open about sharing her 
+                  personal thoughts and experiences.
+                </p>
+              </div>
+
+              {/* Timeline */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 bg-[#43e97b] rounded-full flex items-center justify-center">
+                    <CheckCircle size={12} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="text-gray-300 text-xs">Shared her first personal design project</p>
+                    <p className="text-gray-500 text-xs">3 days ago</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 bg-[#667eea] rounded-full flex items-center justify-center">
+                    <ChatCircle size={12} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="text-gray-300 text-xs">Had a deep conversation about creative inspiration</p>
+                    <p className="text-gray-500 text-xs">1 week ago</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 bg-[#ff1372] rounded-full flex items-center justify-center">
+                    <Heart size={12} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="text-gray-300 text-xs">Reached a milestone in trust level</p>
+                    <p className="text-gray-500 text-xs">2 weeks ago</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ScrollArea>
+      </div>
+
+      {/* Bottom Navigation */}
+      <div className="bg-[rgba(26,26,26,0.95)] h-[89px] border-t border-gray-700 px-3 flex items-center justify-center flex-shrink-0">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid grid-cols-5 bg-transparent h-16 gap-2">
+            <TabsTrigger 
+              value="profile" 
+              className={`flex flex-col items-center gap-1 h-16 rounded-lg ${
+                activeTab === 'profile' 
+                  ? 'bg-[rgba(255,19,145,0.16)] text-[#ff1372]' 
+                  : 'text-gray-400'
+              }`}
+            >
+              <User size={18} />
+              <span className="text-xs">Profile</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="chat" 
+              className="flex flex-col items-center gap-1 h-16 rounded-lg text-gray-400"
+              onClick={() => onStartChat?.(mainCharacter.id)}
+            >
+              <ChatCircle size={18} />
+              <span className="text-xs">Chat</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="feed" 
+              className="flex flex-col items-center gap-1 h-16 rounded-lg text-gray-400"
+            >
+              <Heart size={18} />
+              <span className="text-xs">Feed</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="stats" 
+              className="flex flex-col items-center gap-1 h-16 rounded-lg text-gray-400"
+            >
+              <ChartBar size={18} />
+              <span className="text-xs">Stats</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="settings" 
+              className="flex flex-col items-center gap-1 h-16 rounded-lg text-gray-400"
+            >
+              <Gear size={18} />
+              <span className="text-xs">Settings</span>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
     </div>
   );

@@ -16,45 +16,21 @@ export function Layout({ children, currentView, onStartChat, onStartGroupChat, o
   const isMobile = useIsMobile();
 
   if (isMobile) {
-    // Mobile layout - single column with bottom nav or drawer, device-like dark style
+    // Mobile layout - single column with device-like appearance
     return (
-      <div className="flex flex-col h-screen bg-black text-white">
+      <div className="flex flex-col h-screen bg-[#0f0f0f] text-white">
         {/* Debug Status */}
         {dbStatus && (
           <div className="fixed top-2 right-2 z-50 bg-black/80 text-white px-2 py-1 rounded text-xs font-mono">
             {dbStatus}
           </div>
         )}
-        {/* Main Content */}
-        <div className="flex-1 overflow-hidden bg-[#18181b] rounded-t-2xl shadow-xl mx-0 mt-0">
+        {/* Main Content - Full Screen Mobile */}
+        <div className="flex-1 overflow-hidden bg-[#0f0f0f]">
           {children}
         </div>
         {/* Mobile Navigation */}
-        <div className="border-t border-zinc-800 bg-[#101014] rounded-b-2xl shadow-xl p-0">
-          <div className="p-2">
-            <Sidebar 
-              onStartChat={onStartChat}
-              onStartGroupChat={onStartGroupChat}
-              onStartScene={onStartScene}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Desktop layout - three columns, device-like dark style
-  return (
-    <div className="flex h-screen bg-black text-white">
-      {/* Debug Status */}
-      {dbStatus && (
-        <div className="fixed top-2 right-2 z-50 bg-black/80 text-white px-2 py-1 rounded text-xs font-mono">
-          {dbStatus}
-        </div>
-      )}
-      {/* Main Sidebar */}
-  <div className="w-[24rem] flex-shrink-0 overflow-hidden p-2">
-        <div className="h-full rounded-2xl shadow-xl bg-[#18181b] border border-zinc-800 flex flex-col">
+        <div className="border-t border-gray-700 bg-[#1a1a1a] p-4">
           <Sidebar 
             onStartChat={onStartChat}
             onStartGroupChat={onStartGroupChat}
@@ -62,21 +38,42 @@ export function Layout({ children, currentView, onStartChat, onStartGroupChat, o
           />
         </div>
       </div>
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col p-2">
-        <div className="h-full rounded-2xl shadow-xl bg-[#18181b] border border-zinc-800 flex flex-col">
+    );
+  }
+
+  // Desktop layout - three columns matching Figma design
+  return (
+    <div className="flex h-screen bg-[#0f0f0f] text-white">
+      {/* Debug Status */}
+      {dbStatus && (
+        <div className="fixed top-2 right-2 z-50 bg-black/80 text-white px-2 py-1 rounded text-xs font-mono">
+          {dbStatus}
+        </div>
+      )}
+      
+      {/* Left Sidebar - User List & Navigation */}
+      <div className="w-[320px] flex-shrink-0 bg-[#1a1a1a] border-r border-gray-700">
+        <Sidebar 
+          onStartChat={onStartChat}
+          onStartGroupChat={onStartGroupChat}
+          onStartScene={onStartScene}
+        />
+      </div>
+      
+      {/* Center - Mobile Device Mockup */}
+      <div className="flex-1 flex items-center justify-center bg-[#0f0f0f]">
+        <div className="w-[440px] h-[760px] bg-[#1a1a1a] rounded-[24px] border border-gray-700 shadow-[0px_0px_20px_0px_rgba(102,126,234,0.3)] overflow-hidden">
           {children}
         </div>
       </div>
-      {/* Copilot Sidebar */}
-  <div className="w-80 flex-shrink-0 overflow-hidden p-2">
-        <div className="h-full rounded-2xl shadow-xl bg-[#18181b] border border-zinc-800 flex flex-col">
-          <Copilot 
-            onStartChat={onStartChat}
-            onStartGroupChat={onStartGroupChat}
-            onStartScene={onStartScene}
-          />
-        </div>
+      
+      {/* Right Sidebar - AI Copilot */}
+      <div className="w-[320px] flex-shrink-0 bg-[#1a1a1a] border-l border-gray-700">
+        <Copilot 
+          onStartChat={onStartChat}
+          onStartGroupChat={onStartGroupChat}
+          onStartScene={onStartScene}
+        />
       </div>
     </div>
   );
