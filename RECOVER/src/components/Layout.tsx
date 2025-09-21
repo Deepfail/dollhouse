@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
-// import { CopilotRedesigned as Copilot } from './CopilotRedesigned';
+import { CopilotRedesigned as Copilot } from './CopilotRedesigned';
 
 interface LayoutProps {
   children: ReactNode;
@@ -27,14 +27,14 @@ export function Layout({ children, currentView, onStartChat, onStartGroupChat, o
         {children}
       </div>
       
-      {/* Copilot Sidebar - temporarily disabled during migration */}
-      {/* <div className="w-80 border-l border-border flex-shrink-0">
+      {/* Copilot Sidebar */}
+      <div className="w-80 border-l border-border flex-shrink-0">
         <Copilot 
           onStartChat={onStartChat}
           onStartGroupChat={onStartGroupChat}
           onStartScene={onStartScene}
         />
-      </div> */}
+      </div>
     </div>
   );
 }
