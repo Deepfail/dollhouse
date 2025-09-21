@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getSetting, setSetting, listSettings, deleteSetting } from '@/repo/settings';
 import { queryClient, queryKeys } from '@/lib/query';
+import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
 
 export function useSettings() {
@@ -19,7 +20,7 @@ export function useSettings() {
       queryClient.invalidateQueries({ queryKey: queryKeys.settings.all });
     },
     onError: (error: Error) => {
-      console.error('Error setting value:', error);
+  logger.error('Error setting value:', error);
       toast.error('Failed to save setting');
     },
   });
@@ -30,7 +31,7 @@ export function useSettings() {
       queryClient.invalidateQueries({ queryKey: queryKeys.settings.all });
     },
     onError: (error: Error) => {
-      console.error('Error deleting setting:', error);
+  logger.error('Error deleting setting:', error);
       toast.error('Failed to delete setting');
     },
   });

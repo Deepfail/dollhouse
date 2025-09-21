@@ -42,6 +42,7 @@ import {
 } from '@phosphor-icons/react';
 
 import { Character } from '@/types';
+import { logger } from '@/lib/logger';
 import { useFileStorage } from '@/hooks/useFileStorage';
 import { useChat } from '@/hooks/useChat';
 import { useRelationshipDynamics } from '@/hooks/useRelationshipDynamics';
@@ -241,7 +242,7 @@ export function CharacterCard({
       
       // Could add toast notification here if available
     } catch (error) {
-      console.error('Download error:', error);
+  logger.error('Download error:', error);
     }
   };
 
@@ -292,7 +293,7 @@ export function CharacterCard({
         });
       }
     } catch (error) {
-      console.error('Error sending DM:', error);
+  logger.error('Error sending DM:', error);
       toast.error('Failed to send message');
     } finally {
       setIsSendingMessage(false);
@@ -334,7 +335,7 @@ export function CharacterCard({
         toast.success('Image created successfully!');
       }
     } catch (error) {
-      console.error('Image creation error:', error);
+  logger.error('Image creation error:', error);
     } finally {
       setIsCreatingImage(false);
     }
@@ -412,10 +413,10 @@ Return only the image prompt, nothing else.`;
         }
         // Could add toast notification here if available
       } else {
-        console.error('Failed to generate image prompt');
+  logger.error('Failed to generate image prompt');
       }
     } catch (error) {
-      console.error('Error generating image prompt:', error);
+  logger.error('Error generating image prompt:', error);
     } finally {
       setIsGeneratingImagePrompt(false);
     }
@@ -609,7 +610,7 @@ Return only the image prompt, nothing else.`;
                   {/* Character Profile Header - Prominent Image and START Button */}
                   <Card className="p-6 bg-gradient-to-br from-white via-gray-50 to-white dark:from-gray-800 dark:via-gray-900 dark:to-gray-800 border-0 shadow-xl">
                     <div className="flex flex-col items-center text-center mb-6">
-                      <Avatar className="w-32 h-32 border-4 border-white shadow-xl ring-4 ring-primary/20 mb-4">
+                      <Avatar className="w-32 h-32 border-4 border-[rgba(255,255,255,0.06)] shadow-xl ring-4 ring-primary/20 mb-4">
                         <AvatarImage src={character.avatar} alt={character.name} />
                         <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-white text-3xl font-bold">
                           {character.name.slice(0, 2).toUpperCase()}

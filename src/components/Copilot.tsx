@@ -3,18 +3,22 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import {
-    Robot,
-    Lightning,
-    ChartBar,
-    Users,
-    Gift,
-    PaperPlaneRight,
-    Sparkle,
-    TrendUp,
-    MagnifyingGlass,
-    Lightbulb
+  Robot,
+  Users,
+  Gift,
+  PaperPlaneRight,
+  Sparkle,
+  // MagnifyingGlass,
+  // Lightbulb,
+  Plus,
+  FloppyDisk
 } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { Character } from '@/types';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { useChat } from '@/hooks/useChat';
+import { useQuickActions } from '@/hooks/useQuickActions';
+import { CharacterCreatorRepo } from './CharacterCreatorRepo';
 
 interface CopilotProps {
   onStartChat?: (characterId: string) => void;
@@ -22,8 +26,21 @@ interface CopilotProps {
   onStartScene?: (sessionId: string) => void;
 }
 
+type Message = {
+  id: string;
+  sender: 'copilot' | 'user';
+  content: string;
+  timestamp: string;
+  suggestions?: string[];
+  recommendations?: unknown[];
+};
+
 export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: CopilotProps) {
+  const { characters } = useHouseFileStorage();
+
   const [inputMessage, setInputMessage] = useState('');
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | undefined>(undefined);
 
   const insights = {
     engagement: 87,
@@ -31,85 +48,110 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
     growthRate: 74
   };
 
-  const quickActions = [
-    { icon: Sparkle, label: 'Generate creative content' },
-    { icon: TrendUp, label: 'Analyze engagement trends' },
-    { icon: MagnifyingGlass, label: 'Find similar profiles' },
-    { icon: Lightbulb, label: 'Get post ideas' }
-  ];
+  // (removed unused quickActions in favor of explicit action buttons)
 
-  const messages = [
+  const initialMessages: Message[] = [
     {
       id: '1',
-      sender: 'copilot' as const,
-      content: "Hello! I'm your AI assistant. How can I help you improve your social media presence today?",
+      sender: 'copilot',
+      content: "Hello! I'm your AI assistant. How can I help you today?",
       timestamp: 'Just now'
-    },
-    {
-      id: '2',
-      sender: 'user' as const,
-      content: "Can you help me write a caption for my latest design post?",
-      timestamp: '2 min ago'
-    },
-    {
-      id: '3',
-      sender: 'copilot' as const,
-      content: "Absolutely! Here are some engaging caption ideas for your design post:",
-      timestamp: '1 min ago',
-      suggestions: [
-        "✨ When pixels meet passion. What do you think of this latest creation?",
-        "🎨 Another late night, another design breakthrough. The creative process never stops!"
-      ]
-    },
-    {
-      id: '4',
-      sender: 'copilot' as const,
-      content: "Based on your recent activity, here are some personalized recommendations:",
-      timestamp: '30 sec ago',
-      recommendations: [
-        {
-          type: 'optimal',
-          title: 'OPTIMAL POSTING',
-          content: 'Best time to post: 2-4 PM today for maximum engagement',
-          color: 'bg-[rgba(102,126,234,0.1)] border-[#667eea]'
-        },
-        {
-          type: 'trending',
-          title: 'TRENDING TAGS', 
-          content: '#DesignInspiration #UIDesign #CreativeProcess',
-          color: 'bg-[rgba(240,147,251,0.1)] border-[#ff1372]'
-        }
-      ]
     }
   ];
 
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const { createSession, sendMessage, activeSessionId, setActiveSessionId } = useChat();
+  const { executeAction } = useQuickActions();
+
   const handleSendMessage = () => {
     if (!inputMessage.trim()) return;
-    // Handle sending message
+    const content = inputMessage.trim();
     setInputMessage('');
+
+    (async () => {
+      try {
+        // Ensure session exists
+        let sessionId = activeSessionId;
+        if (!sessionId) {
+          const participants = selectedCharacterId ? [selectedCharacterId] : [];
+          sessionId = await createSession(participants.length ? 'individual' : 'scene', participants);
+          setActiveSessionId(sessionId);
+        }
+
+        // Send via hook (persists to DB and triggers server-side generation)
+        await sendMessage(sessionId!, content, 'user');
+
+        // Optimistic UI: append user message locally
+        const userMsg = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2,9)}`,
+          sender: 'user' as const,
+          content,
+          timestamp: 'Just now'
+        };
+        setMessages((m) => [...m, userMsg]);
+
+        // Return focus to input for quick follow-ups
+  try { inputRef.current?.focus(); } catch { /* ignore focus errors */ }
+      } catch (e) {
+        try { (globalThis as any).logger?.error?.('Failed sending message via useChat', e); } catch {}
+        setMessages((m) => [...m, { id: `${Date.now()}-err`, sender: 'copilot', content: 'Failed to send message', timestamp: 'Now' }]);
+      }
+    })();
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
 
+  // Auto-scroll messages container when new messages arrive
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    try {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    } catch {
+      try { (globalThis as any).logger?.warn?.('Scroll failed'); } catch {}
+    }
+  }, [messages]);
+
   return (
     <div className="h-full flex flex-col bg-[#1a1a1a] text-white border-l border-gray-700">
       {/* Header */}
-      <div className="p-6 border-b border-gray-700">
+      <div className="p-4 border-b border-gray-700">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-[#4facfe] to-[#667eea] flex items-center justify-center">
-            <Robot size={20} className="text-white" />
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-[#4facfe] to-[#667eea] flex items-center justify-center">
+            <Robot size={18} className="text-white" />
           </div>
           <div>
-            <h2 className="text-xl font-semibold text-white">AI Copilot</h2>
-            <p className="text-sm text-gray-400">Your smart assistant</p>
+            <h2 className="text-lg font-semibold text-white">House Assistant</h2>
+            <p className="text-xs text-gray-400">Help with characters, scenes, and edits</p>
           </div>
-          <div className="ml-auto">
-            <div className="w-3 h-3 bg-[#43e97b] rounded-full opacity-70"></div>
+
+          <div className="ml-auto flex items-center gap-2">
+            <select
+              aria-label="Select character to edit"
+              value={selectedCharacterId || ''}
+              onChange={(e) => setSelectedCharacterId(e.target.value || undefined)}
+              className="bg-[#0f0f0f] text-sm text-gray-300 rounded px-2 py-1 border border-gray-700"
+            >
+              <option value="">Select character...</option>
+                {((characters || []) as Character[]).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+            </select>
+            <Button size="sm" variant="ghost" onClick={() => setEditorOpen(true)} aria-label="Create character">
+              <Plus size={14} />
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => {
+              if (selectedCharacterId) setEditorOpen(true);
+            }} aria-label="Edit selected character" disabled={!selectedCharacterId}>
+              <FloppyDisk size={14} />
+            </Button>
           </div>
         </div>
       </div>
@@ -161,68 +203,52 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
 
       {/* Quick Actions */}
       <div className="p-4 border-b border-gray-700">
-        <h3 className="text-sm font-semibold text-gray-400 mb-4">QUICK ACTIONS</h3>
-        <div className="space-y-2">
-          {quickActions.map((action, index) => (
-            <Button
-              key={index}
-              variant="ghost"
-              className="w-full justify-start h-11 bg-neutral-800 hover:bg-neutral-700 text-gray-300 hover:text-white"
-            >
-              <action.icon size={14} className="mr-3" />
-              <span className="text-sm">{action.label}</span>
-            </Button>
-          ))}
+        <h3 className="text-sm font-semibold text-gray-400 mb-3">QUICK ACTIONS</h3>
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="outline" size="sm" className="justify-start" onClick={async () => {
+            try {
+              if (!selectedCharacterId) return onStartChat?.('');
+              const sid = await createSession('individual', [selectedCharacterId]);
+              setActiveSessionId(sid);
+              onStartChat?.(selectedCharacterId);
+            } catch (e) {
+              globalThis.console?.error?.('Failed to start chat session', e);
+            }
+          }} aria-label="Start chat">
+            <PaperPlaneRight size={14} className="mr-2" /> Chat
+          </Button>
+          <Button variant="outline" size="sm" className="justify-start" onClick={() => onStartGroupChat?.('')} aria-label="Start group chat">
+            <Users size={14} className="mr-2" /> Group
+          </Button>
+          <Button variant="outline" size="sm" className="justify-start" onClick={() => onStartScene?.('')} aria-label="Start scene">
+            <Sparkle size={14} className="mr-2" /> Scene
+          </Button>
+          <Button variant="outline" size="sm" className="justify-start" onClick={() => executeAction('gather-all')} aria-label="Gather all characters">
+            <Gift size={14} className="mr-2" /> Gather
+          </Button>
         </div>
       </div>
 
-      {/* Chat Messages */}
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-4">
+      {/* Chat Messages - make this area flexible and allow internal scrolling behind the sticky input */}
+      <ScrollArea className="flex-1 min-h-0">
+        <div ref={scrollRef} className="p-4 pb-28 space-y-4">
           {messages.map((message) => (
-            <div key={message.id} className="flex gap-3">
+            <div key={message.id} className="flex gap-3 items-start">
               {message.sender === 'copilot' && (
                 <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#4facfe] to-[#667eea] flex items-center justify-center flex-shrink-0">
                   <Robot size={12} className="text-white" />
                 </div>
               )}
               
-              <div className={`flex-1 ${message.sender === 'user' ? 'order-first' : ''}`}>
-                <div className={`rounded-xl p-3 ${
+              <div className={`flex-1 ${message.sender === 'user' ? 'text-right' : ''}`}>
+                <div className={`inline-block rounded-xl p-3 ${
                   message.sender === 'user' 
-                    ? 'bg-gradient-to-r from-[#ff5a5d] to-[#ff1372] text-white ml-12' 
+                    ? 'bg-gradient-to-r from-[#ff5a5d] to-[#ff1372] text-white' 
                     : 'bg-neutral-800 text-gray-300'
-                }`}>
+                }`}> 
                   <p className="text-sm">{message.content}</p>
-                  
-                  {/* Suggestions */}
-                  {message.suggestions && (
-                    <div className="mt-3 space-y-2">
-                      {message.suggestions.map((suggestion, index) => (
-                        <div key={index} className="bg-[#0f0f0f] rounded-lg p-2">
-                          <p className="text-xs text-gray-300">{suggestion}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Recommendations */}
-                  {message.recommendations && (
-                    <div className="mt-3 space-y-2">
-                      {message.recommendations.map((rec, index) => (
-                        <div key={index} className={`rounded-lg p-3 border ${rec.color}`}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Lightbulb size={12} />
-                            <span className="text-xs font-semibold text-[#667eea]">{rec.title}</span>
-                          </div>
-                          <p className="text-xs text-gray-300">{rec.content}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
-                
-                <div className="text-xs text-gray-500 mt-1 px-3">
+                <div className="text-xs text-gray-500 mt-1">
                   {message.timestamp}
                 </div>
               </div>
@@ -235,15 +261,17 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
         </div>
       </ScrollArea>
 
-      {/* Input Area */}
-      <div className="p-4 border-t border-gray-700">
+      {/* Input Area - sticky to bottom so it's always visible while messages scroll */}
+      <div className="sticky bottom-0 bg-[#1a1a1a] p-4 border-t border-gray-700 z-20">
         <div className="relative">
           <Input
+            ref={inputRef}
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Ask your AI copilot..."
-            className="pr-12 bg-gray-200 border-gray-600 text-black placeholder-gray-600"
+            placeholder="Ask your House Assistant..."
+            aria-label="Ask the house assistant"
+            className="pr-12 bg-[#0f0f0f] border border-gray-700 text-white placeholder-gray-500"
           />
           <Button
             size="sm"
@@ -261,6 +289,15 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
           <div className="w-2 h-2 bg-[#4facfe] rounded-full opacity-90"></div>
         </div>
       </div>
+      {/* Character Editor Drawer wired to quick actions */}
+      <CharacterCreatorRepo
+        open={editorOpen}
+        onOpenChange={(v) => {
+          setEditorOpen(v);
+          if (!v) setSelectedCharacterId(undefined);
+        }}
+        character={((characters || []) as Character[]).find((c) => c.id === selectedCharacterId)}
+      />
     </div>
   );
 }

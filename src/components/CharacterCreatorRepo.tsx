@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,6 +14,7 @@ import { Character } from '@/types';
 import { FloppyDisk, Plus, Sparkle, X } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 
 interface CharacterCreatorRepoProps {
@@ -233,7 +234,7 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
         }
         setAvailableAppearanceTags(list);
       } catch (e) {
-        console.error('Failed to load appearance tags', e);
+  logger.error('Failed to load appearance tags', e);
       }
     };
     if (open) loadTags();
@@ -251,7 +252,7 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
         setAvailableAppearanceTags(list);
       }
     } catch (e) {
-      console.error('Failed to save appearance tag', e);
+  logger.error('Failed to save appearance tag', e);
     }
   };
 
@@ -423,8 +424,9 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
 
       toast.success('Character details generated successfully!');
     } catch (error) {
-      console.error('Error generating character:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to generate character details');
+  logger.error('Error generating character:', error);
+  logger.error('Error generating character:', error);
+  toast.error(error instanceof Error ? error.message : 'Failed to generate character details');
     } finally {
       setIsGenerating(false);
     }
@@ -494,7 +496,7 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
       }
     }
 
-    if (isEditing) {
+  if (isEditing) {
       // Map repo-style fields back to in-app Character model for updates
       const physicalStatsFromTraits = isMale ? (character?.physicalStats || undefined) : {
         hairColor: formData.traits.hairColor ?? (character?.physicalStats?.hairColor ?? ''),
@@ -528,7 +530,15 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
         role: isMale ? 'guest' : (character?.role || 'companion'),
       } as Partial<Character>;
 
-      await updateCharacter((character as Character).id, updates);
+      const ok = await updateCharacter((character as Character).id, updates);
+      if (ok) {
+        toast.success('Character updated');
+        onOpenChange(false);
+        return;
+      } else {
+        toast.error('Failed to update character');
+        return;
+      }
     } else {
       const newCharacter: Character = {
         id: crypto.randomUUID(),
@@ -591,7 +601,7 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
         try {
           const { useFileStorage } = await import('@/hooks/useFileStorage');
           // dynamically use the hook is not possible here; instead call repository storage for defaults
-        } catch {}
+        } catch (e) { logger.warn('Could not dynamically import useFileStorage:', e); }
         try {
           // Manually append to generated-images.json using the storage helper
           const { getDb, saveDatabase } = await import('@/lib/db');
@@ -630,21 +640,39 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
             await saveDatabase();
           }
         } catch (e) {
-          console.warn('Failed to append initial feed post:', e);
+          logger.warn('Failed to append initial feed post:', e);
         }
+        toast.success('Character created');
+        onOpenChange(false);
+        return;
+      } else {
+        toast.error('Failed to create character');
+        return;
       }
     }
-    onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto overscroll-contain w-[95vw] max-w-none sm:w-[92vw] md:w-[88vw] lg:w-[80vw] xl:w-[75vw] bg-gray-900 text-white" style={{ backgroundColor: '#1a1a1a', color: '#ffffff' }}>
-        <DialogHeader>
-          <DialogTitle className="text-white">
-            {isEditing ? `Edit ${character?.name}` : 'Create New Character'}
-          </DialogTitle>
-        </DialogHeader>
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent className="bg-[#0f0f10] text-white sm:max-w-[520px] w-full p-6 max-h-[92vh] overflow-auto" data-vaul-drawer-direction="right">
+          <DrawerHeader>
+            <div className="flex items-center justify-between w-full gap-4">
+              <div>
+                <DrawerTitle className="text-white text-2xl leading-tight">
+                  {isEditing ? `Edit ${character?.name}` : 'Create New Character'}
+                </DrawerTitle>
+                <div className="text-sm text-muted-foreground">Update profile, appearance, and AI prompts</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={() => {
+                  setIsGenerating(true);
+                  setTimeout(() => setIsGenerating(false), 400);
+                }} aria-label="Quick preview">
+                  <Sparkle className="w-4 h-4 text-pink-400" />
+                </Button>
+              </div>
+            </div>
+          </DrawerHeader>
 
         <Tabs defaultValue="basic" className="w-full">
           {(() => {
@@ -784,7 +812,7 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
                             toast.success('Generated selfie avatar');
                           }
                         } catch (e) {
-                          console.error('Failed to generate avatar', e);
+                          logger.error('Failed to generate avatar', e);
                           toast.error(e instanceof Error ? e.message : 'Failed to generate avatar');
                         } finally {
                           setIsGeneratingAvatar(false);
@@ -1130,19 +1158,22 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
           )}
         </Tabs>
 
-        <div className="flex justify-end gap-2 pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleSave}
-            disabled={isLoading}
-          >
-            <FloppyDisk className="w-4 h-4 mr-2" />
-            {isEditing ? 'Update' : 'Create'} Character
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        <DrawerFooter>
+          <div className="flex w-full justify-end gap-3">
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="px-4 py-2">
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSave}
+              disabled={isLoading}
+              className="px-5 py-2 bg-gradient-to-r from-[#ff7ab6] to-[#ff1372] text-white hover:from-[#ff6aa4] hover:to-[#ff0f63] rounded-full shadow-md"
+            >
+              <FloppyDisk className="w-4 h-4 mr-2" />
+              {isEditing ? 'Update' : 'Create'} Character
+            </Button>
+          </div>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
   );
 }

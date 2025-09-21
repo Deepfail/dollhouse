@@ -117,7 +117,7 @@ export function HouseMap({ onStartChat, onStartGroupChat, onStartScene }: HouseM
                     {charactersInRoom.length > 0 && (
                       <div className="flex -space-x-2 mb-2">
                         {charactersInRoom.slice(0, 3).map((character) => (
-                          <Avatar key={character.id} className="w-6 h-6 border-2 border-white">
+                        <Avatar key={character.id} className="w-6 h-6 border-2 border-[rgba(255,255,255,0.06)]">
                             <AvatarImage src={character.avatar} alt={character.name} />
                             <AvatarFallback className="text-xs">
                               {character.name.slice(0, 2)}
@@ -125,7 +125,7 @@ export function HouseMap({ onStartChat, onStartGroupChat, onStartScene }: HouseM
                           </Avatar>
                         ))}
                         {charactersInRoom.length > 3 && (
-                          <div className="w-6 h-6 bg-gray-200 dark:bg-gray-700 rounded-full border-2 border-white flex items-center justify-center text-xs">
+                          <div className="w-6 h-6 bg-gray-200 dark:bg-gray-700 rounded-full border-2 border-[rgba(255,255,255,0.06)] flex items-center justify-center text-xs">
                             +{charactersInRoom.length - 3}
                           </div>
                         )}

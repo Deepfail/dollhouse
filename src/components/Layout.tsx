@@ -68,12 +68,15 @@ export function Layout({ children, currentView, onStartChat, onStartGroupChat, o
       </div>
       
       {/* Right Sidebar - AI Copilot */}
-      <div className="w-[320px] flex-shrink-0 bg-[#1a1a1a] border-l border-gray-700">
-        <Copilot 
-          onStartChat={onStartChat}
-          onStartGroupChat={onStartGroupChat}
-          onStartScene={onStartScene}
-        />
+      <div className="w-[320px] flex-shrink-0 bg-[#1a1a1a] border-l border-gray-700 flex flex-col min-h-screen overflow-y-auto">
+        {/* Ensure the Copilot content is contained and can scroll when it's too tall */}
+        <div className="flex-1 min-h-0">
+          <Copilot 
+            onStartChat={onStartChat}
+            onStartGroupChat={onStartGroupChat}
+            onStartScene={onStartScene}
+          />
+        </div>
       </div>
     </div>
   );

@@ -15,6 +15,7 @@ import {
     arrayBufferToFloat32Array,
     cosine
 } from '../index';
+import { logger } from '@/lib/logger';
 
 interface SettingRow {
   id: string;
@@ -62,7 +63,7 @@ export class IndexedDBStorage implements Storage {
 
   async init(): Promise<void> {
     await this.db.open();
-    console.log('✅ IndexedDB storage initialized');
+    logger.log('✅ IndexedDB storage initialized');
   }
 
   engine(): 'indexeddb' {
@@ -211,7 +212,7 @@ export class IndexedDBStorage implements Storage {
   }
 
   async compact(): Promise<void> {
-    console.log('🧹 Starting IndexedDB compaction...');
+  logger.log('🧹 Starting IndexedDB compaction...');
     
     // Implement retention policy
     const now = Date.now();
@@ -258,7 +259,7 @@ export class IndexedDBStorage implements Storage {
       .and(m => m.decay > 0.8)
       .delete();
     
-    console.log('✅ IndexedDB compaction completed');
+  logger.log('✅ IndexedDB compaction completed');
   }
 
   async exportSnapshot(opts?: SnapshotOptions): Promise<Blob> {
@@ -285,7 +286,7 @@ export class IndexedDBStorage implements Storage {
     const lines = content.split('\n').filter(line => line.trim());
     
     await this.db.transaction('rw', this.db.tables, async () => {
-      for (const line of lines) {
+    for (const line of lines) {
         try {
           const { table, row } = JSON.parse(line);
           
@@ -301,12 +302,12 @@ export class IndexedDBStorage implements Storage {
           
           await (this.db as any)[table].put(row);
         } catch (error) {
-          console.warn('Failed to import line:', line, error);
+          logger.warn('Failed to import line:', line, error);
         }
       }
     });
     
-    console.log('✅ Snapshot imported successfully');
+    logger.log('✅ Snapshot imported successfully');
   }
 }
 

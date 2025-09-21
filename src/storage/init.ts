@@ -1,6 +1,16 @@
 // storage/init.ts - Zero-hang initialization with auto-fallback
 import { initIndexedDB } from './engines/indexeddb';
 import { Storage, canUseSqliteWasm, isTauri, setGlobalStorage, timeout } from './index';
+import { logger } from '@/lib/logger';
+
+// Minimal typed helpers for safe global feature detection without using `any`
+type MaybeNavigator = { storage?: { getDirectory?: () => unknown } };
+type GlobalDetector = {
+  SharedArrayBuffer?: unknown;
+  Worker?: unknown;
+  crossOriginIsolated?: boolean;
+  navigator?: MaybeNavigator;
+};
 
 // Storage engine types
 type StorageEngine = 'sqlite-native' | 'sqlite-wasm' | 'indexeddb';
@@ -19,20 +29,25 @@ async function initSqliteWasm(): Promise<Storage> {
 
 // Initialize storage with zero-hang auto-fallback
 export async function initStorage(): Promise<Storage> {
-  console.log('🔧 Initializing storage with auto-fallback...');
+  logger.log('🔧 Initializing storage with auto-fallback...');
   
   // Feature detection
   const canWasmSqlite = canUseSqliteWasm();
   const canNative = isTauri();
   
-  console.log('Feature detection:', {
-    canNative,
-    canWasmSqlite,
-    hasSharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined',
-    hasWorker: typeof Worker !== 'undefined',
-    crossOriginIsolated: (self as any).crossOriginIsolated,
-    hasOPFS: !!(navigator.storage && (navigator.storage as any).getDirectory)
-  });
+  try {
+    const g = globalThis as unknown as GlobalDetector;
+    logger.log('Feature detection:', {
+      canNative,
+      canWasmSqlite,
+      hasSharedArrayBuffer: typeof g.SharedArrayBuffer !== 'undefined',
+      hasWorker: typeof g.Worker !== 'undefined',
+      crossOriginIsolated: !!g.crossOriginIsolated,
+      hasOPFS: !!(g.navigator && g.navigator.storage && typeof g.navigator.storage.getDirectory === 'function')
+    });
+  } catch (e) {
+    logger.debug('Ignored error during feature detection', e);
+  }
 
   // Define attempt functions
   const tryNative = async (): Promise<Storage> => {
@@ -58,7 +73,7 @@ export async function initStorage(): Promise<Storage> {
 
   for (const { name, fn } of candidates) {
     try {
-      console.log(`🚀 Attempting ${name}...`);
+  logger.log(`🚀 Attempting ${name}...`);
       
       // Race against timeout to prevent hanging
       const storagePromise = fn();
@@ -72,14 +87,14 @@ export async function initStorage(): Promise<Storage> {
       // Set global storage reference
       setGlobalStorage(storage);
       
-      console.log(`✅ Storage initialized: ${storage.engine()}`);
+  logger.log(`✅ Storage initialized: ${storage.engine()}`);
       
       // Test basic functionality
       await testStorageBasics(storage);
       
       return storage;
-    } catch (error) {
-      console.warn(`❌ ${name} failed:`, error);
+      } catch (error) {
+      logger.warn(`❌ ${name} failed:`, error);
       continue;
     }
   }
@@ -110,9 +125,9 @@ async function testStorageBasics(storage: Storage): Promise<void> {
     // Clean up test data
     await storage.del('characters', testId);
     
-    console.log('✅ Storage basic functionality test passed');
-  } catch (error) {
-    console.warn('⚠️ Storage test failed:', error);
+  logger.log('✅ Storage basic functionality test passed');
+    } catch (error) {
+      logger.warn('⚠️ Storage test failed:', error);
     // Don't throw - storage might still work for basic operations
   }
 }

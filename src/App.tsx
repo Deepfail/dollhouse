@@ -5,11 +5,12 @@ import { SceneInterface } from '@/components/SceneInterface';
 import { Toaster } from '@/components/ui/sonner';
 import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { useSceneMode } from '@/hooks/useSceneMode';
+// useSceneMode was imported previously for scene features; not required here currently
 import { setGlobalStorage } from '@/storage/index';
 import { initStorage } from '@/storage/init';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { logger } from './lib/logger';
 
 function App() {
   const [currentView, setCurrentView] = useState<'house' | 'chat' | 'scene'>('house');
@@ -20,15 +21,14 @@ function App() {
   useEffect(() => {
     const initializeStorage = async () => {
       try {
-        console.log('🔧 Initializing unified storage system...');
-        
+        logger.log('🔧 Initializing unified storage system...');
         const storage = await initStorage();
         setGlobalStorage(storage);
-        console.log('✅ Storage initialized successfully!');
+        logger.log('✅ Storage initialized successfully!');
         
         setStorageReady(true);
       } catch (err) {
-        console.error('❌ Storage initialization failed:', err);
+        logger.error('❌ Storage initialization failed:', err);
         toast.error('Failed to initialize storage');
       }
     };
@@ -61,8 +61,7 @@ function AppContent({
   activeSessionId: string | null;
   setActiveSessionId: (id: string | null) => void;
 }) {
-  const { createSession, sessions, switchToSession, setActiveSessionId: setChatActiveSessionId, sessionsLoaded, activeSessionId: hookActive } = useChat();
-  const { activeSessions } = useSceneMode();
+  const { createSession, sessions, setActiveSessionId: setChatActiveSessionId, sessionsLoaded, activeSessionId: hookActive } = useChat();
   const { house, isLoading } = useHouseFileStorage();
 
   // Debug logging with error handling
@@ -70,13 +69,15 @@ function AppContent({
     try {
       const activeId = activeSessionId || hookActive;
       const debugInfo = { currentView, activeId, sessionsLoaded, sessionCount: sessions.length };
-      console.log('[AppDebug]', debugInfo);
-    } catch {}
+      logger.log('[AppDebug]', debugInfo);
+    } catch (e) {
+      logger.debug('Ignored error while gathering debug info', e);
+    }
   }, [currentView, activeSessionId, hookActive, sessionsLoaded, sessions.length]);
 
   const handleStartChat = async (characterId: string) => {
-    console.log('=== handleStartChat called ===');
-    console.log('Character ID:', characterId);
+    logger.log('=== handleStartChat called ===');
+    logger.log('Character ID:', characterId);
     
     try {
       if (!house?.characters || house.characters.length === 0) {
@@ -93,8 +94,8 @@ function AppContent({
       // Clear any existing active session to avoid conflicts
       setActiveSessionId(null);
       
-      const sessionId = await createSession('individual', [characterId]);
-      console.log('createSession returned:', sessionId);
+  const sessionId = await createSession('individual', [characterId]);
+  logger.log('createSession returned:', sessionId);
       
       if (sessionId) {
         // Set the active session immediately
@@ -103,18 +104,18 @@ function AppContent({
         setCurrentView('chat');
         toast.success(`Started chat with ${character.name}`);
       } else {
-        console.error('Failed to create session for character:', characterId);
+  logger.error('Failed to create session for character:', characterId);
         toast.error('Failed to create chat session');
       }
     } catch (error) {
-      console.error('Error in handleStartChat:', error);
+      logger.error('Error in handleStartChat:', error);
       toast.error('Failed to start chat');
     }
   };
 
   const handleStartGroupChat = async (sessionId?: string) => {
-    console.log('=== handleStartGroupChat called ===');
-    console.log('Session ID provided:', sessionId);
+    logger.log('=== handleStartGroupChat called ===');
+    logger.log('Session ID provided:', sessionId);
     
     try {
       if (sessionId) {
@@ -125,12 +126,12 @@ function AppContent({
         toast.success('Opened chat');
       } else {
         // Create new group chat with all characters
-        const characterIds = (house?.characters || []).map(c => c.id);
-        console.log('Character IDs for group chat:', characterIds);
+  const characterIds = (house?.characters || []).map(c => c.id);
+  logger.log('Character IDs for group chat:', characterIds);
         
         if (characterIds.length > 1) {
           const newSessionId = await createSession('group', characterIds);
-          console.log('Group session created:', newSessionId);
+          logger.log('Group session created:', newSessionId);
           
           if (newSessionId) {
             setActiveSessionId(newSessionId);
@@ -147,13 +148,13 @@ function AppContent({
         }
       }
     } catch (error) {
-      console.error('Error in handleStartGroupChat:', error);
+      logger.error('Error in handleStartGroupChat:', error);
       toast.error('Failed to start group chat');
     }
   };
 
   const handleStartScene = (sessionId: string) => {
-    console.log('handleStartScene called with sessionId:', sessionId);
+    logger.log('handleStartScene called with sessionId:', sessionId);
     
     try {
       // Simply set the active session and switch view
@@ -162,7 +163,7 @@ function AppContent({
       
       toast.success('Scene started! Session ID: ' + sessionId.slice(0, 12));
     } catch (error) {
-      console.error('Error in handleStartScene:', error);
+      logger.error('Error in handleStartScene:', error);
       toast.error('Failed to start scene');
     }
   };
@@ -172,7 +173,7 @@ function AppContent({
       setCurrentView('house');
       setActiveSessionId(null);
     } catch (error) {
-      console.error('Error in handleBackToHouse:', error);
+      logger.error('Error in handleBackToHouse:', error);
     }
   };
 

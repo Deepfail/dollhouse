@@ -5,6 +5,8 @@ import { uuid } from '../lib/uuid';
 // Note: use in-app character list from useHouseFileStorage; avoid repo adapter to prevent mismatches
 import { ChatMessage, ChatSession } from '../types';
 import { useHouseFileStorage } from './useHouseFileStorage';
+import { legacyStorage } from '@/lib/legacyStorage';
+import { logger } from '@/lib/logger';
 
 export function useChat() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -30,9 +32,9 @@ export function useChat() {
           return sessions;
         }
       }
-      lastLoadTsRef.current = nowMs;
-      loadingRef.current = true;
-      console.log('🔄 Loading chat sessions...');
+    lastLoadTsRef.current = nowMs;
+    loadingRef.current = true;
+  logger.log('🔄 Loading chat sessions...');
       const { db } = await getDb();
       
       // Get all sessions
@@ -43,7 +45,7 @@ export function useChat() {
         callback: (r: any) => sessionRows.push(r)
       });
 
-      console.log('📋 Found', sessionRows.length, 'sessions');
+  logger.log('📋 Found', sessionRows.length, 'sessions');
 
       // Load participants for each session
       const loadedSessions: ChatSession[] = [];
@@ -103,7 +105,7 @@ export function useChat() {
         .join('|');
 
       if (signature !== lastSignatureRef.current) {
-        console.log('✅ Loaded', loadedSessions.length, 'sessions with participants (changed)');
+        logger.log('✅ Loaded', loadedSessions.length, 'sessions with participants (changed)');
         lastSignatureRef.current = signature;
         setSessions(loadedSessions);
         setSessionsLoaded(true);
@@ -117,7 +119,7 @@ export function useChat() {
       }
       return loadedSessions;
     } catch (error) {
-      console.error('❌ Failed to load sessions:', error);
+      logger.error('❌ Failed to load sessions:', error);
       setSessionsLoaded(true);
       return [];
     } finally {
@@ -128,7 +130,7 @@ export function useChat() {
 
   const getSessionMessages = useCallback(async (sessionId: string): Promise<ChatMessage[]> => {
     try {
-      console.log('📨 Loading messages for session:', sessionId);
+      logger.log('📨 Loading messages for session:', sessionId);
       const { db } = await getDb();
       const messageRows: any[] = [];
       db.exec({
@@ -147,17 +149,17 @@ export function useChat() {
         metadata: undefined
       }));
 
-      console.log('✅ Loaded', messages.length, 'messages for session');
+      logger.log('✅ Loaded', messages.length, 'messages for session');
       return messages;
     } catch (error) {
-      console.error('❌ Failed to load messages for session:', sessionId, error);
+      logger.error('❌ Failed to load messages for session:', sessionId, error);
       return [];
     }
   }, []);
 
   const sendMessage = useCallback(async (sessionId: string, content: string, senderId: string) => {
     try {
-      console.log('📤 Sending message to session:', sessionId, 'from:', senderId);
+      logger.log('📤 Sending message to session:', sessionId, 'from:', senderId);
       const { db } = await getDb();
       const messageId = uuid();
       const now = Date.now();
@@ -178,7 +180,7 @@ export function useChat() {
       });
 
       await saveDatabase();
-      console.log('✅ User message sent successfully');
+  logger.log('✅ User message sent successfully');
 
       // On user messages, award small progression/stat changes to all participants
       if (senderId === 'user') {
@@ -257,14 +259,14 @@ export function useChat() {
       // Reload sessions to get updated data
       await loadSessions();
     } catch (error) {
-      console.error('❌ Failed to send message:', error);
+      logger.error('❌ Failed to send message:', error);
       throw error;
     }
   }, [loadSessions, sessions]);
 
   const generateCharacterResponses = useCallback(async (sessionId: string, characterIds: string[], userMessage: string) => {
     try {
-      console.log('🤖 Generating AI responses for characters:', characterIds);
+      logger.log('🤖 Generating AI responses for characters:', characterIds);
       
       // Use in-app characters from unified storage (pre-loaded in this hook)
       const allChars = (characters || []);
@@ -281,8 +283,8 @@ export function useChat() {
               sessionChars = parsed.filter((c: any) => characterIds.includes(c.id));
             }
           }
-        } catch (e) {
-          console.warn('Fallback character retrieval failed:', e);
+          } catch (e) {
+          logger.warn('Fallback character retrieval failed:', e);
         }
       }
       // Fallback 2: try legacy adapter (storage.characters table)
@@ -294,11 +296,11 @@ export function useChat() {
             sessionChars = legacyChars.filter((c: any) => characterIds.includes(c.id));
           }
         } catch (e) {
-          console.warn('Legacy adapter character retrieval failed:', e);
+          logger.warn('Legacy adapter character retrieval failed:', e);
         }
       }
       if (sessionChars.length === 0) {
-        console.warn('No matching characters found for session participants; skipping AI generation');
+        logger.warn('No matching characters found for session participants; skipping AI generation');
         return;
       }
       
@@ -358,7 +360,7 @@ export function useChat() {
             try {
               newSummary = await AIService.generateResponse(summaryPrompt, undefined, undefined, { temperature: 0.2, max_tokens: 300 });
             } catch (e) {
-              console.warn('Summary generation failed; using placeholder.', e);
+              logger.warn('Summary generation failed; using placeholder.', e);
               newSummary = '[Summary unavailable; continuing from recent context]';
             }
             const nowTs = Date.now();
@@ -374,10 +376,10 @@ export function useChat() {
           }
         }
       } catch (e) {
-        console.warn('Failed to update session summary', e);
+        logger.warn('Failed to update session summary', e);
       }
       
-      for (const character of sessionChars) {
+  for (const character of sessionChars) {
         try {
           // Build conversation context
           const nameFor = (id?: string | null) => id ? (sessionChars.find((c: any) => c.id === id)?.name || 'Character') : 'User';
@@ -409,7 +411,7 @@ User: ${userMessage}
 
 Respond as ${character.name} in character. Keep your response natural and conversational. Respond directly without prefacing with your name.`;
 
-          console.log(`🎭 Generating response for ${character.name}...`);
+          logger.log(`🎭 Generating response for ${character.name}...`);
           
           // Generate AI response
           const response = await AIService.generateResponse(prompt, undefined, undefined, {
@@ -434,19 +436,19 @@ Respond as ${character.name} in character. Keep your response natural and conver
               bind: [responseTime, sessionId]
             });
 
-            console.log(`✅ Generated response for ${character.name}`);
+            logger.log(`✅ Generated response for ${character.name}`);
           }
         } catch (error) {
-          console.error(`❌ Failed to generate response for ${character.name}:`, error);
+          logger.error(`❌ Failed to generate response for ${character.name}:`, error);
           // Continue with other characters even if one fails
         }
       }
       
-      await saveDatabase();
-      console.log('🎉 AI response generation completed');
+  await saveDatabase();
+  logger.log('🎉 AI response generation completed');
       
     } catch (error) {
-      console.error('❌ Failed to generate character responses:', error);
+      logger.error('❌ Failed to generate character responses:', error);
     }
   }, [getSessionMessages]);
 
@@ -499,7 +501,7 @@ Respond as ${character.name} in character. Keep your response natural and conver
       // Refresh sessions so UI can pick up fresh goals via load
       await loadSessions();
     } catch (e) {
-      console.error('Failed to update session goal', e);
+      logger.error('Failed to update session goal', e);
       throw e;
     }
   }, [loadSessions]);
@@ -510,13 +512,13 @@ Respond as ${character.name} in character. Keep your response natural and conver
     options?: { hiddenGoals?: Record<string, { goal: string; priority?: 'low' | 'medium' | 'high' }> }
   ): Promise<string> => {
     try {
-      console.log('🆕 Creating session:', type, 'with participants:', participantIds);
+      logger.log('🆕 Creating session:', type, 'with participants:', participantIds);
       
       // Validate that all participant IDs exist in unified storage
       const validParticipants = participantIds.filter(id => {
         const exists = characters?.some(c => c.id === id);
         if (!exists) {
-          console.warn('⚠️ Character not found in unified storage:', id);
+          logger.warn('⚠️ Character not found in unified storage:', id);
         }
         return exists;
       });
@@ -556,16 +558,16 @@ Respond as ${character.name} in character. Keep your response natural and conver
         }
       }
 
-      console.log('✅ Session created successfully:', sessionId);
+  logger.log('✅ Session created successfully:', sessionId);
       await saveDatabase();
 
       await loadSessions();
       setActiveSessionId(sessionId);
-      try { localStorage.setItem('active_chat_session', sessionId); } catch {}
+  try { legacyStorage.setItem('active_chat_session', sessionId); } catch {}
       try { window.dispatchEvent(new CustomEvent('chat-active-session-changed', { detail: { sessionId } })); } catch {}
       return sessionId;
     } catch (error) {
-      console.error('❌ Failed to create session:', error);
+        logger.error('❌ Failed to create session:', error);
       throw error;
     }
   }, [loadSessions, characters]);
@@ -581,7 +583,7 @@ Respond as ${character.name} in character. Keep your response natural and conver
       await saveDatabase();
       await loadSessions();
     } catch (error) {
-      console.error('❌ Failed to close session:', error);
+      logger.error('❌ Failed to close session:', error);
     }
   }, [loadSessions]);
 
@@ -614,7 +616,7 @@ Respond as ${character.name} in character. Keep your response natural and conver
         setActiveSessionId(null);
       }
     } catch (error) {
-      console.error('❌ Failed to delete session:', error);
+      logger.error('❌ Failed to delete session:', error);
     }
   }, [loadSessions, activeSessionId]);
 
@@ -628,31 +630,31 @@ Respond as ${character.name} in character. Keep your response natural and conver
       });
       await saveDatabase();
       setActiveSessionId(sessionId);
-      try { localStorage.setItem('active_chat_session', sessionId); } catch {}
+  try { legacyStorage.setItem('active_chat_session', sessionId); } catch {}
       try { window.dispatchEvent(new CustomEvent('chat-active-session-changed', { detail: { sessionId } })); } catch {}
       await loadSessions();
     } catch (e) {
-      console.warn('Failed to switch/open session', e);
+      logger.warn('Failed to switch/open session', e);
       setActiveSessionId(sessionId);
     }
   }, [loadSessions]);
 
   const updateSessionMessage = useCallback(async () => {
     // Placeholder for future implementation
-    console.log('updateSessionMessage not implemented');
+    logger.log('updateSessionMessage not implemented');
   }, []);
 
   const addSessionMessage = useCallback(async () => {
     // Placeholder for future implementation
-    console.log('addSessionMessage not implemented');
+    logger.log('addSessionMessage not implemented');
   }, []);
 
   // Load sessions on mount
   useEffect(() => {
     loadSessions();
-    // On mount, adopt existing active session from localStorage
+  // On mount, adopt existing active session from optional backup storage
     try {
-      const stored = localStorage.getItem('active_chat_session');
+      const stored = legacyStorage.getItem('active_chat_session');
       if (stored) {
         setActiveSessionId(stored);
       }

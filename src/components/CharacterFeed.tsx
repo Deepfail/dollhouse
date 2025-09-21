@@ -4,9 +4,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { getCharacterPosts } from '@/storage/adapters';
-import { ChatCircle, DotsThree, Heart, Share } from '@phosphor-icons/react';
+import { DotsThree, Heart, Share, ChatCircle as MessageCircle } from '@phosphor-icons/react';
+import type { Character } from '@/types';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 interface CharacterPost {
   id: string;
@@ -28,7 +30,7 @@ export function CharacterFeed({ characterId }: CharacterFeedProps) {
   const [posts, setPosts] = useState<CharacterPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  const character = characters?.find((c: any) => c.id === characterId);
+  const character = characters?.find((c: Character) => c.id === characterId);
 
   useEffect(() => {
     loadPosts();
@@ -40,7 +42,7 @@ export function CharacterFeed({ characterId }: CharacterFeedProps) {
       const characterPosts = await getCharacterPosts(characterId);
       setPosts(characterPosts);
     } catch (error) {
-      console.error('Failed to load posts:', error);
+      logger.error('Failed to load posts:', error);
       toast.error('Failed to load posts');
     } finally {
       setIsLoading(false);
@@ -59,10 +61,10 @@ export function CharacterFeed({ characterId }: CharacterFeedProps) {
       );
       
       // TODO: Implement actual like persistence in storage
-      console.log('Liked post:', postId);
+      logger.log('Liked post:', postId);
       toast.success('Liked!');
     } catch (error) {
-      console.error('Failed to like post:', error);
+      logger.error('Failed to like post:', error);
       toast.error('Failed to like post');
     }
   };
@@ -146,7 +148,7 @@ export function CharacterFeed({ characterId }: CharacterFeedProps) {
                       <Heart className="w-6 h-6 text-red-500" />
                     </Button>
                     <Button variant="ghost" size="sm" className="h-auto p-0">
-                      <ChatCircle className="w-6 h-6" />
+                      <MessageCircle className="w-6 h-6" />
                     </Button>
                     <Button variant="ghost" size="sm" className="h-auto p-0">
                       <Share className="w-6 h-6" />

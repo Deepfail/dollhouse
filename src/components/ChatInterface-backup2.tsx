@@ -396,7 +396,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                           setTimeout(() => window.location.reload(), 500);
                         } else {
                           console.error('File storage not available');
-                          toast.error('LocalStorage not available');
+                          toast.error('Backup storage not available');
                         }
                       }
                     }}

@@ -194,7 +194,7 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
                             {charactersInRoom.length > 0 && (
                               <div className="flex -space-x-2 mb-3">
                                 {charactersInRoom.slice(0, 4).map((character: any) => (
-                                  <Avatar key={character.id} className="w-8 h-8 border-2 border-white">
+                                  <Avatar key={character.id} className="w-8 h-8 border-2 border-[rgba(255,255,255,0.06)]">
                                     <AvatarImage src={character.avatar} alt={character.name} />
                                     <AvatarFallback className="text-xs">
                                       {character.name.slice(0, 2)}

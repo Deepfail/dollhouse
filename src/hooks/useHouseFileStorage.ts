@@ -6,9 +6,11 @@
  */
 
 import { storage } from '@/storage';
+import { legacyStorage } from '@/lib/legacyStorage';
 import { Character, House } from '@/types';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 const DEFAULT_HOUSE: Partial<House> = {
   id: 'main-house',
@@ -77,8 +79,8 @@ export function useHouseFileStorage() {
 
   // Load data from storage on mount
   useEffect(() => {
-    let cancelled = false;
-    let retryTimer: any;
+  let cancelled = false;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     const loadData = async (attempt = 0) => {
       try {
@@ -86,50 +88,52 @@ export function useHouseFileStorage() {
 
         if (!storage) {
           if (attempt < 5) {
-            console.warn('[useHouseFileStorage] Storage not ready, retrying...', attempt + 1);
+            logger.warn('[useHouseFileStorage] Storage not ready, retrying...', attempt + 1);
             retryTimer = setTimeout(() => loadData(attempt + 1), 300 + attempt * 200);
             return;
           } else {
-            console.error('[useHouseFileStorage] Storage not initialized after retries');
+            logger.error('[useHouseFileStorage] Storage not initialized after retries');
             return;
           }
         }
 
         // Load house data from settings table
         const savedHouse = await storage.get('settings', 'house');
-        if (savedHouse && (savedHouse as any).value) {
+        if (savedHouse && (savedHouse as { value?: string }).value) {
           try {
-            const houseData = JSON.parse((savedHouse as any).value);
+            const houseData = JSON.parse((savedHouse as { value: string }).value);
             if (!cancelled) setHouseDataState(houseData);
-          } catch (e) {
-            console.warn('[useHouseFileStorage] Failed parsing saved house JSON');
+          } catch {
+            logger.warn('[useHouseFileStorage] Failed parsing saved house JSON');
           }
         }
 
         // Load characters from settings table
-        let loadedCharacters: any[] | null = null;
+        let loadedCharacters: unknown[] | null = null;
         const savedCharacters = await storage.get('settings', 'characters');
-        if (savedCharacters && (savedCharacters as any).value) {
+        if (savedCharacters && (savedCharacters as { value?: string }).value) {
           try {
-            const charactersData = JSON.parse((savedCharacters as any).value);
+            const charactersData = JSON.parse((savedCharacters as { value: string }).value);
             if (Array.isArray(charactersData)) {
               loadedCharacters = charactersData;
             }
-          } catch (e) {
-            console.warn('[useHouseFileStorage] Failed parsing saved characters JSON');
+          } catch {
+            logger.warn('[useHouseFileStorage] Failed parsing saved characters JSON');
           }
         }
 
         // Migration fallback: if no characters in settings, look for legacy 'characters' table rows (IndexedDB / other engine)
         if (!loadedCharacters || loadedCharacters.length === 0) {
           try {
-            const legacyRows = await storage.query<any>({ table: 'characters' });
+            const legacyRows = await storage.query<{ id: string; profile_json?: string; name?: string; created_at?: string; updated_at?: string } | any>({ table: 'characters' });
             if (Array.isArray(legacyRows) && legacyRows.length) {
-              console.log('[useHouseFileStorage] Migrating legacy character rows -> settings key');
+              logger.log('[useHouseFileStorage] Migrating legacy character rows -> settings key');
               // Each legacy row has profile_json with original character shape (maybe partial)
               const migrated: Character[] = legacyRows.map(r => {
-                let profile: any = {};
-                try { profile = r.profile_json ? JSON.parse(r.profile_json) : {}; } catch {}
+                let profile: Record<string, unknown> = {};
+                try { profile = r.profile_json ? JSON.parse(r.profile_json) : {}; } catch {
+                  // ignore parse errors per legacy tolerance
+                }
                 return {
                   // Core identity
                   id: r.id,
@@ -176,21 +180,21 @@ export function useHouseFileStorage() {
               loadedCharacters = migrated;
               // Persist migrated list
               await saveToStorage('characters', migrated);
-              console.log(`[useHouseFileStorage] Migrated ${migrated.length} character(s) from legacy table.`);
+              logger.log(`[useHouseFileStorage] Migrated ${migrated.length} character(s) from legacy table.`);
             }
           } catch (e) {
-            console.warn('[useHouseFileStorage] Legacy character migration attempt failed:', e);
+              logger.warn('[useHouseFileStorage] Legacy character migration attempt failed:', e);
           }
         }
 
-        // Secondary recovery: attempt to read from sqlite-wasm backup (if our unified db previously persisted characters in messages/participants schema)
+  // Secondary recovery: attempt to read from sqlite-wasm backup (if our unified db previously persisted characters in messages/participants schema)
         if ((!loadedCharacters || !loadedCharacters.length) && typeof window !== 'undefined') {
           try {
-            const lsBackup = localStorage.getItem('dollhouse-db-backup');
+              const lsBackup = legacyStorage.getItem('dollhouse-db-backup');
             if (lsBackup) {
               const parsed = JSON.parse(lsBackup);
               if (parsed && Array.isArray(parsed.characters) && parsed.characters.length) {
-                console.log('[useHouseFileStorage] Recovering characters from sqlite localStorage backup');
+                logger.log('[useHouseFileStorage] Recovering characters from sqlite backup storage');
                 // sqlite row structure: id, name, avatar_path, bio, traits_json, tags_json, system_prompt
                 const migrated = parsed.characters.map((r: any) => {
                   let traits: any = {}; let tags: any = {};
@@ -239,44 +243,44 @@ export function useHouseFileStorage() {
                 if (migrated.length) {
                   loadedCharacters = migrated;
                   await saveToStorage('characters', migrated);
-                  console.log(`[useHouseFileStorage] Recovered ${migrated.length} character(s) from sqlite backup.`);
+                  logger.log(`[useHouseFileStorage] Recovered ${migrated.length} character(s) from sqlite backup.`);
                 }
               }
             }
           } catch (e) {
-            console.warn('[useHouseFileStorage] sqlite localStorage backup recovery failed:', e);
+            logger.warn('[useHouseFileStorage] sqlite backup recovery failed:', e);
           }
         }
 
-        // Tertiary recovery: look for a raw legacy JSON blob in localStorage (older builds may have stored directly)
+        // Tertiary recovery: look for a raw legacy JSON blob in legacy backup (older builds may have stored directly)
         if ((!loadedCharacters || !loadedCharacters.length) && typeof window !== 'undefined') {
           try {
-            const legacyRaw = localStorage.getItem('characters');
+            const legacyRaw = legacyStorage.getItem('characters');
             if (legacyRaw) {
               const parsedLegacy = JSON.parse(legacyRaw);
               if (Array.isArray(parsedLegacy) && parsedLegacy.length) {
-                console.log('[useHouseFileStorage] Recovering characters from legacy localStorage key');
+                logger.log('[useHouseFileStorage] Recovering characters from legacy backup key');
                 loadedCharacters = parsedLegacy;
                 await saveToStorage('characters', parsedLegacy);
               }
             }
           } catch (e) {
-            console.warn('[useHouseFileStorage] Legacy raw localStorage recovery failed:', e);
+            logger.warn('[useHouseFileStorage] Legacy raw backup recovery failed:', e);
           }
         }
 
-        if (loadedCharacters && loadedCharacters.length) {
+                if (loadedCharacters && Array.isArray(loadedCharacters) && loadedCharacters.length) {
           const deduped = dedupeCharacters(loadedCharacters as Character[]);
           if (!cancelled) setCharactersState(deduped);
           if (deduped.length !== loadedCharacters.length) {
             await saveToStorage('characters', deduped);
           }
-          console.log('[useHouseFileStorage] Loaded characters:', deduped.map(c => c.name));
+          logger.log('[useHouseFileStorage] Loaded characters:', deduped.map(c => c.name));
         } else {
-          console.log('[useHouseFileStorage] No characters found in settings or legacy sources.');
+          logger.log('[useHouseFileStorage] No characters found in settings or legacy sources.');
         }
       } catch (error) {
-        console.error('Failed to load house data:', error);
+        logger.error('Failed to load house data:', error);
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -292,15 +296,21 @@ export function useHouseFileStorage() {
 
   // Expose an imperative recovery helper for debugging/manual rescue
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      (window as any).recoverCharacters = async () => {
-        console.log('[recoverCharacters] Manual recovery triggered');
-        // Force re-run of load logic by clearing current state and re-calling load path through a synthetic event
-        try {
-          const event = new CustomEvent('force-recover');
-          window.dispatchEvent(event);
-        } catch {}
-      };
+    try {
+      if (typeof window !== 'undefined') {
+        // attach a recover helper for debugging in browser environments
+        (window as unknown as { recoverCharacters?: () => Promise<void> }).recoverCharacters = async () => {
+          logger.log('[recoverCharacters] Manual recovery triggered');
+          try {
+            const event = new CustomEvent('force-recover');
+            window.dispatchEvent(event);
+          } catch (e) {
+            logger.debug('Ignored error while triggering recoverCharacters', e);
+          }
+        };
+      }
+    } catch (e) {
+      logger.debug('Ignored environment error while initializing recoverCharacters', e);
     }
   }, []);
 
@@ -308,7 +318,7 @@ export function useHouseFileStorage() {
   const saveToStorage = useCallback(async (key: string, data: any) => {
     try {
       if (!storage) {
-        console.error('Storage not initialized');
+                logger.error('Storage not initialized');
         return false;
       }
       // Use settings table for key-value storage
@@ -321,7 +331,7 @@ export function useHouseFileStorage() {
       }
       return true;
     } catch (error) {
-      console.error(`Failed to save ${key}:`, error);
+      logger.error(`Failed to save ${key}:`, error);
       return false;
     }
   }, []);
@@ -373,20 +383,26 @@ export function useHouseFileStorage() {
           }
         }
       } catch (e) {
-        console.error('Failed to sync storage update:', e);
+  logger.error('Failed to sync storage update:', e);
+
+// ensure logger is available
       }
     };
 
     try {
-      window.addEventListener(STORAGE_EVENT, onStorageUpdate as any);
-    } catch {
-      // non-browser env
+      if (typeof (globalThis as any).addEventListener === 'function') {
+        (globalThis as any).addEventListener(STORAGE_EVENT, onStorageUpdate as any);
+      }
+    } catch (e) {
+      logger.debug('Ignored event listener registration error', e);
     }
     return () => {
       try {
-        window.removeEventListener(STORAGE_EVENT, onStorageUpdate as any);
-      } catch {
-        // ignore
+        if (typeof (globalThis as any).removeEventListener === 'function') {
+          (globalThis as any).removeEventListener(STORAGE_EVENT, onStorageUpdate as any);
+        }
+      } catch (e) {
+        logger.debug('Ignored event listener removal error', e);
       }
     };
   }, []);
@@ -411,7 +427,7 @@ export function useHouseFileStorage() {
       );
       
       if (existingCharacter) {
-        console.warn('Character already exists:', character.name);
+        logger.warn('Character already exists:', character.name);
         return false;
       }
 
@@ -420,14 +436,14 @@ export function useHouseFileStorage() {
       
       if (success) {
         setCharactersState(newCharacters);
-        console.log('Character added successfully:', character.name);
-        console.log('[useHouseFileStorage] Characters after add:', newCharacters.map(c => c.name));
+  logger.log('Character added successfully:', character.name);
+  logger.log('[useHouseFileStorage] Characters after add:', newCharacters.map(c => c.name));
         toast.success(`${character.name} joined the house!`);
       }
       
       return success;
-    } catch (error) {
-      console.error('Failed to add character:', error);
+      } catch (error) {
+      logger.error('Failed to add character:', error);
       toast.error('Failed to add character');
       return false;
     }
@@ -437,7 +453,7 @@ export function useHouseFileStorage() {
     try {
       const character = characters.find(c => c.id === characterId);
       if (!character) {
-        console.warn('Character not found:', characterId);
+        logger.warn('Character not found:', characterId);
         return false;
       }
 
@@ -446,13 +462,13 @@ export function useHouseFileStorage() {
       
       if (success) {
         setCharactersState(newCharacters);
-        console.log('Character removed successfully:', character.name);
+  logger.log('Character removed successfully:', character.name);
         toast.success(`${character.name} left the house`);
       }
       
       return success;
     } catch (error) {
-      console.error('Failed to remove character:', error);
+      logger.error('Failed to remove character:', error);
       toast.error('Failed to remove character');
       return false;
     }
@@ -472,12 +488,12 @@ export function useHouseFileStorage() {
       
       if (success) {
         setCharactersState(newCharacters);
-        console.log('Character updated successfully:', characterId);
+        logger.log('Character updated successfully:', characterId);
       }
       
       return success;
     } catch (error) {
-      console.error('Failed to update character:', error);
+      logger.error('Failed to update character:', error);
       toast.error('Failed to update character');
       return false;
     }
@@ -496,12 +512,12 @@ export function useHouseFileStorage() {
       
       if (success) {
         setHouseDataState(newHouseData);
-        console.log('House updated successfully');
+        logger.log('House updated successfully');
       }
       
       return success;
     } catch (error) {
-      console.error('Failed to update house:', error);
+      logger.error('Failed to update house:', error);
       toast.error('Failed to update house');
       return false;
     }
@@ -519,13 +535,13 @@ export function useHouseFileStorage() {
       
       if (success) {
         setHouseDataState(newHouseData);
-        console.log('Room added successfully:', room.name);
+        logger.log('Room added successfully:', room.name);
         toast.success(`${room.name} added to the house!`);
       }
       
       return success;
     } catch (error) {
-      console.error('Failed to add room:', error);
+      logger.error('Failed to add room:', error);
       toast.error('Failed to add room');
       return false;
     }
@@ -543,13 +559,13 @@ export function useHouseFileStorage() {
       
       if (success) {
         setHouseDataState(newHouseData);
-        console.log('Room removed successfully:', roomId);
+        logger.log('Room removed successfully:', roomId);
         toast.success('Room removed from the house');
       }
       
       return success;
     } catch (error) {
-      console.error('Failed to remove room:', error);
+      logger.error('Failed to remove room:', error);
       toast.error('Failed to remove room');
       return false;
     }
@@ -586,12 +602,12 @@ export function useHouseFileStorage() {
       
       if (roomSuccess) {
         setHouseDataState(newHouseData);
-        console.log('Character assigned to room successfully:', characterId, roomId);
+        logger.log('Character assigned to room successfully:', characterId, roomId);
       }
       
       return roomSuccess;
     } catch (error) {
-      console.error('Failed to assign character to room:', error);
+      logger.error('Failed to assign character to room:', error);
       toast.error('Failed to assign character to room');
       return false;
     }

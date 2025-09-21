@@ -11,6 +11,7 @@ import { useSceneMode } from '@/hooks/useSceneMode';
 import { getDb, saveDatabase } from '@/lib/db';
 import { Camera, Play, Users } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
+import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
 
 interface SceneCreatorProps {
@@ -68,7 +69,7 @@ export function SceneCreator({ onSceneCreated }: SceneCreatorProps) {
             )
           });
         } catch (e) {
-          console.warn('Failed to create backing chat session for scene:', e);
+          logger.warn('Failed to create backing chat session for scene:', e);
         }
 
         // Persist mapping scene -> chat in settings and update scene session
@@ -90,7 +91,7 @@ export function SceneCreator({ onSceneCreated }: SceneCreatorProps) {
             updateSceneSession(sessionId, { chatSessionId });
           }
         } catch (e) {
-          console.warn('Failed to persist scene->chat mapping:', e);
+          logger.warn('Failed to persist scene->chat mapping:', e);
         }
 
         toast.success(`Scene "${sceneName}" created!`);
@@ -104,7 +105,7 @@ export function SceneCreator({ onSceneCreated }: SceneCreatorProps) {
         toast.error('Failed to create scene');
       }
     } catch (error) {
-      console.error('Error creating scene:', error);
+  logger.error('Error creating scene:', error);
       toast.error('Failed to create scene');
     } finally {
       setIsCreating(false);
@@ -210,7 +211,7 @@ export function SceneCreator({ onSceneCreated }: SceneCreatorProps) {
             >
               {isCreating ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[rgba(255,255,255,0.06)] mr-2"></div>
                   Creating...
                 </>
               ) : (

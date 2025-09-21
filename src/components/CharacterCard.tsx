@@ -45,6 +45,7 @@ import { useFileStorage } from '@/hooks/useFileStorage';
 import { useRelationshipDynamics } from '@/hooks/useRelationshipDynamics';
 import { repositoryStorage } from '@/hooks/useRepositoryStorage';
 import { useStorySystem } from '@/hooks/useStorySystem';
+import { logger } from '@/lib/logger';
 import { Character } from '@/types';
 import { toast } from 'sonner';
 import { ImageSettings, ImageSettingsPanel } from './ImageSettingsPanel';
@@ -243,7 +244,7 @@ export function CharacterCard({
       
       // Could add toast notification here if available
     } catch (error) {
-      console.error('Download error:', error);
+      logger.error('Download error:', error);
     }
   };
 
@@ -294,7 +295,7 @@ export function CharacterCard({
         });
       }
     } catch (error) {
-      console.error('Error sending DM:', error);
+      logger.error('Error sending DM:', error);
       toast.error('Failed to send message');
     } finally {
       setIsSendingMessage(false);
@@ -361,7 +362,7 @@ export function CharacterCard({
         toast.success('Image created successfully!');
       }
     } catch (error) {
-      console.error('Image creation error:', error);
+      logger.error('Image creation error:', error);
     } finally {
       setIsCreatingImage(false);
     }
@@ -439,10 +440,10 @@ Return only the image prompt, nothing else.`;
         }
         // Could add toast notification here if available
       } else {
-        console.error('Failed to generate image prompt');
+        logger.error('Failed to generate image prompt');
       }
     } catch (error) {
-      console.error('Error generating image prompt:', error);
+      logger.error('Error generating image prompt:', error);
     } finally {
       setIsGeneratingImagePrompt(false);
     }
@@ -922,7 +923,7 @@ Return only the image prompt, nothing else.`;
                               >
                                 {isCreatingImage ? (
                                   <>
-                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2" />
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-[rgba(255,255,255,0.06)] mr-2" />
                                     Creating...
                                   </>
                                 ) : (

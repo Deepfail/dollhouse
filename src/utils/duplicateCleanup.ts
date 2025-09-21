@@ -1,4 +1,5 @@
 import { Character, House } from '@/types';
+import { logger } from '@/lib/logger';
 
 export interface DuplicateCleanupResult {
   removedCount: number;
@@ -49,7 +50,7 @@ export function cleanupDuplicateCharacters(house: House): { cleanedHouse: House;
       result.keptCount++;
     } else {
       // Multiple characters with same name - keep the best one
-      console.log(`Found ${groupCharacters.length} characters named "${name}"`);
+  logger.log(`Found ${groupCharacters.length} characters named "${name}"`);
       
       // Score each character to determine which to keep
       const scoredCharacters = groupCharacters.map(char => {
@@ -112,14 +113,14 @@ export function cleanupDuplicateCharacters(house: House): { cleanedHouse: House;
           const index = room.residents.indexOf(removedChar.id);
           if (index > -1) {
             room.residents.splice(index, 1);
-            console.log(`Removed ${removedChar.id} from room ${room.name}`);
+            logger.log(`Removed ${removedChar.id} from room ${room.name}`);
           }
         });
       });
       
-      console.log(`Kept character ${keptCharacter.name} (ID: ${keptCharacter.id}, Score: ${scoredCharacters[0].score})`);
+      logger.log(`Kept character ${keptCharacter.name} (ID: ${keptCharacter.id}, Score: ${scoredCharacters[0].score})`);
       removedCharacters.forEach((char, i) => {
-        console.log(`Removed duplicate ${char.name} (ID: ${char.id}, Score: ${scoredCharacters[i + 1].score})`);
+        logger.log(`Removed duplicate ${char.name} (ID: ${char.id}, Score: ${scoredCharacters[i + 1].score})`);
       });
     }
   });

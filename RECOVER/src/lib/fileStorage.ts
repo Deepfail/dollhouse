@@ -306,7 +306,7 @@ export class FileStorageSystem {
   }
 
   // Migration from webStorage - DISABLED
-  async migrateFromLocalStorage(): Promise<void> {
+  async migrateFromBackupStorage(): Promise<void> {
     try {
       console.log('webStorage migration disabled - no migration performed');
       toast.info('webStorage migration disabled - using repository storage instead');

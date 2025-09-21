@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Storage } from './index';
 import { getStorageStatus, initStorage } from './init';
+import { logger } from '@/lib/logger';
 
 interface StorageContextValue {
   storage: Storage | null;
@@ -37,16 +38,17 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initialize = async () => {
       try {
-        console.log('🔧 Initializing unified storage system...');
+  // initialization starting
+        logger.log('🔧 Initializing unified storage system...');
         
         const storageInstance = await initStorage();
         setStorage(storageInstance);
         
-        console.log('✅ Storage initialized successfully!');
+        logger.log('✅ Storage initialized successfully!');
         
         // Get storage status for UI
         const statusInfo = getStorageStatus();
-        console.log('💾 Storage status:', statusInfo);
+        logger.log('💾 Storage status:', statusInfo);
         
         if (statusInfo) {
           const statusMsg = `✅ ${statusInfo.engine.toUpperCase()} ready (${statusInfo.capabilities.persistence ? 'persistent' : 'memory backup'})`;
@@ -57,7 +59,7 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
         
         setIsInitialized(true);
       } catch (err) {
-        console.error('❌ Storage initialization failed:', err);
+        logger.error('❌ Storage initialization failed:', err);
         setError(err instanceof Error ? err.message : String(err));
         setStatus(`❌ Storage failed: ${err}`);
       } finally {

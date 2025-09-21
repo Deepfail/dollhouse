@@ -1,23 +1,26 @@
-import { useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { 
-  ArrowLeft, 
-  ChatCircle, 
-  Heart,
-  User,
+import type { ChatSession, Character } from '@/types';
+import {
+  ArrowLeft,
+  BatteryMedium,
   ChartBar,
-  Gear,
   CheckCircle,
   Crown,
+  Gear,
+  Heart,
+  ChatCircle as MessageCircle,
+  User,
   WifiHigh,
-  BatteryMedium
+  PencilSimple
 } from '@phosphor-icons/react';
+import { CharacterCreatorRepo } from './CharacterCreatorRepo';
+import { useState } from 'react';
 
 interface ChatInterfaceProps {
   sessionId?: string | null;
@@ -26,16 +29,17 @@ interface ChatInterfaceProps {
   onStartGroupChat?: (sessionId?: string) => void;
 }
 
-export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat }: ChatInterfaceProps) {
+export function ChatInterface({ sessionId, onBack, onStartChat }: ChatInterfaceProps) {
   const { characters } = useHouseFileStorage();
   const { sessions } = useChat();
   const [activeTab, setActiveTab] = useState('profile');
 
-  const session = sessions?.find((s: any) => s.id === sessionId);
-  const sessionCharacters = characters?.filter((c: any) => session?.participantIds.includes(c.id)) || [];
+  const session = sessions?.find((s: ChatSession) => s.id === sessionId);
+  const sessionCharacters = characters?.filter((c: Character) => session?.participantIds?.includes(c.id)) || [];
   
   // Get the main character for profile display
   const mainCharacter = sessionCharacters[0] || characters?.[0];
+  const [editOpen, setEditOpen] = useState(false);
   
   // Mock stats for the design
   const stats = {
@@ -54,7 +58,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center space-y-4 max-w-sm">
-          <ChatCircle size={48} className="mx-auto text-muted-foreground" />
+          <MessageCircle size={48} className="mx-auto text-muted-foreground" />
           <div>
             <h3 className="text-lg font-semibold mb-2">No Character Selected</h3>
             <p className="text-muted-foreground text-sm">Select a character from the sidebar to view their profile.</p>
@@ -80,7 +84,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
       </div>
 
       {/* Header */}
-      <div className="bg-[#1a1a1a] h-[73px] border-b border-gray-700 px-4 flex items-center justify-between flex-shrink-0">
+  <div className="bg-[#1a1a1a] h-[73px] border-b border-[rgba(255,255,255,0.04)] px-4 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           <Avatar className="w-10 h-10">
             <AvatarImage src={mainCharacter.avatar} alt={mainCharacter.name} />
@@ -93,45 +97,61 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm">
-            <ChatCircle size={16} className="text-gray-400" />
+            <MessageCircle size={16} className="text-gray-400" />
           </Button>
           <Button variant="ghost" size="sm">
             <CheckCircle size={16} className="text-gray-400" />
+          </Button>
+          {/* Pencil edit button - opens character editor */}
+          <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)} aria-label="Edit character">
+            <PencilSimple size={16} className="text-gray-300" />
           </Button>
         </div>
       </div>
 
       {/* Stats Bar */}
-      <div className="bg-neutral-800 h-[34px] border-b border-gray-700 shadow-[0px_-1px_22.6px_0px_#ff1372] flex items-center justify-center px-3 flex-shrink-0">
-        <div className="flex items-center justify-between w-full max-w-[358px] text-xs">
+      <div className="bg-neutral-800 h-[52px] border-b border-[rgba(255,255,255,0.02)] shadow-[0_10px_30px_-12px_rgba(255,19,145,0.45)] flex items-center px-4 flex-shrink-0">
+        <div className="flex w-full items-center justify-between gap-6 max-w-[980px] mx-auto text-xs">
           {/* Love */}
-          <div className="flex items-center gap-2">
-            <Heart size={14} className="text-red-400" />
-            <span className="text-gray-300">Love</span>
-            <div className="w-8 h-1.5 bg-gray-600 rounded-full">
-              <div className="w-5 h-1.5 bg-gradient-to-r from-red-400 to-[#ff1372] rounded-full"></div>
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="flex items-center gap-2 w-28">
+              <Heart size={14} className="text-red-400" />
+              <span className="text-gray-300">Love</span>
             </div>
-            <span className="text-red-400 font-semibold">{stats.love}%</span>
+            <div className="flex items-center gap-3 w-full">
+              <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div className="h-2 bg-gradient-to-r from-red-400 to-[#ff1372]" style={{ width: `${stats.love}%` }} />
+              </div>
+              <span className="text-red-400 font-semibold w-10 text-right">{stats.love}%</span>
+            </div>
           </div>
-          
+
           {/* Wet */}
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3.5 bg-blue-400 rounded-sm"></div>
-            <span className="text-gray-300">Wet</span>
-            <div className="w-8 h-1.5 bg-gray-600 rounded-full">
-              <div className="w-3 h-1.5 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full"></div>
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="flex items-center gap-2 w-28">
+              <div className="w-3 h-3.5 bg-blue-400 rounded-sm" />
+              <span className="text-gray-300">Wet</span>
             </div>
-            <span className="text-blue-400 font-semibold">{stats.wet}%</span>
+            <div className="flex items-center gap-3 w-full">
+              <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div className="h-2 bg-gradient-to-r from-blue-400 to-cyan-400" style={{ width: `${stats.wet}%` }} />
+              </div>
+              <span className="text-blue-400 font-semibold w-10 text-right">{stats.wet}%</span>
+            </div>
           </div>
-          
+
           {/* Trust */}
-          <div className="flex items-center gap-2">
-            <Crown size={14} className="text-green-400" />
-            <span className="text-gray-300">Trust</span>
-            <div className="w-8 h-1.5 bg-gray-600 rounded-full">
-              <div className="w-6 h-1.5 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full"></div>
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="flex items-center gap-2 w-28">
+              <Crown size={14} className="text-green-400" />
+              <span className="text-gray-300">Trust</span>
             </div>
-            <span className="text-green-400 font-semibold">{stats.trust}%</span>
+            <div className="flex items-center gap-3 w-full">
+              <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div className="h-2 bg-gradient-to-r from-green-400 to-emerald-400" style={{ width: `${stats.trust}%` }} />
+              </div>
+              <span className="text-green-400 font-semibold w-10 text-right">{stats.trust}%</span>
+            </div>
           </div>
         </div>
       </div>
@@ -267,7 +287,7 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
                 
                 <div className="flex items-center gap-3">
                   <div className="w-6 h-6 bg-[#667eea] rounded-full flex items-center justify-center">
-                    <ChatCircle size={12} className="text-white" />
+                    <MessageCircle size={12} className="text-white" />
                   </div>
                   <div>
                     <p className="text-gray-300 text-xs">Had a deep conversation about creative inspiration</p>
@@ -291,14 +311,16 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
       </div>
 
       {/* Bottom Navigation */}
-      <div className="bg-[rgba(26,26,26,0.95)] h-[89px] border-t border-gray-700 px-3 flex items-center justify-center flex-shrink-0">
+        <div className="relative w-full flex justify-center mb-4">
+          <div className="w-full max-w-[420px] px-4">
+            <div className="bg-[rgba(15,15,15,0.85)] rounded-xl border border-[rgba(255,255,255,0.03)] px-2 py-2">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-5 bg-transparent h-16 gap-2">
+          <TabsList className="grid grid-cols-5 bg-transparent h-14 gap-3">
             <TabsTrigger 
               value="profile" 
-              className={`flex flex-col items-center gap-1 h-16 rounded-lg ${
+              className={`flex flex-col items-center gap-1 h-14 rounded-lg px-2 ${
                 activeTab === 'profile' 
-                  ? 'bg-[rgba(255,19,145,0.16)] text-[#ff1372]' 
+                  ? 'bg-[rgba(255,19,145,0.18)] text-[#ff1372]' 
                   : 'text-gray-400'
               }`}
             >
@@ -307,36 +329,40 @@ export function ChatInterface({ sessionId, onBack, onStartChat, onStartGroupChat
             </TabsTrigger>
             <TabsTrigger 
               value="chat" 
-              className="flex flex-col items-center gap-1 h-16 rounded-lg text-gray-400"
+              className="flex flex-col items-center gap-1 h-14 rounded-lg px-2 text-gray-400"
               onClick={() => onStartChat?.(mainCharacter.id)}
             >
-              <ChatCircle size={18} />
+              <MessageCircle size={18} />
               <span className="text-xs">Chat</span>
             </TabsTrigger>
             <TabsTrigger 
               value="feed" 
-              className="flex flex-col items-center gap-1 h-16 rounded-lg text-gray-400"
+              className="flex flex-col items-center gap-1 h-14 rounded-lg px-2 text-gray-400"
             >
               <Heart size={18} />
               <span className="text-xs">Feed</span>
             </TabsTrigger>
             <TabsTrigger 
               value="stats" 
-              className="flex flex-col items-center gap-1 h-16 rounded-lg text-gray-400"
+              className="flex flex-col items-center gap-1 h-14 rounded-lg px-2 text-gray-400"
             >
               <ChartBar size={18} />
               <span className="text-xs">Stats</span>
             </TabsTrigger>
             <TabsTrigger 
               value="settings" 
-              className="flex flex-col items-center gap-1 h-16 rounded-lg text-gray-400"
+              className="flex flex-col items-center gap-1 h-14 rounded-lg px-2 text-gray-400"
             >
               <Gear size={18} />
               <span className="text-xs">Settings</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>
-      </div>
+            </div>
+          </div>
+        </div>
+      {/* Editor dialog for editing character */}
+      <CharacterCreatorRepo open={editOpen} onOpenChange={setEditOpen} character={mainCharacter} />
     </div>
   );
 }

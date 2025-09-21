@@ -1,6 +1,7 @@
 // storage/adapters.ts - Bridge between old app interface and new storage
 import { v4 as uuidv4 } from 'uuid';
 import { CharacterRow, ChatRow, MessageRow, storage } from './index';
+import { logger } from '@/lib/logger';
 
 // Helper to ensure storage is initialized
 function getInitializedStorage() {
@@ -274,7 +275,7 @@ export class StorageAdapter {
     
     // For now, store in a mock way until we have the posts table
     // Later this will use: await storage.put('character_posts', post);
-    console.log('📝 Created character post:', post);
+  logger.log('📝 Created character post:', post);
     
     return postId;
   }
