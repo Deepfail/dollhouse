@@ -107,69 +107,6 @@ function AppContent({
     };
   }, [setActiveSessionId, setChatActiveSessionId, setCurrentView, setSelectedCharacterId, house?.characters]);
 
-  const handleStartChat = async (characterId: string) => {
-    try {
-      if (!house?.characters || house.characters.length === 0) return;
-      const character = house.characters.find(c => c.id === characterId);
-      if (!character) return;
-      
-      const sessionId = await createSession('individual', [characterId]);
-      if (sessionId) {
-        setActiveSessionId(sessionId);
-        setChatActiveSessionId(sessionId);
-        setCurrentView('chat');
-        setSelectedCharacterId(characterId);
-        
-        toast.success(`${character.name} is on her way to your room...`, {
-          duration: 3000,
-        });
-      }
-    } catch (e) {
-      logger.error('Explicit chat start failed', e);
-    }
-  };
-
-  const handleSelectCharacter = (characterId: string) => {
-    setSelectedCharacterId(characterId);
-    setCurrentView('chat');
-  };
-
-  const handleStartGroupChat = () => {
-    try {
-      const g = globalThis as any;
-      if (g?.dispatchEvent && g?.CustomEvent) {
-        g.dispatchEvent(new g.CustomEvent('open-group-chat-creator'));
-      }
-      setCurrentView('chat');
-    } catch (e) {
-      logger.error('Failed to trigger group chat creator', e);
-    }
-  };
-
-  const handleStartScene = (sessionId: string) => {
-    logger.log('handleStartScene called with sessionId:', sessionId);
-    
-    try {
-      setActiveSessionId(sessionId);
-      setCurrentView('scene');
-      toast.success('Scene started! Session ID: ' + sessionId.slice(0, 12));
-    } catch (error) {
-      logger.error('Error in handleStartScene:', error);
-      toast.error('Failed to start scene');
-    }
-  };
-
-  const handleViewChange = (view: 'house' | 'scene' | 'chat') => {
-    setCurrentView(view);
-  };
-
-  const handleSessionChange = (sessionId: string | null) => {
-    setActiveSessionId(sessionId);
-    if (sessionId) {
-      setChatActiveSessionId(sessionId);
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="h-screen bg-[#0f0f0f] flex items-center justify-center">
@@ -186,13 +123,14 @@ function AppContent({
     switch (currentView) {
       case 'house':
         return <HouseView />;
-      case 'chat':
+      case 'chat': {
         const active = sessions.find(s => s.id === activeSessionId);
         if (active?.type === 'interview' && activeSessionId) {
           return <InterviewChat sessionId={activeSessionId} onExit={() => setCurrentView('house')} />;
         }
         // Universal chat will be handled by Layout
         return <HouseView />; 
+      } 
       case 'scene':
         return activeSessionId ? (
           <SceneInterface 
@@ -208,14 +146,7 @@ function AppContent({
   return (
     <div className="h-screen bg-[#0f0f0f]">
       <Layout
-        onStartChat={handleStartChat}
-        onStartGroupChat={handleStartGroupChat}
-        onSelectCharacter={handleSelectCharacter}
-        onStartScene={handleStartScene}
         activeSessionId={activeSessionId}
-        currentView={currentView}
-        onViewChange={handleViewChange}
-        onSessionChange={handleSessionChange}
       >
         {renderMainContent()}
       </Layout>
