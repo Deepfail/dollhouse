@@ -53,7 +53,7 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
   // Quick actions currently unused in this pared-down Copilot; re-enable if needed.
 
   // Chats/scenes (for launching sessions)
-  const { createSession, setActiveSessionId, getSessionMessages, sendMessage, sessions, sessionsLoaded, deleteSession, createInterviewSession } = useChat()
+  const { createSession, getSessionMessages, sendMessage, sessions, sessionsLoaded, deleteSession, createInterviewSession } = useChat()
   const { createSceneSession } = useSceneMode()
 
   // Copilot session management
@@ -287,8 +287,7 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
       // Command: restart chat with a character
       const restartId = parseRestartChatCommand(text)
       if (restartId) {
-        const sid = await createSession('individual', [restartId])
-        setActiveSessionId(sid)
+        await createSession('individual', [restartId])
         onStartChat?.(restartId)
         setIsTyping(false)
         return
@@ -324,8 +323,7 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
       const interviewCharId = parseInterviewCommand(text);
       if (interviewCharId) {
         try {
-          const sid = await createInterviewSession(interviewCharId);
-          setActiveSessionId(sid);
+          await createInterviewSession(interviewCharId);
           onStartChat?.(interviewCharId);
         } catch (e) { logger.warn('Interview session creation failed', e); }
         setIsTyping(false);
@@ -336,13 +334,12 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
       const sceneOrChat = await parseCustomSceneCommand(text)
       if (sceneOrChat) {
         if (sceneOrChat.type === 'chat') {
-          const sid = await createSession('individual', [sceneOrChat.characterId])
-          setActiveSessionId(sid)
+          await createSession('individual', [sceneOrChat.characterId])
           onStartChat?.(sceneOrChat.characterId)
         } else if (sceneOrChat.type === 'scene') {
           await createCustomSceneChat(sceneOrChat.characterId, sceneOrChat.context, sceneOrChat.customPrompt)
         } else if (sceneOrChat.type === 'interview') {
-          try { const sid = await createInterviewSession(sceneOrChat.characterId); setActiveSessionId(sid); onStartChat?.(sceneOrChat.characterId); } catch (e) { logger.warn('Interview creation failed', e); }
+          try { await createInterviewSession(sceneOrChat.characterId); onStartChat?.(sceneOrChat.characterId); } catch (e) { logger.warn('Interview creation failed', e); }
         }
         setIsTyping(false)
         return
@@ -390,7 +387,7 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
       setIsTyping(false)
       inputRef.current?.focus?.()
     }
-  }, [inputMessage, copilotMessages, copilotSessionId, persist, parseRestartChatCommand, parseImageGenerationCommand, parseCustomSceneCommand, createSession, setActiveSessionId, onStartChat, createCustomSceneChat, sendMessage, getSessionMessages])
+  }, [inputMessage, copilotMessages, copilotSessionId, persist, parseRestartChatCommand, parseImageGenerationCommand, parseCustomSceneCommand, createSession, onStartChat, createCustomSceneChat, sendMessage, getSessionMessages])
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
@@ -469,8 +466,7 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
             onClick={async () => {
               try {
                 if (!selectedCharacterId) return
-                const sid = await createSession('individual', [selectedCharacterId])
-                setActiveSessionId(sid)
+                await createSession('individual', [selectedCharacterId])
                 onStartChat?.(selectedCharacterId)
               } catch (e) {
                 logger.error('Failed to start chat session', e)
@@ -488,16 +484,8 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
           <Button variant="outline" size="sm" className="justify-start" onClick={async () => {
             try {
               if (!selectedCharacterId) return;
-              const sid = await createInterviewSession(selectedCharacterId);
-              setActiveSessionId(sid);
-              // Fire event so App's effect navigates to chat view
-              try {
-                interface CE { new(type: string, init?: { detail?: unknown }): unknown }
-                const g = globalThis as unknown as { dispatchEvent?: (e: unknown) => void; CustomEvent?: CE };
-                if (g?.dispatchEvent && g?.CustomEvent) {
-                  g.dispatchEvent(new g.CustomEvent('chat-active-session-changed', { detail: { sessionId: sid } }));
-                }
-              } catch (evtErr) { logger.warn('Failed to broadcast interview session activation', evtErr); }
+              await createInterviewSession(selectedCharacterId);
+              onStartChat?.(selectedCharacterId);
             } catch (e) {
               logger.error('Failed to start interview session', e);
             }
