@@ -1,16 +1,17 @@
 import { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
-import { CopilotNew as Copilot } from './CopilotNew';
+import { Copilot } from './Copilot';
 
 interface LayoutProps {
   children: ReactNode;
   currentView?: 'house' | 'chat' | 'scene';
   onStartChat?: (characterId: string) => void;
   onStartGroupChat?: (sessionId?: string) => void;
+  onSelectCharacter?: (characterId: string) => void;
   onStartScene?: (sessionId: string) => void;
 }
 
-export function Layout({ children, currentView, onStartChat, onStartGroupChat, onStartScene }: LayoutProps) {
+export function Layout({ children, currentView, onStartChat, onStartGroupChat, onSelectCharacter, onStartScene }: LayoutProps) {
   return (
     <div className="flex h-screen bg-background">
       {/* Main Sidebar */}
@@ -18,6 +19,7 @@ export function Layout({ children, currentView, onStartChat, onStartGroupChat, o
         <Sidebar 
           onStartChat={onStartChat}
           onStartGroupChat={onStartGroupChat}
+          onSelectCharacter={onSelectCharacter}
           onStartScene={onStartScene}
         />
       </div>
