@@ -11,9 +11,10 @@ interface LayoutProps {
   onStartGroupChat?: (sessionId?: string) => void;
   onStartScene?: (sessionId: string) => void;
   dbStatus?: string;
+  isAnimating?: boolean;
 }
 
-export function Layout({ children, onStartChat, onSelectCharacter, onStartGroupChat, onStartScene, dbStatus }: LayoutProps) {
+export function Layout({ children, onStartChat, onSelectCharacter, onStartGroupChat, onStartScene, dbStatus, isAnimating }: LayoutProps) {
   const isMobile = useIsMobile();
 
   if (isMobile) {
@@ -66,7 +67,11 @@ export function Layout({ children, onStartChat, onSelectCharacter, onStartGroupC
       {/* Center - Mobile Device Mockup with pane-level toolbar */}
       <div className="flex-1 flex items-center justify-center bg-[#0f0f0f] relative">
         <UniversalToolbar position="bottom" />
-        <div className="w-[440px] h-[760px] bg-[#1a1a1a] rounded-[24px] border border-gray-700 shadow-[0px_0px_20px_0px_rgba(102,126,234,0.3)] overflow-hidden relative">
+        <div className={`w-[440px] h-[760px] bg-[#1a1a1a] rounded-[24px] border border-gray-700 shadow-[0px_0px_20px_0px_rgba(102,126,234,0.3)] overflow-hidden relative transition-all duration-500 ${
+          isAnimating 
+            ? 'scale-105 shadow-[0px_0px_40px_10px_rgba(102,126,234,0.6)] animate-pulse' 
+            : 'scale-100'
+        }`}>
           {children}
         </div>
       </div>

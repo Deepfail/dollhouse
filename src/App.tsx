@@ -70,6 +70,9 @@ function AppContent({
 }) {
   const { createSession, sessions, setActiveSessionId: setChatActiveSessionId, sessionsLoaded, activeSessionId: hookActive } = useChat();
   const { house, isLoading } = useHouseFileStorage();
+  
+  // Animation state for the phone UI
+  const [isAnimating, setIsAnimating] = useState(false);
 
   // Debug logging with error handling
   useEffect(() => {
@@ -88,6 +91,14 @@ function AppContent({
       if (!house?.characters || house.characters.length === 0) return;
       const character = house.characters.find(c => c.id === characterId);
       if (!character) return;
+      
+      // Trigger animation if not already in chat view
+      if (currentView !== 'chat') {
+        setIsAnimating(true);
+        // Animation duration
+        globalThis.setTimeout(() => setIsAnimating(false), 600);
+      }
+      
       // Reuse pattern: create a fresh session ONLY when explicitly invoked
       const sessionId = await createSession('individual', [characterId]);
       if (sessionId) {
@@ -95,6 +106,11 @@ function AppContent({
         setChatActiveSessionId(sessionId);
         setCurrentView('chat');
         setSelectedCharacterId(characterId);
+        
+        // Show a toast notification about what's happening
+        toast.success(`${character.name} is on her way to your room...`, {
+          duration: 3000,
+        });
       }
     } catch (e) {
       logger.error('Explicit chat start failed', e);
@@ -179,6 +195,7 @@ function AppContent({
         onStartGroupChat={handleStartGroupChat}
         onSelectCharacter={handleSelectCharacter}
         onStartScene={handleStartScene}
+        isAnimating={isAnimating}
       >
         {currentView === 'house' ? (
           <HouseView />

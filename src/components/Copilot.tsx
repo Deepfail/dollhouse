@@ -334,7 +334,65 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
       const sceneOrChat = await parseCustomSceneCommand(text)
       if (sceneOrChat) {
         if (sceneOrChat.type === 'chat') {
-          await createSession('individual', [sceneOrChat.characterId])
+          // Find the character for personalized responses
+          const character = characters?.find(c => c.id === sceneOrChat.characterId)
+          
+          // Ali's immediate response - she needs to acknowledge and set the scene
+          const aliResponses = [
+            `✨ *Ali's eyes light up with a knowing smile* Of course! I'll send ${character?.name} to your room right away. She's been thinking about you...`,
+            `💫 *Ali nods with a mischievous grin* Consider it done. ${character?.name} will be there shortly - I have a feeling she's been waiting for this invitation.`,
+            `🌟 *Ali's voice carries a hint of excitement* Perfect timing! ${character?.name} was just asking about you. I'll let her know you want to see her in your room.`,
+            `✨ *Ali leans in conspiratorially* Oh, ${character?.name} is going to love this. I'll make sure she knows exactly what you have in mind when she comes to your room.`
+          ]
+          const aliResponse = aliResponses[Math.floor(Math.random() * aliResponses.length)]
+          
+          // Add Ali's immediate response to Copilot chat
+          const aliMsg: CopilotMessage = {
+            id: `ali-${Date.now()}`,
+            sender: 'copilot',
+            content: aliResponse,
+            timestamp: new Date(),
+          }
+          await persist([...copilotMessages, userMsg, aliMsg])
+
+          // Create the session with enhanced scene setup
+          const sessionId = await createSession('individual', [sceneOrChat.characterId])
+          
+          if (sessionId && character) {
+            // Create rich, character-specific scene prompts
+            const scenePrompts = [
+              `${character.name} has just received a message from Ali asking her to visit you in your private room. She's intrigued by the invitation and approaches your door with a mix of curiosity and anticipation. As she knocks softly, she wonders what you might have in mind for this intimate encounter.`,
+              
+              `Ali has just whispered to ${character.name} that you've requested her presence in your room. ${character.name} feels a flutter of excitement as she makes her way to you, her mind racing with possibilities. She pauses outside your door, taking a breath before entering your private space.`,
+              
+              `${character.name} received Ali's message about your invitation and couldn't help but smile. She's been hoping for some alone time with you. As she walks toward your room, she smooths her outfit and prepares herself for whatever intimate moment awaits behind your door.`,
+              
+              `After receiving Ali's request, ${character.name} finds herself both nervous and excited about visiting your room. She trusts Ali's judgment completely, so she knows this invitation means something special. She approaches your space with anticipation, ready to see what you have planned for this private encounter.`
+            ]
+            const scenePrompt = scenePrompts[Math.floor(Math.random() * scenePrompts.length)]
+            
+            // Send the rich scene prompt to set the context
+            try {
+              await sendMessage(sessionId, scenePrompt, 'system', { copilot: false })
+              logger.log('🎭 Character-specific scene prompt sent:', scenePrompt)
+              
+              // Add an opening message from the character to start the interaction
+              const characterIntros = [
+                `*${character.name} approaches your door and knocks softly* Hey... Ali said you wanted to see me? *She enters with a curious smile*`,
+                `*${character.name} appears in your doorway* I got your message through Ali. *She steps inside, her eyes meeting yours* What did you have in mind?`,
+                `*${character.name} slips into your room quietly* Ali told me you were looking for me... *She closes the door behind her* Here I am.`,
+                `*${character.name} enters with a playful expression* So, Ali said you wanted some company? *She moves closer* I was hoping you'd ask.`
+              ]
+              const characterIntro = characterIntros[Math.floor(Math.random() * characterIntros.length)]
+              
+              // Send the character's opening message
+              await sendMessage(sessionId, characterIntro, character.id, { copilot: false })
+              logger.log('💬 Character introduction sent:', characterIntro)
+            } catch (e) {
+              logger.warn('Failed to send scene prompt', e)
+            }
+          }
+          
           onStartChat?.(sceneOrChat.characterId)
         } else if (sceneOrChat.type === 'scene') {
           await createCustomSceneChat(sceneOrChat.characterId, sceneOrChat.context, sceneOrChat.customPrompt)
