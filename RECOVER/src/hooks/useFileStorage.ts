@@ -65,8 +65,8 @@ export function useFileStorage<T>(filename: string, defaultValue: T) {
 
   const deleteFile = useCallback(async () => {
     try {
-      // For now, we'll just save null data
-      // In a real file system, we'd delete the file
+      // Sets file content to null to mark as deleted (actual file deletion is not supported by fileStorage)
+      
       await fileStorage.writeFile(filename, null);
       setData(defaultValue);
       return true;
