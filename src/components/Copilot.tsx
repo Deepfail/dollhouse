@@ -206,8 +206,20 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
       const m = message.match(p)
       if (m) {
         const name = m[1]
+        logger.log('🔍 Looking for character:', name)
         const ch = characters?.find(c => c.name.toLowerCase() === name.toLowerCase())
-        if (ch) return { type: 'chat', characterId: ch.id, prompt: `${ch.name} has just been asked to go to your room.` }
+        logger.log('✨ Found character:', ch?.name || 'NOT FOUND')
+        if (ch) {
+          // Create rich contextual prompt based on the command
+          const contextPrompts = [
+            `${ch.name} has just received a request to come to your room. She's curious about why you called for her and approaches with interest.`,
+            `You've summoned ${ch.name} to your private space. She enters your room, wondering what you have in mind.`,
+            `${ch.name} appears at your door, having been invited to your room. She's ready to spend some intimate time with you.`,
+            `${ch.name} has come to your room as requested. The atmosphere is charged with possibility as she looks at you expectantly.`
+          ]
+          const randomPrompt = contextPrompts[Math.floor(Math.random() * contextPrompts.length)]
+          return { type: 'chat', characterId: ch.id, prompt: randomPrompt }
+        }
       }
     }
 
@@ -275,6 +287,9 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
     const text = inputMessage.trim()
     if (!text || !copilotSessionId) return
 
+    logger.log('🤖 Ali processing command:', text)
+    logger.log('🏠 Available characters:', characters?.map(c => c.name))
+
     const userMsg: CopilotMessage = { id: `user-${Date.now()}`, sender: 'user', content: text, timestamp: new Date() }
     await persist([...copilotMessages, userMsg])
     setInputMessage('')
@@ -332,6 +347,7 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
 
       // Command: custom scene/chat
       const sceneOrChat = await parseCustomSceneCommand(text)
+      logger.log('🎭 Parsed scene command:', sceneOrChat)
       if (sceneOrChat) {
         if (sceneOrChat.type === 'chat') {
           // Find the character for personalized responses
