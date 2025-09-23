@@ -1,4 +1,5 @@
 import { repositoryStorage } from '@/hooks/useRepositoryStorage';
+import { logger } from '@/lib/logger';
 import { queryClient, queryKeys } from '@/lib/query';
 import { getSetting } from '@/repo/settings';
 
@@ -39,7 +40,7 @@ export async function getActivePreset(): Promise<CopilotPreset | null> {
     const presets: CopilotPreset[] = JSON.parse(presetsData);
     return presets.find(p => p.id === currentPresetId) || null;
   } catch (error) {
-    console.error('Error getting active preset:', error);
+    logger.error('Error getting active preset:', error);
     return null;
   }
 }
@@ -85,7 +86,7 @@ export async function getApiConfig() {
     
     return { provider, apiKey, apiUrl, model: 'deepseek/deepseek-chat-v3.1' };
   } catch (error) {
-    console.error('Error getting API config:', error);
+    logger.error('Error getting API config:', error);
     return { provider: 'openrouter', apiKey: '', apiUrl: '', model: 'deepseek/deepseek-chat-v3.1' };
   }
 }
@@ -169,7 +170,7 @@ Focus on making the character more interesting and detailed while maintaining co
 
     return parsed;
   } catch (error) {
-    console.error('Error generating character draft:', error);
+    logger.error('Error generating character draft:', error);
     throw error;
   }
 }

@@ -1,26 +1,15 @@
-import { useState, useRef, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Progress } from '@/components/ui/progress';
 import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { 
-  ArrowLeft, 
-  ChatCircle, 
-  Heart,
-  User,
-  ChartBar,
-  Gear,
-  CheckCircle,
-  Crown,
-  WifiHigh,
-  BatteryMedium
+import {
+    ArrowLeft
 } from '@phosphor-icons/react';
+import { useEffect, useRef, useState } from 'react';
 
 interface ChatInterfaceProps {
   sessionId?: string | null;

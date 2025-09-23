@@ -3,10 +3,11 @@ import { AIService } from '../lib/aiService';
 import { getDb, saveDatabase } from '../lib/db';
 import { uuid } from '../lib/uuid';
 // Note: use in-app character list from useHouseFileStorage; avoid repo adapter to prevent mismatches
-import { ChatMessage, ChatSession } from '../types';
-import { useHouseFileStorage } from './useHouseFileStorage';
+import { aliProfileService } from '@/lib/aliProfile';
 import { legacyStorage } from '@/lib/legacyStorage';
 import { logger } from '@/lib/logger';
+import { ChatMessage, ChatSession } from '../types';
+import { useHouseFileStorage } from './useHouseFileStorage';
 
 export function useChat() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -150,6 +151,9 @@ export function useChat() {
       }));
 
       logger.log('✅ Loaded', messages.length, 'messages for session');
+      if (messages.length === 0) {
+        logger.log('ℹ️ Session has zero messages (sessionId=', sessionId, ')');
+      }
       return messages;
     } catch (error) {
       logger.error('❌ Failed to load messages for session:', sessionId, error);
@@ -157,7 +161,7 @@ export function useChat() {
     }
   }, []);
 
-  const sendMessage = useCallback(async (sessionId: string, content: string, senderId: string) => {
+  const sendMessage = useCallback(async (sessionId: string, content: string, senderId: string, options?: { copilot?: boolean }) => {
     try {
       logger.log('📤 Sending message to session:', sessionId, 'from:', senderId);
       const { db } = await getDb();
@@ -182,8 +186,37 @@ export function useChat() {
       await saveDatabase();
   logger.log('✅ User message sent successfully');
 
-      // On user messages, award small progression/stat changes to all participants
-      if (senderId === 'user') {
+  // Log interaction for Ali's analysis
+  if (senderId === 'user') {
+    try {
+      const lowerContent = content.toLowerCase();
+      // Simple keyword extraction for preferences
+      if (lowerContent.includes('dominate') || lowerContent.includes('control')) {
+        await aliProfileService.addPreference({
+          category: 'trait',
+          value: 'dominance',
+          confidence: 0.7,
+          source: 'interaction',
+          context: sessionId
+        });
+      }
+      if (lowerContent.includes('love') || lowerContent.includes('romance')) {
+        await aliProfileService.addPreference({
+          category: 'scenario',
+          value: 'romantic',
+          confidence: 0.6,
+          source: 'interaction',
+          context: sessionId
+        });
+      }
+      // Add more as needed
+    } catch (e) {
+      logger.warn('Failed to log interaction for Ali', e);
+    }
+  }
+
+  // On user messages, award small progression/stat changes to all participants (skip for copilot assistant usage)
+  if (senderId === 'user' && !options?.copilot) {
         // Load session participants
         const participantRows: any[] = [];
         db.exec({
@@ -248,10 +281,10 @@ export function useChat() {
         }
       }
 
-      // Generate AI responses for characters in the session
-      if (senderId === 'user') {
+      // Generate AI responses (skip for copilot or assistant sessions)
+      if (senderId === 'user' && !options?.copilot) {
         const session = sessions.find(s => s.id === sessionId);
-        if (session && session.participantIds.length > 0) {
+        if (session && !session.assistantOnly && session.type !== 'assistant' && session.participantIds.length > 0) {
           await generateCharacterResponses(sessionId, session.participantIds, content);
         }
       }
@@ -319,12 +352,16 @@ export function useChat() {
         callback: (r: any) => sessInfo.push(r)
       });
       const sessionType = (sessInfo[0]?.type as string) || 'individual';
-      const goalRows: any[] = [];
+      if (sessionType === 'interview') {
+        logger.log('⏭️ Skip character auto-responses in interview session');
+        return;
+      }
+  const goalRows: { character_id: string; goal_text: string; priority: string }[] = [];
       db.exec({
         sql: 'SELECT character_id, goal_text, priority FROM session_goals WHERE session_id = ?',
         bind: [sessionId],
         rowMode: 'object',
-        callback: (r: any) => goalRows.push(r)
+  callback: (r: unknown) => { const row = r as { character_id: string; goal_text: string; priority: string }; goalRows.push(row); }
       });
       const goalsByChar: Record<string, { goal: string; priority: string }[]> = {};
       for (const g of goalRows) {
@@ -335,12 +372,12 @@ export function useChat() {
       // Long-term memory: summarize older parts of the conversation and persist
       let sessionSummary = '' as string;
       try {
-        const sumRows: any[] = [];
+  const sumRows: { summary_text?: string; covered_until?: string }[] = [];
         db.exec({
           sql: 'SELECT summary_text, covered_until FROM session_summaries WHERE session_id = ?',
           bind: [sessionId],
           rowMode: 'object',
-          callback: (r: any) => sumRows.push(r)
+          callback: (r: unknown) => { sumRows.push(r as { summary_text?: string; covered_until?: string }); }
         });
         sessionSummary = (sumRows[0]?.summary_text || '').trim();
         const lastCovered = sumRows[0]?.covered_until ? Number(sumRows[0].covered_until) : 0;
@@ -351,7 +388,7 @@ export function useChat() {
           const lastIncludedTs = toSummarize.length ? Number(new Date(toSummarize[toSummarize.length - 1].timestamp)) : lastCovered;
           if (lastIncludedTs > lastCovered) {
             const textBlock = toSummarize.map(m => {
-              const sender = m.characterId ? (sessionChars.find((c: any) => c.id === m.characterId)?.name || 'Character') : 'User';
+              const sender = m.characterId ? (sessionChars.find((c: { id: string; name?: string }) => c.id === m.characterId)?.name || 'Character') : 'User';
               if (typeof m.content === 'string' && m.content.startsWith('[System] ')) return '';
               return `${sender}: ${m.content}`;
             }).filter(Boolean).join('\n');
@@ -382,8 +419,8 @@ export function useChat() {
   for (const character of sessionChars) {
         try {
           // Build conversation context
-          const nameFor = (id?: string | null) => id ? (sessionChars.find((c: any) => c.id === id)?.name || 'Character') : 'User';
-          const historyText = conversationHistory.map(msg => `${nameFor(msg.characterId as any)}: ${msg.content}`).join('\n');
+          const nameFor = (id?: string | null) => id ? (sessionChars.find((c: { id: string; name?: string }) => c.id === id)?.name || 'Character') : 'User';
+          const historyText = conversationHistory.map(msg => `${nameFor(msg.characterId as string | null)}: ${msg.content}`).join('\n');
           
           // Create character prompt
           const systemPrompt = character.prompts?.system || 
@@ -462,12 +499,12 @@ Respond as ${character.name} in character. Keep your response natural and conver
       const { db } = await getDb();
       const now = Date.now();
       // Check if a goal already exists for this (session, character)
-      const rows: any[] = [];
+  const rows: { id?: string }[] = [];
       db.exec({
         sql: 'SELECT id FROM session_goals WHERE session_id = ? AND character_id = ?',
         bind: [sessionId, characterId],
         rowMode: 'object',
-        callback: (r: any) => rows.push(r)
+  callback: (r: unknown) => rows.push(r as { id?: string })
       });
 
       if (!goalText.trim()) {
@@ -507,12 +544,28 @@ Respond as ${character.name} in character. Keep your response natural and conver
   }, [loadSessions]);
 
   const createSession = useCallback(async (
-    type: 'individual' | 'group' | 'scene',
+    type: 'individual' | 'group' | 'scene' | 'assistant' | 'interview',
     participantIds: string[],
-    options?: { hiddenGoals?: Record<string, { goal: string; priority?: 'low' | 'medium' | 'high' }> }
+    options?: { hiddenGoals?: Record<string, { goal: string; priority?: 'low' | 'medium' | 'high' }>; assistantOnly?: boolean }
   ): Promise<string> => {
     try {
       logger.log('🆕 Creating session:', type, 'with participants:', participantIds);
+      if (type === 'assistant') {
+        const existing = sessions.find(s => s.type === 'assistant');
+        if (existing) {
+          logger.log('🔁 Reusing existing assistant session', existing.id);
+          setActiveSessionId(existing.id);
+          return existing.id;
+        }
+      }
+      if (type === 'assistant') {
+        const existing = sessions.find(s => s.type === 'assistant');
+        if (existing) {
+          logger.log('🔁 Reusing existing assistant session', existing.id);
+          setActiveSessionId(existing.id);
+          return existing.id;
+        }
+      }
       
       // Validate that all participant IDs exist in unified storage
       const validParticipants = participantIds.filter(id => {
@@ -523,7 +576,7 @@ Respond as ${character.name} in character. Keep your response natural and conver
         return exists;
       });
       
-      if (validParticipants.length === 0) {
+      if (type !== 'assistant' && validParticipants.length === 0) {
         throw new Error('No valid characters found for chat session');
       }
       
@@ -538,12 +591,14 @@ Respond as ${character.name} in character. Keep your response natural and conver
 
       // Only add valid participants - skip SQLite character table foreign key
       // Store participant IDs directly since we validate against unified storage
-      for (const participantId of validParticipants) {
-        const participantEntryId = uuid();
-        db.exec({
-          sql: 'INSERT INTO session_participants (id, session_id, character_id, joined_at) VALUES (?, ?, ?, ?)',
-          bind: [participantEntryId, sessionId, participantId, now]
-        });
+      if (type !== 'assistant') {
+        for (const participantId of validParticipants) {
+          const participantEntryId = uuid();
+          db.exec({
+            sql: 'INSERT INTO session_participants (id, session_id, character_id, joined_at) VALUES (?, ?, ?, ?)',
+            bind: [participantEntryId, sessionId, participantId, now]
+          });
+        }
       }
 
       // Persist hidden goals when provided
@@ -561,16 +616,69 @@ Respond as ${character.name} in character. Keep your response natural and conver
   logger.log('✅ Session created successfully:', sessionId);
       await saveDatabase();
 
-      await loadSessions();
+  await loadSessions();
       setActiveSessionId(sessionId);
-  try { legacyStorage.setItem('active_chat_session', sessionId); } catch {}
-      try { window.dispatchEvent(new CustomEvent('chat-active-session-changed', { detail: { sessionId } })); } catch {}
-      return sessionId;
+      try { legacyStorage.setItem('active_chat_session', sessionId); } catch { /* ignore */ }
+      try {
+  type CustomEventInitLike = { detail?: unknown } | undefined;
+  interface GlobalLike { dispatchEvent?: (e: unknown) => void; CustomEvent?: { new(type: string, init?: CustomEventInitLike): unknown }; }
+        const g = globalThis as unknown as GlobalLike;
+        if (g?.dispatchEvent && g?.CustomEvent) {
+          g.dispatchEvent(new g.CustomEvent('chat-active-session-changed', { detail: { sessionId } }));
+        }
+      } catch { /* ignore */ }
+  return sessionId;
     } catch (error) {
         logger.error('❌ Failed to create session:', error);
       throw error;
     }
   }, [loadSessions, characters]);
+
+  // Create an interview session: user + copilot interviewer + target character(s)
+  const createInterviewSession = useCallback(async (characterId: string): Promise<string> => {
+    try {
+      // Reuse existing interview session for character if active and not ended
+      const existing = sessions.find(s => s.type === 'interview' && s.participantIds.includes(characterId) && !s.endedAt);
+      if (existing) {
+        logger.log('🔁 Reusing interview session for character', characterId, existing.id);
+        setActiveSessionId(existing.id);
+        return existing.id;
+      }
+      const sessionId = await createSession('interview', [characterId]);
+      logger.log('🆕 Interview session created', sessionId, 'for character', characterId);
+      // Generate opening question
+      let opening = '';
+      try {
+        const char = (characters || []).find(c => c.id === characterId);
+        const basePrompt = `You are the house Copilot interviewing the character ${char?.name}. Craft a concise, engaging first interview question that references one unique aspect of their personality or background. Do NOT answer for them.`;
+        opening = await AIService.generateResponse(basePrompt, undefined, undefined, { temperature: 0.7, max_tokens: 80 });
+      } catch (e) {
+        logger.warn('Failed to generate opening interview question, using fallback', e);
+        opening = 'Let\'s start—can you introduce yourself briefly?';
+      }
+      // Store opening question as copilot message
+      await sendMessage(sessionId, opening, 'copilot', { copilot: true });
+      return sessionId;
+    } catch (e) {
+      logger.error('Failed to create interview session', e);
+      throw e;
+    }
+  }, [createSession, sessions, characters, sendMessage]);
+
+  // Create a group session with optional hidden roles/objectives (encoded into session_goals rows)
+  const createGroupSession = useCallback(async (
+    participantIds: string[],
+    roles?: Record<string, { role: string; objective?: string; priority?: 'low' | 'medium' | 'high' }>
+  ): Promise<string> => {
+    const hiddenGoals: Record<string, { goal: string; priority?: 'low' | 'medium' | 'high' }> = {};
+    if (roles) {
+      for (const [cid, r] of Object.entries(roles)) {
+        const text = r.objective ? `[ROLE] ${r.role}\n[OBJECTIVE] ${r.objective}` : `[ROLE] ${r.role}`;
+        hiddenGoals[cid] = { goal: text, priority: r.priority || 'medium' };
+      }
+    }
+    return await createSession('group', participantIds, { hiddenGoals });
+  }, [createSession]);
 
   const closeSession = useCallback(async (sessionId: string) => {
     try {
@@ -630,8 +738,15 @@ Respond as ${character.name} in character. Keep your response natural and conver
       });
       await saveDatabase();
       setActiveSessionId(sessionId);
-  try { legacyStorage.setItem('active_chat_session', sessionId); } catch {}
-      try { window.dispatchEvent(new CustomEvent('chat-active-session-changed', { detail: { sessionId } })); } catch {}
+      try { legacyStorage.setItem('active_chat_session', sessionId); } catch { /* ignore */ }
+      try {
+  type CustomEventInitLike2 = { detail?: unknown } | undefined;
+  interface GlobalLike { dispatchEvent?: (e: unknown) => void; CustomEvent?: { new(type: string, init?: CustomEventInitLike2): unknown }; }
+        const g = globalThis as unknown as GlobalLike;
+        if (g?.dispatchEvent && g?.CustomEvent) {
+          g.dispatchEvent(new g.CustomEvent('chat-active-session-changed', { detail: { sessionId } }));
+        }
+      } catch { /* ignore */ }
       await loadSessions();
     } catch (e) {
       logger.warn('Failed to switch/open session', e);
@@ -658,27 +773,75 @@ Respond as ${character.name} in character. Keep your response natural and conver
       if (stored) {
         setActiveSessionId(stored);
       }
-    } catch {}
+  } catch { /* ignore */ }
     // Event listeners to sync across multiple hook instances
     const onSessionsUpdated = () => {
       // Reload without rebroadcast to avoid event storm
       loadSessions({ suppressBroadcast: true });
     };
-    const onActiveChanged = (e: Event) => {
-      const detail = (e as CustomEvent).detail || {};
+    const onActiveChanged = (e: unknown) => {
+      const anyEvt = e as { detail?: { sessionId?: string } };
+      const detail = anyEvt?.detail || {};
       if (detail.sessionId) setActiveSessionId(detail.sessionId);
     };
     try {
-      window.addEventListener('chat-sessions-updated', onSessionsUpdated);
-      window.addEventListener('chat-active-session-changed', onActiveChanged as any);
-    } catch {}
+  interface GlobalLike { addEventListener?: (t: string, cb: (ev: unknown) => void) => void; }
+      const g = globalThis as unknown as GlobalLike;
+      if (g?.addEventListener) {
+        g.addEventListener('chat-sessions-updated', onSessionsUpdated);
+        g.addEventListener('chat-active-session-changed', onActiveChanged);
+      }
+    } catch { /* ignore */ }
     return () => {
       try {
-        window.removeEventListener('chat-sessions-updated', onSessionsUpdated);
-        window.removeEventListener('chat-active-session-changed', onActiveChanged as any);
-      } catch {}
+  interface GlobalLike { removeEventListener?: (t: string, cb: (ev: unknown) => void) => void; }
+        const g = globalThis as unknown as GlobalLike;
+        if (g?.removeEventListener) {
+          g.removeEventListener('chat-sessions-updated', onSessionsUpdated);
+          g.removeEventListener('chat-active-session-changed', onActiveChanged);
+        }
+      } catch { /* ignore */ }
     };
   }, [loadSessions]);
+
+  const analyzeSession = useCallback(async (sessionId: string) => {
+    try {
+      const messages = await getSessionMessages(sessionId);
+      const userMessages = messages.filter(m => !m.characterId);
+      const content = userMessages.map(m => m.content).join(' ').toLowerCase();
+      
+      // Extract insights
+      const insights: Record<string, unknown> = {};
+      if (content.includes('hurt') || content.includes('pain')) {
+        insights.prefersPain = true;
+      }
+      if (content.includes('young') || content.includes('teen')) {
+        insights.prefersYounger = true;
+      }
+      // Add more analysis logic
+      
+      await aliProfileService.updateInsights(insights);
+      logger.log('Analyzed session for Ali:', sessionId, insights);
+    } catch (e) {
+      logger.warn('Failed to analyze session', e);
+    }
+  }, [getSessionMessages]);
+
+  // Reuse or create latest individual session for a single character
+  const ensureIndividualSession = useCallback(async (characterId: string): Promise<string> => {
+    // Find most recently updated individual session with exactly this participant
+    const existing = [...sessions]
+      .filter(s => s.type === 'individual' && s.participantIds.length === 1 && s.participantIds[0] === characterId)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    if (existing.length) {
+      const id = existing[0].id;
+      try { await switchToSession(id); } catch { setActiveSessionId(id); }
+      return id;
+    }
+    // Otherwise create new
+    const id = await createSession('individual', [characterId]);
+    return id;
+  }, [sessions, switchToSession, createSession]);
 
   return {
     sessions: sessions || [],
@@ -688,12 +851,16 @@ Respond as ${character.name} in character. Keep your response natural and conver
     loadSessions,
     getSessionMessages,
     sendMessage,
-    createSession,
+  createSession,
+  createGroupSession,
     closeSession,
     deleteSession,
     switchToSession,
     updateSessionMessage,
     addSessionMessage,
-    updateSessionGoal
+    updateSessionGoal,
+    analyzeSession,
+    ensureIndividualSession
+    , createInterviewSession
   };
 }

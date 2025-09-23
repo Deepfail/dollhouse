@@ -1,8 +1,8 @@
 // storage/context.tsx - React context for storage initialization
+import { logger } from '@/lib/logger';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Storage } from './index';
 import { getStorageStatus, initStorage } from './init';
-import { logger } from '@/lib/logger';
 
 interface StorageContextValue {
   storage: Storage | null;

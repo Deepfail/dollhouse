@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface Character {
   id: string;
   name: string;
@@ -317,13 +318,15 @@ export interface ChatMessage {
 
 export interface ChatSession {
   id: string;
-  type: 'individual' | 'group' | 'scene';
+  type: 'individual' | 'group' | 'scene' | 'assistant' | 'interview';
   participantIds: string[]; // Character IDs
   messages: ChatMessage[];
   context?: string;
   active: boolean;
   messageCount?: number; // total messages in storage
   endedAt?: Date | null; // when session was closed
+  // Assistant-only flag to suppress character auto generation
+  assistantOnly?: boolean;
   
   // Scene mode specific
   sceneObjectives?: Record<string, string>; // characterId -> objective

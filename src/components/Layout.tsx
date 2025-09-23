@@ -2,17 +2,18 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { ReactNode } from 'react';
 import { Copilot } from './Copilot';
 import { Sidebar } from './Sidebar';
+import { UniversalToolbar } from './UniversalToolbar';
 
 interface LayoutProps {
   children: ReactNode;
-  currentView?: 'house' | 'chat' | 'scene';
-  onStartChat?: (characterId: string) => void;
+  onStartChat?: (characterId: string) => void; // explicit chat creation (buttons)
+  onSelectCharacter?: (characterId: string) => void; // passive selection (sidebar click)
   onStartGroupChat?: (sessionId?: string) => void;
   onStartScene?: (sessionId: string) => void;
   dbStatus?: string;
 }
 
-export function Layout({ children, currentView, onStartChat, onStartGroupChat, onStartScene, dbStatus }: LayoutProps) {
+export function Layout({ children, onStartChat, onSelectCharacter, onStartGroupChat, onStartScene, dbStatus }: LayoutProps) {
   const isMobile = useIsMobile();
 
   if (isMobile) {
@@ -33,6 +34,7 @@ export function Layout({ children, currentView, onStartChat, onStartGroupChat, o
         <div className="border-t border-gray-700 bg-[#1a1a1a] p-4">
           <Sidebar 
             onStartChat={onStartChat}
+            onSelectCharacter={onSelectCharacter}
             onStartGroupChat={onStartGroupChat}
             onStartScene={onStartScene}
           />
@@ -55,14 +57,16 @@ export function Layout({ children, currentView, onStartChat, onStartGroupChat, o
       <div className="w-[320px] flex-shrink-0 bg-[#1a1a1a] border-r border-gray-700">
         <Sidebar 
           onStartChat={onStartChat}
+          onSelectCharacter={onSelectCharacter}
           onStartGroupChat={onStartGroupChat}
           onStartScene={onStartScene}
         />
       </div>
       
-      {/* Center - Mobile Device Mockup */}
-      <div className="flex-1 flex items-center justify-center bg-[#0f0f0f]">
-        <div className="w-[440px] h-[760px] bg-[#1a1a1a] rounded-[24px] border border-gray-700 shadow-[0px_0px_20px_0px_rgba(102,126,234,0.3)] overflow-hidden">
+      {/* Center - Mobile Device Mockup with pane-level toolbar */}
+      <div className="flex-1 flex items-center justify-center bg-[#0f0f0f] relative">
+        <UniversalToolbar position="bottom" />
+        <div className="w-[440px] h-[760px] bg-[#1a1a1a] rounded-[24px] border border-gray-700 shadow-[0px_0px_20px_0px_rgba(102,126,234,0.3)] overflow-hidden relative">
           {children}
         </div>
       </div>

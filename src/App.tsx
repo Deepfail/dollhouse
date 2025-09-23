@@ -1,5 +1,6 @@
 import { ChatInterface } from '@/components/ChatInterface';
 import { HouseView } from '@/components/HouseView';
+import { InterviewChat } from '@/components/InterviewChat';
 import { Layout } from '@/components/Layout';
 import { SceneInterface } from '@/components/SceneInterface';
 import { Toaster } from '@/components/ui/sonner';
@@ -15,6 +16,8 @@ import { logger } from './lib/logger';
 function App() {
   const [currentView, setCurrentView] = useState<'house' | 'chat' | 'scene'>('house');
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  // NEW: track a user-selected character independent of chat sessions
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [storageReady, setStorageReady] = useState(false);
 
   // Initialize storage system first
@@ -36,7 +39,7 @@ function App() {
     initializeStorage();
   }, []);
 
-  return storageReady ? <AppContent currentView={currentView} setCurrentView={setCurrentView} activeSessionId={activeSessionId} setActiveSessionId={setActiveSessionId} /> : <LoadingScreen />;
+  return storageReady ? <AppContent currentView={currentView} setCurrentView={setCurrentView} activeSessionId={activeSessionId} setActiveSessionId={setActiveSessionId} selectedCharacterId={selectedCharacterId} setSelectedCharacterId={setSelectedCharacterId} /> : <LoadingScreen />;
 }
 
 function LoadingScreen() {
@@ -54,12 +57,16 @@ function AppContent({
   currentView, 
   setCurrentView, 
   activeSessionId, 
-  setActiveSessionId 
+  setActiveSessionId,
+  selectedCharacterId,
+  setSelectedCharacterId
 }: {
   currentView: 'house' | 'chat' | 'scene';
   setCurrentView: (view: 'house' | 'chat' | 'scene') => void;
   activeSessionId: string | null;
   setActiveSessionId: (id: string | null) => void;
+  selectedCharacterId: string | null;
+  setSelectedCharacterId: (id: string | null) => void;
 }) {
   const { createSession, sessions, setActiveSessionId: setChatActiveSessionId, sessionsLoaded, activeSessionId: hookActive } = useChat();
   const { house, isLoading } = useHouseFileStorage();
@@ -75,81 +82,43 @@ function AppContent({
     }
   }, [currentView, activeSessionId, hookActive, sessionsLoaded, sessions.length]);
 
+  // LEGACY: handleStartChat previously always created a session. We retain for explicit chat actions (e.g., START STORY buttons).
   const handleStartChat = async (characterId: string) => {
-    logger.log('=== handleStartChat called ===');
-    logger.log('Character ID:', characterId);
-    
     try {
-      if (!house?.characters || house.characters.length === 0) {
-        toast.error('No characters available');
-        return;
-      }
-      
-      const character = house?.characters?.find(c => c.id === characterId);
-      if (!character) {
-        toast.error('Character not found');
-        return;
-      }
-      
-      // Clear any existing active session to avoid conflicts
-      setActiveSessionId(null);
-      
-  const sessionId = await createSession('individual', [characterId]);
-  logger.log('createSession returned:', sessionId);
-      
+      if (!house?.characters || house.characters.length === 0) return;
+      const character = house.characters.find(c => c.id === characterId);
+      if (!character) return;
+      // Reuse pattern: create a fresh session ONLY when explicitly invoked
+      const sessionId = await createSession('individual', [characterId]);
       if (sessionId) {
-        // Set the active session immediately
         setActiveSessionId(sessionId);
         setChatActiveSessionId(sessionId);
         setCurrentView('chat');
-        toast.success(`Started chat with ${character.name}`);
-      } else {
-  logger.error('Failed to create session for character:', characterId);
-        toast.error('Failed to create chat session');
+        setSelectedCharacterId(characterId);
       }
-    } catch (error) {
-      logger.error('Error in handleStartChat:', error);
-      toast.error('Failed to start chat');
+    } catch (e) {
+      logger.error('Explicit chat start failed', e);
     }
   };
 
-  const handleStartGroupChat = async (sessionId?: string) => {
-    logger.log('=== handleStartGroupChat called ===');
-    logger.log('Session ID provided:', sessionId);
-    
+  // NEW: selection without spawning a chat session
+  const handleSelectCharacter = (characterId: string) => {
+    setSelectedCharacterId(characterId);
+    // Navigate to chat/profile view without creating session
+    setCurrentView('chat');
+  };
+
+  // REVISED: no automatic group session creation. Instead, emit event to open the GroupChatCreator modal.
+  const handleStartGroupChat = () => {
     try {
-      if (sessionId) {
-        // Use existing session (individual or group)
-        setActiveSessionId(sessionId);
-        setChatActiveSessionId(sessionId);
-        setCurrentView('chat');
-        toast.success('Opened chat');
-      } else {
-        // Create new group chat with all characters
-  const characterIds = (house?.characters || []).map(c => c.id);
-  logger.log('Character IDs for group chat:', characterIds);
-        
-        if (characterIds.length > 1) {
-          const newSessionId = await createSession('group', characterIds);
-          logger.log('Group session created:', newSessionId);
-          
-          if (newSessionId) {
-            setActiveSessionId(newSessionId);
-            setChatActiveSessionId(newSessionId);
-            setCurrentView('chat');
-            toast.success(`Started group chat with ${characterIds.length} characters`);
-          } else {
-            toast.error('Failed to create group chat');
-          }
-        } else if (characterIds.length === 1) {
-          toast.error('Need at least 2 characters for group chat. You only have 1 character.');
-        } else {
-          toast.error('No characters available for group chat');
-        }
+      const g = globalThis as unknown as { dispatchEvent?: (e: unknown) => void; CustomEvent?: new (type: string, init?: unknown) => unknown };
+      if (g?.dispatchEvent && g?.CustomEvent) {
+        g.dispatchEvent(new g.CustomEvent('open-group-chat-creator'));
       }
-    } catch (error) {
-      logger.error('Error in handleStartGroupChat:', error);
-      toast.error('Failed to start group chat');
+      // Ensure we are on chat view to see modal
+      setCurrentView('chat');
+    } catch (e) {
+      logger.error('Failed to trigger group chat creator', e);
     }
   };
 
@@ -206,20 +175,28 @@ function AppContent({
   return (
     <div className="h-screen bg-background">
       <Layout
-        currentView={currentView}
         onStartChat={handleStartChat}
         onStartGroupChat={handleStartGroupChat}
+        onSelectCharacter={handleSelectCharacter}
         onStartScene={handleStartScene}
       >
         {currentView === 'house' ? (
           <HouseView />
         ) : currentView === 'chat' ? (
-          <ChatInterface 
-            sessionId={activeSessionId} 
-            onBack={handleBackToHouse}
-            onStartChat={handleStartChat}
-            onStartGroupChat={handleStartGroupChat}
-          />
+          (() => {
+            const active = sessions.find(s => s.id === activeSessionId);
+            if (active?.type === 'interview' && activeSessionId) {
+              return <InterviewChat sessionId={activeSessionId} onExit={handleBackToHouse} />;
+            }
+            return (
+              <ChatInterface 
+                sessionId={activeSessionId} 
+                selectedCharacterId={selectedCharacterId}
+                onBack={handleBackToHouse}
+                onStartGroupChat={handleStartGroupChat}
+              />
+            );
+          })()
         ) : (
           <SceneInterface 
             sessionId={activeSessionId!}

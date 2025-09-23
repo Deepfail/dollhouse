@@ -184,6 +184,220 @@ export class AIService {
     const data = await res.json();
     return data.choices?.[0]?.message?.content || '';
   }
+
+  // --- Copilot dedicated methods ---
+  static async copilotRespond(params: { threadId: string; messages: { role: 'system' | 'user' | 'assistant'; content: string }[]; sessionId?: string; characters?: any[] }): Promise<string> {
+    // For now we ignore threadId beyond potential future continuity usage
+    const proc: any = (typeof globalThis !== 'undefined' && (globalThis as any).process) ? (globalThis as any).process : undefined;
+    // Merge persisted Wingman settings if present
+    let systemPrompt = (proc?.env?.COPILOT_SYSTEM_PROMPT)
+      || 'You are Wingman (the in-app developer/creative copilot) for Dollhouse. Be concise, context-aware, and tool-aware.';
+    try {
+      // Check if this is an interview session
+      const isInterview = params.sessionId && await AIService.isInterviewSession(params.sessionId);
+      if (isInterview) {
+        // Use interview prompt instead of Wingman settings
+        const interviewPrompt = await AIService.getInterviewPrompt();
+        if (interviewPrompt) {
+          systemPrompt = interviewPrompt;
+        }
+      } else {
+        // Deferred import to avoid circulars
+        const wingKey = 'wingman_settings';
+        let stored: string | null = null;
+        try {
+          const lsMod = await import('@/lib/legacyStorage');
+          stored = (lsMod as any).legacyStorage.getItem(wingKey);
+        } catch { /* ignore storage load error */ }
+        if (stored) {
+          const parsed = JSON.parse(stored || '{}');
+          if (parsed.systemPrompt) systemPrompt = parsed.systemPrompt;
+          const extras: string[] = Array.isArray(parsed.extraPrompts) ? parsed.extraPrompts : [];
+          if (extras.length) {
+            systemPrompt = [systemPrompt, ...extras].join('\n');
+          }
+        }
+      }
+    } catch (e) {
+      logger.warn('Failed to load system prompt settings', e);
+    }
+
+    // Add user assessment from Ali profile
+    try {
+      const aliMod = await import('@/lib/aliProfile');
+      const assessment = await aliMod.aliProfileService.getUserAssessment();
+      if (assessment && assessment !== 'Unknown preferences') {
+        systemPrompt += `\n\nUser Assessment: ${assessment}`;
+      }
+    } catch (e) {
+      logger.warn('Failed to load user assessment for Wingman', e);
+    }
+
+    // Add character information from the house
+    if (params.characters && params.characters.length > 0) {
+      systemPrompt += `\n\nCharacters in the House:\n`;
+      params.characters.forEach((char: any, index: number) => {
+        systemPrompt += `${index + 1}. ${char.name} - ${char.description || 'No description'}\n`;
+        if (char.role) systemPrompt += `   Role: ${char.role}\n`;
+        if (char.personality) systemPrompt += `   Personality: ${char.personality}\n`;
+        if (char.appearance) systemPrompt += `   Appearance: ${char.appearance}\n`;
+        if (char.age) systemPrompt += `   Age: ${char.age}\n`;
+        systemPrompt += `\n`;
+      });
+      systemPrompt += `When referring to characters, use their actual names and details from above. Do not make up characters that don't exist in this list.`;
+    }
+
+    // Add escalation and banter instructions
+    systemPrompt += `\n\nInteraction Style: Engage in playful, exploratory, tempting banter. If user says no but shows interest, keep going playfully. If user gets violent, egg them on. Escalate if they're enjoying. Vary organic dialogue.`;
+
+    // Prefer configured OpenRouter model unless overridden via env var for copilot
+  let model = (proc?.env?.OPENROUTER_MODEL || proc?.env?.COPILOT_MODEL) || 'openai/gpt-4.1-mini';
+    let cfgForCopilot: { provider: string; apiKey: string; model: string } | null = null;
+    try {
+      cfgForCopilot = await AIService.getApiConfig() as any;
+      if (cfgForCopilot?.provider === 'openrouter' && cfgForCopilot.model) {
+        model = cfgForCopilot.model;
+      }
+    } catch {/* ignore config fallbacks */}
+
+    let apiKey = (proc?.env?.OPENROUTER_API_KEY) || '';
+    if (!apiKey && cfgForCopilot?.provider === 'openrouter') {
+      apiKey = cfgForCopilot.apiKey || '';
+    }
+    if (!apiKey) {
+      logger.warn('copilotRespond: no API key (env or stored config)');
+      const last = params.messages[params.messages.length - 1];
+      return AIService.generateAssistantReply('[no api key] ' + (last?.content || ''));
+    }
+
+    const body = {
+      model,
+      messages: [ { role: 'system', content: systemPrompt }, ...params.messages ],
+      temperature: 0.2,
+    };
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'X-Title': 'Dollhouse Copilot'
+    };
+    try {
+      const ref = typeof globalThis !== 'undefined' && (globalThis as any)?.location?.origin ? (globalThis as any).location.origin : 'http://localhost';
+      if (ref) headers['HTTP-Referer'] = ref;
+    } catch {/* ignore */}
+
+    try {
+      const res = await safeFetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`OpenRouter error ${res.status}: ${text.slice(0, 200)}`);
+      }
+      const data = await res.json();
+      const content = data?.choices?.[0]?.message?.content;
+      return typeof content === 'string' ? content : '';
+    } catch (e) {
+      logger.error('copilotRespond failed; falling back to generateAssistantReply', e);
+  const last2 = params.messages[params.messages.length - 1];
+  return AIService.generateAssistantReply(last2?.content || '');
+    }
+  }
+
+  static async generateAssistantReply(prompt: string): Promise<string> {
+    // Extremely lightweight fallback; can be replaced with local model stub
+    return `Echo: ${prompt}`;
+  }
+
+  static async isInterviewSession(sessionId: string): Promise<boolean> {
+    try {
+      const dbMod = await import('@/lib/db');
+      const { getDb } = dbMod;
+      const { db } = await getDb();
+      const rows: any[] = [];
+      db.exec({
+        sql: 'SELECT title FROM chat_sessions WHERE id = ?',
+        bind: [sessionId],
+        rowMode: 'object',
+        callback: (r: any) => rows.push(r)
+      });
+      const title = rows[0]?.title || '';
+      return title.toLowerCase().includes('interview') || title.toLowerCase().includes('ali');
+    } catch (e) {
+      logger.warn('Failed to check if interview session', e);
+      return false;
+    }
+  }
+
+  static async getInterviewPrompt(): Promise<string | null> {
+    try {
+      const lsMod = await import('@/lib/legacyStorage');
+      const interviewPrompt = (lsMod as any).legacyStorage.getItem('interview_prompt');
+      return interviewPrompt || null;
+    } catch (e) {
+      logger.warn('Failed to get interview prompt', e);
+      return null;
+    }
+  }
+
+  static async testConnection(apiKey: string, model: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const cfg = await AIService.getApiConfig();
+      const provider = cfg.provider || 'openrouter';
+      const key = apiKey || cfg.apiKey;
+      if (!key) {
+        return { success: false, message: 'No API key provided' };
+      }
+      if (provider === 'venice') {
+        const base = cfg.apiUrl || 'https://api.venice.ai/api/v1';
+        const res = await safeFetch(`${base}/chat/completions`, {
+          method: 'POST',
+            headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: model || cfg.model || 'llama-3.3-70b',
+              messages: [
+                { role: 'system', content: 'You are a connectivity probe.' },
+                { role: 'user', content: 'Ping' }
+              ],
+              max_tokens: 4,
+              temperature: 0.0
+            })
+        });
+        if (!res.ok) {
+          const txt = await res.text().catch(() => '');
+          return { success: false, message: `Venice ${res.status}: ${txt.slice(0,120)}` };
+        }
+        return { success: true, message: 'Venice OK' };
+      }
+      // openrouter path
+      const res = await safeFetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${key}`,
+          'Content-Type': 'application/json',
+          'X-Title': 'Dollhouse Test'
+        },
+        body: JSON.stringify({
+          model: model || cfg.model || 'openai/gpt-4.1-mini',
+          messages: [
+            { role: 'system', content: 'You are a connectivity probe.' },
+            { role: 'user', content: 'Ping' }
+          ],
+          max_tokens: 4,
+          temperature: 0.0
+        })
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        return { success: false, message: `OpenRouter ${res.status}: ${txt.slice(0,120)}` };
+      }
+      return { success: true, message: 'OpenRouter OK' };
+    } catch (e) {
+      return { success: false, message: (e as Error).message.slice(0,150) };
+    }
+  }
 }
 
 export const generateResponse = AIService.generateResponse.bind(AIService);

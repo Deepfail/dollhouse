@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { getDb, saveDatabase } from '../lib/db';
 import { uuid } from '../lib/uuid';
 
@@ -12,7 +13,7 @@ export interface CharacterPost {
 }
 
 export async function getCharacterPosts(characterId: string): Promise<CharacterPost[]> {
-  console.log('🔍 Getting posts for character:', characterId);
+  logger.log('🔍 Getting posts for character:', characterId);
   try {
     const { db } = await getDb();
     const rows: any[] = [];
@@ -33,7 +34,7 @@ export async function getCharacterPosts(characterId: string): Promise<CharacterP
       post_type: row.post_type || 'feed'
     }));
   } catch (error) {
-    console.error('❌ Failed to get character posts:', error);
+    logger.error('❌ Failed to get character posts:', error);
     return [];
   }
 }

@@ -2,13 +2,30 @@
 import { legacyStorage } from './legacyStorage';
 import { logger } from './logger';
 
-let sqlite3: any;
-let db: any;
+// Minimal shape declarations to reduce widespread `any` usage
+interface SQLiteModule {
+  opfs?: { init?: () => Promise<void> };
+  oo1: {
+    OpfsDb?: new (name: string) => unknown;
+    JsStorageDb?: new (name: string) => unknown;
+    DB: new (name: string, mode?: string) => unknown;
+  };
+}
+interface SQLiteDB {
+  exec: (cfg: string | { sql: string; bind?: unknown[]; rowMode?: string; callback?: (row: unknown) => void }) => void;
+}
+
+let sqlite3: SQLiteModule | undefined;
+let db: SQLiteDB | undefined;
 let persistenceMethod: 'opfs' | 'indexeddb' | 'memory' = 'memory';
 
 // Extracted helper to create/verify schema and apply lightweight migrations.
 // Safe to call multiple times. Assumes PRAGMAs already set and `db` assigned.
 function ensureSchemaAndMigrations() {
+  if (!db) {
+    logger.warn('ensureSchemaAndMigrations called before db initialized');
+    return;
+  }
   // Setup database schema
   db.exec('PRAGMA journal_mode=WAL;');
   db.exec('PRAGMA foreign_keys=ON;');
@@ -41,7 +58,7 @@ function ensureSchemaAndMigrations() {
 
     CREATE TABLE IF NOT EXISTS chat_sessions (
       id TEXT PRIMARY KEY,
-      type TEXT NOT NULL,              -- 'individual' | 'group' | 'scene'
+      type TEXT NOT NULL CHECK (type IN ('individual','group','scene','assistant','interview')),
       title TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
@@ -142,23 +159,23 @@ function ensureSchemaAndMigrations() {
 
   // Migration: ensure messages has a sender_id column for older databases
   try {
-    const cols: any[] = [];
-    db.exec({ sql: "PRAGMA table_info('messages')", rowMode: 'object', callback: (r: any) => cols.push(r) });
-    const hasSender = cols.some((c: any) => String(c.name).toLowerCase() === 'sender_id');
+    const cols: { name?: string }[] = [];
+    db.exec({ sql: "PRAGMA table_info('messages')", rowMode: 'object', callback: (r: unknown) => cols.push(r as { name?: string }) });
+    const hasSender = cols.some(c => String(c.name).toLowerCase() === 'sender_id');
     if (!hasSender) {
       logger.warn('⚠️ Migrating messages to add sender_id column...');
       db.exec("ALTER TABLE messages ADD COLUMN sender_id TEXT");
       logger.log('✅ Migrated messages: added sender_id');
     }
-    } catch (e) {
+  } catch (e) {
     logger.warn('⚠️ Failed to run messages table migration check:', e);
   }
 
   // Migration: ensure chat_sessions has an ended_at column for session status
   try {
-    const cols: any[] = [];
-    db.exec({ sql: "PRAGMA table_info('chat_sessions')", rowMode: 'object', callback: (r: any) => cols.push(r) });
-    const hasEndedAt = cols.some((c: any) => String(c.name).toLowerCase() === 'ended_at');
+    const cols: { name?: string }[] = [];
+    db.exec({ sql: "PRAGMA table_info('chat_sessions')", rowMode: 'object', callback: (r: unknown) => cols.push(r as { name?: string }) });
+    const hasEndedAt = cols.some(c => String(c.name).toLowerCase() === 'ended_at');
     if (!hasEndedAt) {
       logger.warn('⚠️ Migrating chat_sessions to add ended_at column...');
       db.exec("ALTER TABLE chat_sessions ADD COLUMN ended_at INTEGER");
@@ -168,40 +185,64 @@ function ensureSchemaAndMigrations() {
     logger.warn('⚠️ Failed to run chat_sessions table migration check:', e);
   }
 
-  // Migrations: ensure session_participants has an 'id' column for primary key
+  // Migration: ensure chat_sessions allows 'assistant' and 'interview' types
   try {
-    const cols: any[] = [];
+    // Check if chat_sessions table exists
+    const tables: { name?: string }[] = [];
     db.exec({
-      sql: "PRAGMA table_info('session_participants')",
+      sql: "SELECT name FROM sqlite_master WHERE type='table' AND name='chat_sessions'",
       rowMode: 'object',
-      callback: (r: any) => cols.push(r)
+      callback: (r: unknown) => tables.push(r as { name?: string })
     });
-    const hasId = cols.some((c: any) => String(c.name).toLowerCase() === 'id');
-    if (!hasId) {
-      logger.warn('⚠️ Migrating session_participants to add id column...');
-      db.exec('BEGIN');
-      db.exec(`
-        CREATE TABLE session_participants_new (
-          id TEXT PRIMARY KEY,
-          session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
-          character_id TEXT NOT NULL,
-          joined_at INTEGER NOT NULL
-        )
-      `);
-      // Copy data and synthesize IDs using randomblob
-      db.exec(`
-        INSERT INTO session_participants_new (id, session_id, character_id, joined_at)
-        SELECT lower(hex(randomblob(16))), session_id, character_id, joined_at
-        FROM session_participants
-      `);
-      db.exec('DROP TABLE session_participants');
-      db.exec('ALTER TABLE session_participants_new RENAME TO session_participants');
-      db.exec('CREATE INDEX IF NOT EXISTS idx_session_participants ON session_participants(session_id, character_id)');
-      db.exec('COMMIT');
-      logger.log('✅ Migrated session_participants to include id column');
+
+    if (tables.length > 0) {
+      // Table exists, check if it already supports 'assistant'
+      const createTableSql: { sql?: string }[] = [];
+      db.exec({
+        sql: "SELECT sql FROM sqlite_master WHERE type='table' AND name='chat_sessions'",
+        rowMode: 'object',
+        callback: (r: unknown) => createTableSql.push(r as { sql?: string })
+      });
+
+      const currentSql = createTableSql[0]?.sql || '';
+      const hasAssistant = /'assistant'/.test(currentSql) || /"assistant"/.test(currentSql);
+      const hasInterview = /'interview'/.test(currentSql) || /"interview"/.test(currentSql);
+
+      if (!hasAssistant || !hasInterview) {
+        logger.warn('⚠️ chat_sessions table needs migration for assistant/interview types. Performing schema update...');
+
+        // Use a simpler approach: recreate the table with the correct constraint
+        db.exec('BEGIN');
+
+        // Create new table with updated CHECK constraint
+        db.exec(`
+          CREATE TABLE chat_sessions_new (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL CHECK (type IN ('individual','group','scene','assistant','interview')),
+            title TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+          )
+        `);
+
+        // Copy all existing data
+        db.exec(`
+          INSERT INTO chat_sessions_new (id, type, title, created_at, updated_at)
+          SELECT id, type, title, created_at, updated_at FROM chat_sessions
+        `);
+
+        // Drop old table and rename new one
+        db.exec('DROP TABLE chat_sessions');
+        db.exec('ALTER TABLE chat_sessions_new RENAME TO chat_sessions');
+
+        db.exec('COMMIT');
+        logger.log('✅ Migrated chat_sessions: now allows assistant & interview types');
+      } else {
+        logger.log('✅ chat_sessions table already supports assistant & interview types');
+      }
     }
   } catch (e) {
-    logger.warn('⚠️ Failed to run session_participants migration check:', e);
+    logger.warn('⚠️ Failed to check chat_sessions migration:', e);
   }
 }
 
@@ -209,23 +250,24 @@ export async function getDb() {
   if (db) return { db };
 
   try {
-    // @ts-ignore: provided by @sqlite.org/sqlite-wasm
-    const mod = await import('@sqlite.org/sqlite-wasm');
-    // Some builds export default as init fn; others export sqlite3InitModule
-    const init = (mod as any).default ?? (mod as any).sqlite3InitModule;
-    sqlite3 = await init({});
-  } catch (err) {
-    throw new Error(
-      'sqlite-wasm not installed/loaded. `npm i @sqlite.org/sqlite-wasm` and ensure this file matches its API.'
-    );
+    // Dynamic import; type shape is loosely enforced above.
+    const mod: Record<string, unknown> = await import('@sqlite.org/sqlite-wasm');
+    const initFn = (mod as Record<string, unknown>).default || (mod as Record<string, unknown>).sqlite3InitModule;
+    if (typeof initFn === 'function') {
+      sqlite3 = await (initFn as (cfg: unknown) => Promise<SQLiteModule>)({});
+    }
+    if (!sqlite3) throw new Error('Failed to initialize sqlite3 module');
+  } catch {
+    throw new Error('sqlite-wasm not installed/loaded or failed to init. Install @sqlite.org/sqlite-wasm.');
   }
 
   // Try different persistence methods in order of preference
   
   // 1. Try OPFS first (best persistence) only when environment supports it
   try {
-    const hasSharedArrayBuffer = typeof (globalThis as any).SharedArrayBuffer !== 'undefined';
-    const isCrossOriginIsolated = (globalThis as any).crossOriginIsolated === true;
+  const g = globalThis as unknown as { SharedArrayBuffer?: unknown; crossOriginIsolated?: boolean };
+  const hasSharedArrayBuffer = typeof g.SharedArrayBuffer !== 'undefined';
+  const isCrossOriginIsolated = g.crossOriginIsolated === true;
     if (!hasSharedArrayBuffer || !isCrossOriginIsolated) {
       throw new Error('OPFS requires SharedArrayBuffer and crossOriginIsolated');
     }
@@ -235,30 +277,30 @@ export async function getDb() {
     }
 
     if (sqlite3.oo1.OpfsDb) {
-      db = new sqlite3.oo1.OpfsDb('dollhouse/data.db');
+  db = new (sqlite3.oo1.OpfsDb as unknown as { new(name: string): SQLiteDB })('dollhouse/data.db');
       persistenceMethod = 'opfs';
   logger.log('✅ Using OPFS persistent database');
     } else {
       throw new Error('OpfsDb not available');
     }
   } catch (opfsError) {
-  logger.warn('⚠️ OPFS not available:', (opfsError as Error).message || opfsError);
+    logger.warn('⚠️ OPFS not available:', (opfsError as Error).message || opfsError);
     
     // 2. Try IndexedDB-backed SQLite (good persistence)
     try {
       if (sqlite3.oo1.JsStorageDb) {
         // Per sqlite-wasm API, JsStorageDb name must be 'session' or 'local'
-        db = new sqlite3.oo1.JsStorageDb('local');
+  db = new (sqlite3.oo1.JsStorageDb as unknown as { new(name: string): SQLiteDB })('local');
     persistenceMethod = 'indexeddb';
   logger.log('✅ Using IndexedDB persistent database (JsStorageDb: local)');
       } else {
         throw new Error('JsStorageDb not available');
       }
   } catch (idbError) {
-  logger.warn('⚠️ IndexedDB not available:', (idbError as Error).message || idbError);
+    logger.warn('⚠️ IndexedDB not available:', (idbError as Error).message || idbError);
       
   // 3. Fallback to in-memory with optional backup storage
-    db = new sqlite3.oo1.DB(':memory:', 'c');
+  db = new (sqlite3.oo1.DB as unknown as { new(name: string, mode?: string): SQLiteDB })(':memory:', 'c');
     persistenceMethod = 'memory';
   logger.log('✅ Using in-memory database with optional backup storage');
     }
@@ -303,35 +345,33 @@ async function loadFromBackupStorage() {
   }
 }
 
-async function restoreRow(table: string, row: any) {
+async function restoreRow(table: string, row: Record<string, unknown>) {
   const keys = Object.keys(row);
   const values = Object.values(row);
   const placeholders = keys.map(() => '?').join(', ');
   const columns = keys.join(', ');
-  
-  db.exec({
-    sql: `INSERT OR REPLACE INTO ${table} (${columns}) VALUES (${placeholders})`,
-    bind: values
-  });
+  if (!db) return;
+  db.exec({ sql: `INSERT OR REPLACE INTO ${table} (${columns}) VALUES (${placeholders})`, bind: values });
 }
 
 export async function saveDatabase() {
+  if (!db) return;
   if (persistenceMethod === 'memory') {
     // Backup to optional persistent storage for in-memory databases
     try {
-      const backup: any = {};
-  const tables = ['settings', 'characters', 'chat_sessions', 'session_participants', 'messages', 'character_posts', 'character_dm_conversations', 'character_dm_messages', 'session_goals', 'session_summaries'];
+      const backup: Record<string, unknown[]> = {};
+      const tables = ['settings', 'characters', 'chat_sessions', 'session_participants', 'messages', 'character_posts', 'character_dm_conversations', 'character_dm_messages', 'session_goals', 'session_summaries'];
       
       for (const table of tables) {
-        const rows: any[] = [];
+        const rows: unknown[] = [];
         try {
           db.exec({
             sql: `SELECT * FROM ${table}`,
             rowMode: 'object',
-            callback: (r: any) => rows.push(r)
+            callback: (r: unknown) => rows.push(r)
           });
           backup[table] = rows;
-        } catch (e) {
+        } catch {
           // Table might not exist yet
           backup[table] = [];
         }
@@ -375,11 +415,11 @@ export async function checkPersistence() {
     }
     
     // Try to read it back
-    const rows: any[] = [];
+    const rows: { data?: string }[] = [];
     db.exec({
       sql: 'SELECT data FROM test_persistence WHERE id = 1',
       rowMode: 'object',
-      callback: (r: any) => rows.push(r)
+      callback: (r: unknown) => rows.push(r as { data?: string })
     });
     const row = rows[0];
     
@@ -404,10 +444,12 @@ export async function repairDatabase() {
   try {
     ensureSchemaAndMigrations();
     // Validate basic integrity; some builds return a rowset with 'ok'
-    const rows: any[] = [];
+    const rows: unknown[] = [];
     try {
-      db.exec({ sql: 'PRAGMA integrity_check', rowMode: 'object', callback: (r: any) => rows.push(r) });
-    } catch {}
+      db.exec({ sql: 'PRAGMA integrity_check', rowMode: 'object', callback: (r: unknown) => rows.push(r) });
+    } catch (e) {
+      logger.warn('Integrity check failed', e);
+    }
     return { ok: true, integrity: rows };
   } catch (e) {
     logger.error('Repair failed:', e);
@@ -435,23 +477,28 @@ export async function resetDatabase() {
       'settings'
     ];
     for (const t of tables) {
-      try { db.exec(`DROP TABLE IF EXISTS ${t}`); } catch {}
+      try { db.exec(`DROP TABLE IF EXISTS ${t}`); } catch (e) { logger.warn('Drop failed', t, e); }
     }
     db.exec('COMMIT');
 
     // Clear in-memory backup store so we don't immediately restore old data
-  try { legacyStorage.removeItem('dollhouse-db-backup'); } catch {}
+  try { legacyStorage.removeItem('dollhouse-db-backup'); } catch (e) { logger.warn('Failed to clear backup', e); }
 
     // Recreate schema fresh
     ensureSchemaAndMigrations();
 
     // Persist empty snapshot for memory mode
-    try { await saveDatabase(); } catch {}
+  try { await saveDatabase(); } catch (e) { logger.warn('Failed to save after reset', e); }
 
     return { ok: true };
     } catch (e) {
-    try { db.exec('ROLLBACK'); } catch {}
+  try { db.exec('ROLLBACK'); } catch (rollbackErr) { logger.error('Rollback failed', rollbackErr); }
     logger.error('Reset failed:', e);
     return { ok: false, error: String((e as Error)?.message || e) };
   }
+}
+
+// Convenience wrapper for clarity in other modules
+export async function forceSaveDatabase() {
+  return saveDatabase();
 }

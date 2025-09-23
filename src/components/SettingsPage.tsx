@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { legacyStorage } from '@/lib/legacyStorage';
 import {
     AlertCircle,
     CheckCircle,
@@ -25,7 +26,6 @@ import {
     Upload
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
-import { legacyStorage } from '@/lib/legacyStorage';
 import { toast } from 'sonner';
 
 interface SettingsPageProps {

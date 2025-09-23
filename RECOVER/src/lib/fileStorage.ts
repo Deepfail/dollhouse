@@ -5,7 +5,7 @@
  * that users can easily find, backup, and manage.
  */
 
-import { House, Character } from '@/types';
+import { House } from '@/types';
 import { toast } from 'sonner';
 
 export interface FileStorageConfig {

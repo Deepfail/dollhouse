@@ -1,7 +1,7 @@
 // storage/adapters.ts - Bridge between old app interface and new storage
+import { logger } from '@/lib/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { CharacterRow, ChatRow, MessageRow, storage } from './index';
-import { logger } from '@/lib/logger';
 
 // Helper to ensure storage is initialized
 function getInitializedStorage() {

@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getDb, saveDatabase } from '../lib/db';
 
@@ -15,7 +16,7 @@ export function useFileStorage<T>(key: string, defaultValue: T) {
   useEffect(() => {
     const loadData = async () => {
       try {
-        console.log(`🔍 Loading file storage data for key: ${key}`);
+      logger.log(`🔍 Loading file storage data for key: ${key}`);
         const { db } = await getDb();
         const rows: any[] = [];
         
@@ -29,18 +30,18 @@ export function useFileStorage<T>(key: string, defaultValue: T) {
         if (rows.length > 0) {
           try {
             const parsed = JSON.parse(rows[0].value);
-            console.log(`✅ Loaded file storage data for ${key}:`, parsed);
+            logger.log(`✅ Loaded file storage data for ${key}:`, parsed);
             setData(parsed);
           } catch (parseError) {
-            console.error(`❌ Failed to parse file storage data for ${key}:`, parseError);
+            logger.error(`❌ Failed to parse file storage data for ${key}:`, parseError);
             setData(defaultValueRef.current);
           }
         } else {
-          console.log(`📝 No data found for ${key}, using default value`);
+          logger.log(`📝 No data found for ${key}, using default value`);
           setData(defaultValueRef.current);
         }
       } catch (error) {
-        console.error(`❌ Failed to load file storage data for ${key}:`, error);
+  logger.error(`❌ Failed to load file storage data for ${key}:`, error);
         setData(defaultValueRef.current);
       } finally {
         setIsLoading(false);
@@ -55,14 +56,14 @@ export function useFileStorage<T>(key: string, defaultValue: T) {
     try {
       const updatedData = typeof newData === 'function' ? (newData as (prev: T) => T)(data) : newData;
       
-      console.log(`💾 Saving file storage data for ${key}:`, updatedData);
+  logger.log(`💾 Saving file storage data for ${key}:`, updatedData);
       const { db } = await getDb();
       
       const serializedData = JSON.stringify(updatedData);
       
       // Warn about large data that might cause performance issues
       if (serializedData.length > 100000) {
-        console.warn(`⚠️ Large data detected for ${key}: ${serializedData.length} characters`);
+  logger.warn(`⚠️ Large data detected for ${key}: ${serializedData.length} characters`);
       }
       
       // Wrap in a transaction and use changes() to detect affected rows
@@ -83,7 +84,7 @@ export function useFileStorage<T>(key: string, defaultValue: T) {
       
       // Update local state immediately for better UX
       setData(updatedData);
-      console.log(`✅ Saved file storage data for ${key}`);
+  logger.log(`✅ Saved file storage data for ${key}`);
       
       // Optional: Verify the data was saved (but don't fail if verification has issues)
       try {
@@ -98,16 +99,16 @@ export function useFileStorage<T>(key: string, defaultValue: T) {
         if (verifyRows.length > 0) {
           const retrievedData = JSON.parse(verifyRows[0].value);
           if (JSON.stringify(retrievedData) !== serializedData) {
-            console.warn(`⚠️ Verification mismatch for ${key} - data may be corrupted`);
+            logger.warn(`⚠️ Verification mismatch for ${key} - data may be corrupted`);
           }
         }
       } catch (verifyError) {
         // Only warn once per page load for verification issues
-        console.warn(`⚠️ Verification failed for ${key}:`, verifyError);
+  logger.warn(`⚠️ Verification failed for ${key}:`, verifyError);
         // Don't throw here - the data was saved, verification just failed
       }
     } catch (error) {
-      console.error(`❌ Failed to save file storage data for ${key}:`, error);
+  logger.error(`❌ Failed to save file storage data for ${key}:`, error);
     }
   }, [key, data]);
 

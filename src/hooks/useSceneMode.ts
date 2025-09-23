@@ -1,4 +1,5 @@
 import { getDb, saveDatabase } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import { uuid } from '@/lib/uuid';
 import { useEffect, useState } from 'react';
 
@@ -42,7 +43,7 @@ export function useSceneMode() {
         }
         if (sessions.length) setActiveSessions(sessions.filter(s => s.active !== false));
       } catch (e) {
-        console.warn('Failed to load scene sessions from settings', e);
+  logger.warn('Failed to load scene sessions from settings', e);
       }
     })();
   }, []);
@@ -92,7 +93,7 @@ export function useSceneMode() {
         }
         await saveDatabase();
       } catch (e) {
-        console.warn('Failed to persist scene session:', e);
+  logger.warn('Failed to persist scene session:', e);
       }
     })();
 
@@ -115,7 +116,7 @@ export function useSceneMode() {
           }
           await saveDatabase();
         } catch (e) {
-          console.warn('Failed to persist scene hidden goals:', e);
+          logger.warn('Failed to persist scene hidden goals:', e);
         }
       })();
     }
@@ -144,7 +145,7 @@ export function useSceneMode() {
             }
             await saveDatabase();
           } catch (e) {
-            console.warn('Failed to persist updated scene session', e);
+            logger.warn('Failed to persist updated scene session', e);
           }
         })();
       }
@@ -199,7 +200,7 @@ export function useSceneMode() {
       }
       await saveDatabase();
     } catch (e) {
-      console.warn('Failed to persist updated scene goal', e);
+  logger.warn('Failed to persist updated scene goal', e);
     }
 
     // Also update the persisted scene_session record's hiddenGoals snapshot
@@ -220,7 +221,7 @@ export function useSceneMode() {
         } catch {}
       }
     } catch (e) {
-      console.warn('Failed to sync hiddenGoals into scene_session record', e);
+  logger.warn('Failed to sync hiddenGoals into scene_session record', e);
     }
   };
 

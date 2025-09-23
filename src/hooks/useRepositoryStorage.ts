@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { getSetting, setSetting } from '../repo/settings';
+import { logger } from '@/lib/logger';
+import { useEffect, useState } from 'react';
 import { queryClient } from '../lib/query';
+import { getSetting, setSetting } from '../repo/settings';
 
 /**
  * Hook that replaces browserStorage usage with the settings repository
@@ -19,7 +20,7 @@ export function useRepositoryKV<T>(key: string, defaultValue: T): [T, (value: T 
           setValue(storedValue);
         }
       } catch (error) {
-        console.error(`Error loading setting "${key}":`, error);
+        logger.error(`Error loading setting "${key}":`, error);
       } finally {
         setLoaded(true);
       }
@@ -39,7 +40,7 @@ export function useRepositoryKV<T>(key: string, defaultValue: T): [T, (value: T 
       // Invalidate React Query cache for settings
       queryClient.invalidateQueries({ queryKey: ['settings', key] });
     } catch (error) {
-      console.error(`Error setting setting "${key}":`, error);
+      logger.error(`Error setting setting "${key}":`, error);
     }
   };
 
@@ -54,7 +55,7 @@ export const repositoryStorage = {
     try {
       return await getSetting<T>(key);
     } catch (error) {
-      console.warn(`Error reading setting "${key}":`, error);
+      logger.warn(`Error reading setting "${key}":`, error);
       return null;
     }
   },
@@ -64,7 +65,7 @@ export const repositoryStorage = {
       await setSetting(key, value);
       queryClient.invalidateQueries({ queryKey: ['settings', key] });
     } catch (error) {
-      console.error(`Error setting setting "${key}":`, error);
+      logger.error(`Error setting setting "${key}":`, error);
     }
   },
 
@@ -73,7 +74,7 @@ export const repositoryStorage = {
       await setSetting(key, null);
       queryClient.invalidateQueries({ queryKey: ['settings', key] });
     } catch (error) {
-      console.error(`Error removing setting "${key}":`, error);
+      logger.error(`Error removing setting "${key}":`, error);
     }
   }
 };

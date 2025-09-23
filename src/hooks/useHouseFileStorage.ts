@@ -5,12 +5,12 @@
  * Separates house data from character data for better organization
  */
 
-import { storage } from '@/storage';
 import { legacyStorage } from '@/lib/legacyStorage';
+import { logger } from '@/lib/logger';
+import { storage } from '@/storage';
 import { Character, House } from '@/types';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { logger } from '@/lib/logger';
 
 const DEFAULT_HOUSE: Partial<House> = {
   id: 'main-house',

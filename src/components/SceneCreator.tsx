@@ -9,9 +9,9 @@ import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { useSceneMode } from '@/hooks/useSceneMode';
 import { getDb, saveDatabase } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import { Camera, Play, Users } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
-import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
 
 interface SceneCreatorProps {

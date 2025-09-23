@@ -1,5 +1,5 @@
-import { Character, House } from '@/types';
 import { logger } from '@/lib/logger';
+import { Character, House } from '@/types';
 
 export interface DuplicateCleanupResult {
   removedCount: number;

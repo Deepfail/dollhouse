@@ -3,12 +3,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { logger } from '@/lib/logger';
 import { getCharacterPosts } from '@/storage/adapters';
-import { DotsThree, Heart, Share, ChatCircle as MessageCircle } from '@phosphor-icons/react';
 import type { Character } from '@/types';
+import { DotsThree, Heart, ChatCircle as MessageCircle, Share } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { logger } from '@/lib/logger';
 
 interface CharacterPost {
   id: string;

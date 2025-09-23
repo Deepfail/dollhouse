@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { getDb, saveDatabase } from '../lib/db';
 import { uuid } from '../lib/uuid';
 
@@ -19,21 +20,21 @@ export interface DMMessage {
 }
 
 export async function getOrCreateDMConversation(characterId: string): Promise<string> {
-  console.log('🔍 Getting DM conversation for character:', characterId);
+  logger.log('🔍 Getting DM conversation for character:', characterId);
   try {
     const { db } = await getDb();
     
     // Check if conversation exists
-    const rows: any[] = [];
+    const rows: Record<string, unknown>[] = [];
     db.exec({
       sql: 'SELECT id FROM character_dm_conversations WHERE character_id = ?',
       bind: [characterId],
       rowMode: 'object',
-      callback: (r: any) => rows.push(r)
+      callback: (r: Record<string, unknown>) => rows.push(r)
     });
     
     if (rows.length > 0) {
-      return rows[0].id;
+      return String((rows[0] as Record<string, unknown>).id);
     }
     
     // Create new conversation
@@ -49,33 +50,33 @@ export async function getOrCreateDMConversation(characterId: string): Promise<st
     await saveDatabase();
     return conversationId;
   } catch (error) {
-    console.error('❌ Failed to get/create DM conversation:', error);
+    logger.error('❌ Failed to get/create DM conversation:', error);
     throw error;
   }
 }
 
 export async function getDMMessages(conversationId: string): Promise<DMMessage[]> {
-  console.log('📨 Getting DM messages for conversation:', conversationId);
+  logger.log('📨 Getting DM messages for conversation:', conversationId);
   try {
     const { db } = await getDb();
-    const rows: any[] = [];
+    const rows: Record<string, unknown>[] = [];
     db.exec({
       sql: 'SELECT * FROM character_dm_messages WHERE conversation_id = ? ORDER BY created_at ASC',
       bind: [conversationId],
       rowMode: 'object',
-      callback: (r: any) => rows.push(r)
+      callback: (r: Record<string, unknown>) => rows.push(r)
     });
     
     return rows.map(row => ({
-      id: row.id,
-      conversation_id: row.conversation_id,
-      sender_type: row.sender_type,
-      content: row.content,
-      created_at: new Date(parseInt(row.created_at)),
-      read_at: row.read_at ? new Date(parseInt(row.read_at)) : undefined
-    }));
+      id: String((row as Record<string, unknown>).id),
+      conversation_id: String((row as Record<string, unknown>).conversation_id),
+      sender_type: String((row as Record<string, unknown>).sender_type) as 'user' | 'character',
+      content: String((row as Record<string, unknown>).content),
+      created_at: new Date(Number((row as Record<string, unknown>).created_at)),
+      read_at: (row as Record<string, unknown>).read_at ? new Date(Number((row as Record<string, unknown>).read_at)) : undefined
+    } as DMMessage));
   } catch (error) {
-    console.error('❌ Failed to get DM messages:', error);
+    logger.error('❌ Failed to get DM messages:', error);
     return [];
   }
 }
@@ -133,22 +134,22 @@ export async function markDMMessagesAsRead(conversationId: string): Promise<void
 export async function getDMConversations(): Promise<DMConversation[]> {
   try {
     const { db } = await getDb();
-    const rows: any[] = [];
+    const rows: Record<string, unknown>[] = [];
     db.exec({
       sql: 'SELECT * FROM character_dm_conversations ORDER BY last_message_at DESC',
       rowMode: 'object',
-      callback: (r: any) => rows.push(r)
+      callback: (r: Record<string, unknown>) => rows.push(r)
     });
     
     return rows.map(row => ({
-      id: row.id,
-      character_id: row.character_id,
-      last_message_at: new Date(parseInt(row.last_message_at)),
-      unread_count: row.unread_count || 0,
-      created_at: new Date(parseInt(row.created_at))
-    }));
+      id: String((row as Record<string, unknown>).id),
+      character_id: String((row as Record<string, unknown>).character_id),
+      last_message_at: new Date(Number((row as Record<string, unknown>).last_message_at)),
+      unread_count: Number((row as Record<string, unknown>).unread_count) || 0,
+      created_at: new Date(Number((row as Record<string, unknown>).created_at))
+    } as DMConversation));
   } catch (error) {
-    console.error('❌ Failed to get DM conversations:', error);
+    logger.error('❌ Failed to get DM conversations:', error);
     return [];
   }
 }

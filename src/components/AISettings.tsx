@@ -9,14 +9,15 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { repositoryStorage } from '@/hooks/useRepositoryStorage';
 import { AIService } from '@/lib/aiService';
+import { logger } from '@/lib/logger';
 import {
-  CheckCircle,
-  Eye,
-  EyeSlash,
-  Gear,
-  Sparkle,
-  TestTube,
-  XCircle
+    CheckCircle,
+    Eye,
+    EyeSlash,
+    Gear,
+    Sparkle,
+    TestTube,
+    XCircle
 } from '@phosphor-icons/react';
 import React, { useState } from 'react';
 import { toast } from 'sonner';
@@ -129,7 +130,7 @@ export function AISettings({ children }: AISettingsProps) {
       setImageModel(aiSettings.imageModel || 'venice-sd35');
       setImageApiUrl(aiSettings.imageApiUrl || '');
     } catch (error) {
-      console.error('Failed to load AI settings:', error);
+  logger.error('Failed to load AI settings:', error);
     }
   };
 
@@ -167,7 +168,7 @@ export function AISettings({ children }: AISettingsProps) {
       toast.success('AI settings saved successfully!');
       setIsOpen(false);
     } catch (error) {
-      console.error('Failed to save AI settings:', error);
+  logger.error('Failed to save AI settings:', error);
       toast.error('Failed to save settings');
     }
   };

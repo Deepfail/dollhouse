@@ -1,5 +1,5 @@
 // Minimal ambient declarations to ensure common globals are recognized by the typechecker
-export {};
+export { };
 
 declare global {
   var console: Console;

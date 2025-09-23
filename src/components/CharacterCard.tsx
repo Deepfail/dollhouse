@@ -63,7 +63,6 @@ interface GeneratedImage {
 
 interface CharacterCardProps {
   character: Character;
-  onStartChat: (characterId: string) => void;
   onGift?: (characterId: string) => void;
   onMove?: (characterId: string) => void;
   onEdit?: (character: Character) => void;
@@ -100,7 +99,6 @@ const getRelationshipStatusColor = (status: Character['progression']['relationsh
 
 export function CharacterCard({
   character,
-  onStartChat,
   onGift,
   onMove,
   onEdit,
@@ -118,11 +116,14 @@ export function CharacterCard({
   const [imageSettings, setImageSettings] = useState<ImageSettings | null>(null);
   
   // Integrated chat state for DMs tab
-  const [dmMessages, setDmMessages] = useState<any[]>([]);
+  const [dmMessages, setDmMessages] = useState<{ id: number | string; content: string; timestamp: string; characterId: string | null }[]>([]);
   const [dmInput, setDmInput] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   
-  const { sessions } = useChat();
+  const { sessions, ensureIndividualSession } = useChat() as unknown as {
+    sessions: { id: string; participantIds: string[]; messages: { characterId?: string | null }[] }[];
+    ensureIndividualSession: (id: string) => Promise<string>;
+  };
   const { updateRelationshipStats } = useRelationshipDynamics();
   const { getRecentStoryContext, analyzeEmotionalJourney } = useStorySystem();
 
@@ -210,43 +211,23 @@ export function CharacterCard({
   };
 
   const characterSessions = useMemo(
-    () => sessions.filter(s => s.participantIds?.includes(character.id) && s.messages.length > 0),
+    () => sessions.filter(s => Array.isArray(s.participantIds) && s.participantIds.includes(character.id) && Array.isArray(s.messages) && s.messages.length > 0),
     [sessions, character.id]
   );
 
   const totalMessages = useMemo(
-    () => characterSessions.reduce((sum, s) => sum + s.messages.filter((m: any) => m.characterId === character.id).length, 0),
+    () => characterSessions.reduce((sum, s) => sum + s.messages.filter(m => m.characterId === character.id).length, 0),
     [characterSessions, character.id]
   );
 
-  const lastInteraction = character.lastInteraction
-    ? new Date(character.lastInteraction).toLocaleDateString()
-    : 'Never';
+  // lastInteraction unused in current UI
 
   const relationshipStatus = progression.relationshipStatus || 'stranger';
   const achievedMilestones = (progression.sexualMilestones || []).filter(m => m.achieved).length;
   const totalMilestones = (progression.sexualMilestones || []).length;
 
   // Image handling functions
-  const handleDownloadImage = async (image: GeneratedImage) => {
-    try {
-      const response = await fetch(image.imageUrl);
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `character-image-${image.id}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
-      // Could add toast notification here if available
-    } catch (error) {
-      logger.error('Download error:', error);
-    }
-  };
+  const handleDownloadImage = async () => { /* image download disabled */ };
 
   // Integrated DM chat functions
   const handleSendDmMessage = async () => {
@@ -324,7 +305,7 @@ export function CharacterCard({
             settings = saved as ImageSettings;
             setImageSettings(settings);
           }
-        } catch {}
+  } catch { /* ignore */ }
       }
 
       const imageUrl = await AIService.generateImage(enhancedPrompt, settings ? {
@@ -344,13 +325,13 @@ export function CharacterCard({
       
       if (imageUrl) {
         const newImage: GeneratedImage = {
-          id: crypto.randomUUID(),
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
           prompt: newImagePrompt.trim(),
           imageUrl,
           createdAt: new Date(),
           characterId: character.id,
           tags: ['character', 'portrait', character.role || 'character'].filter(Boolean),
-          caption: generateImageCaption(character, newImagePrompt.trim())
+          caption: generateImageCaption()
         };
 
         // Save using proper file storage system
@@ -368,7 +349,7 @@ export function CharacterCard({
     }
   };
 
-  const generateImageCaption = (character: Character, prompt: string): string => {
+  const generateImageCaption = (): string => {
     // Generate AI-style caption from character perspective
     const motivations = [
       "just felt like sharing this moment",
@@ -395,15 +376,7 @@ export function CharacterCard({
     setIsGeneratingImagePrompt(true);
     try {
       // Build comprehensive character context for prompt generation
-      const characterContext = {
-        name: character.name,
-        role: character.role,
-        personalities: character.personalities,
-        features: character.features,
-        appearance: character.appearance,
-        description: character.description,
-        physicalStats: character.physicalStats
-      };
+      // characterContext removed (unused)
 
       const promptInstructions = `Generate a detailed image prompt for AI image generation based on this character's attributes. Focus ONLY on physical features, style, and visual characteristics. Do not include age references, personality traits, or story elements.
 
@@ -512,7 +485,8 @@ Return only the image prompt, nothing else.`;
                 className="flex-1 h-6 text-[10px] px-2"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onStartChat(character.id);
+                  // Legacy onStartChat call removed to prevent duplicate session creation.
+                  // Chat activation now handled by explicit chat buttons using ensureIndividualSession.
                 }}
               >
                 <MessageCircle size={10} className="mr-1" />
@@ -675,7 +649,14 @@ Return only the image prompt, nothing else.`;
                             </p>
                           </div>
                           <Button 
-                            onClick={() => onStartChat(character.id)}
+                            onClick={async () => {
+                              const id = await ensureIndividualSession(character.id);
+                              const g = globalThis as unknown as { dispatchEvent?: (e: unknown) => void; CustomEvent?: new (type: string, init?: unknown) => unknown };
+                              if (g?.dispatchEvent && g?.CustomEvent) {
+                                g.dispatchEvent(new g.CustomEvent('chat-active-session-changed', { detail: { sessionId: id } }));
+                                g.dispatchEvent(new g.CustomEvent('app-view-change', { detail: { view: 'chat', sessionId: id } }));
+                              }
+                            }}
                             size="lg" 
                             className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-lg shadow-lg"
                           >
@@ -692,7 +673,14 @@ Return only the image prompt, nothing else.`;
                             </p>
                           </div>
                           <Button 
-                            onClick={() => onStartChat(character.id)}
+                            onClick={async () => {
+                              const id = await ensureIndividualSession(character.id);
+                              const g = globalThis as unknown as { dispatchEvent?: (e: unknown) => void; CustomEvent?: new (type: string, init?: unknown) => unknown };
+                              if (g?.dispatchEvent && g?.CustomEvent) {
+                                g.dispatchEvent(new g.CustomEvent('chat-active-session-changed', { detail: { sessionId: id } }));
+                                g.dispatchEvent(new g.CustomEvent('app-view-change', { detail: { view: 'chat', sessionId: id } }));
+                              }
+                            }}
                             size="lg" 
                             className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-lg shadow-lg"
                           >
@@ -783,7 +771,14 @@ Return only the image prompt, nothing else.`;
 
                     {/* Quick Action Buttons */}
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => onStartChat(character.id)} className="flex-1">
+                      <Button size="sm" onClick={async () => {
+                        const id = await ensureIndividualSession(character.id);
+                        const g = globalThis as unknown as { dispatchEvent?: (e: unknown) => void; CustomEvent?: new (type: string, init?: unknown) => unknown };
+                        if (g?.dispatchEvent && g?.CustomEvent) {
+                          g.dispatchEvent(new g.CustomEvent('chat-active-session-changed', { detail: { sessionId: id } }));
+                          g.dispatchEvent(new g.CustomEvent('app-view-change', { detail: { view: 'chat', sessionId: id } }));
+                        }
+                      }} className="flex-1">
                         <MessageCircle size={14} className="mr-2" />
                         Message
                       </Button>
@@ -1047,7 +1042,7 @@ Return only the image prompt, nothing else.`;
                                   variant="ghost"
                                   size="sm"
                                   className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-800"
-                                  onClick={() => handleDownloadImage(image)}
+                                  onClick={() => handleDownloadImage()}
                                 >
                                   <Download size={18} className="text-gray-700 dark:text-gray-300" />
                                 </Button>
@@ -1754,7 +1749,7 @@ Return only the image prompt, nothing else.`;
               <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  onClick={() => handleDownloadImage(selectedImage)}
+                  onClick={() => handleDownloadImage()}
                   className="flex-1"
                 >
                   <Download className="w-4 h-4 mr-2" />

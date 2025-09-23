@@ -1,4 +1,5 @@
 // storage/engines/indexeddb.ts - IndexedDB storage engine using Dexie
+import { logger } from '@/lib/logger';
 import Dexie, { Table } from 'dexie';
 import {
     CharacterRow,
@@ -15,7 +16,6 @@ import {
     arrayBufferToFloat32Array,
     cosine
 } from '../index';
-import { logger } from '@/lib/logger';
 
 interface SettingRow {
   id: string;

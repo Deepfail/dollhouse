@@ -1,45 +1,188 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import type { ChatSession, Character } from '@/types';
+import type { Character, ChatMessage, ChatSession } from '@/types';
 import {
-  ArrowLeft,
-  BatteryMedium,
-  ChartBar,
-  CheckCircle,
-  Crown,
-  Gear,
-  Heart,
-  ChatCircle as MessageCircle,
-  User,
-  WifiHigh,
-  PencilSimple
+    ArrowLeft,
+    BatteryMedium,
+    ChartBar,
+    CheckCircle,
+    Crown,
+    Gear,
+    Heart,
+    ChatCircle as MessageCircle,
+    PencilSimple,
+    User,
+    WifiHigh
 } from '@phosphor-icons/react';
+import React, { useEffect, useState } from 'react';
 import { CharacterCreatorRepo } from './CharacterCreatorRepo';
-import { useState } from 'react';
+import { GroupChatCreator } from './GroupChatCreator';
 
 interface ChatInterfaceProps {
   sessionId?: string | null;
+  selectedCharacterId?: string | null; // passive selection without guaranteed session
   onBack?: () => void;
-  onStartChat?: (characterId: string) => void;
   onStartGroupChat?: (sessionId?: string) => void;
 }
 
-export function ChatInterface({ sessionId, onBack, onStartChat }: ChatInterfaceProps) {
+export function ChatInterface({ sessionId, selectedCharacterId, onBack }: ChatInterfaceProps) {
   const { characters } = useHouseFileStorage();
-  const { sessions } = useChat();
-  const [activeTab, setActiveTab] = useState('profile');
+  const { sessions, getSessionMessages, sendMessage, activeSessionId: hookActive, setActiveSessionId, switchToSession, createSession, createInterviewSession } = useChat() as unknown as {
+    sessions: ChatSession[];
+    getSessionMessages: (id: string) => Promise<ChatMessage[]>;
+    sendMessage: (sessionId: string, content: string, senderId: string) => Promise<void>;
+    activeSessionId: string | null;
+    setActiveSessionId: (id: string) => void;
+    switchToSession: (id: string) => Promise<void>;
+    createSession: (type: 'individual' | 'group' | 'scene' | 'assistant' | 'interview', participantIds: string[]) => Promise<string>;
+    createInterviewSession: (characterId: string) => Promise<string>;
+  };
+  const [activeTab, setActiveTab] = useState<'profile'|'chat'|'feed'|'stats'|'settings'>('profile');
+  const [showSessionList, setShowSessionList] = useState(false);
 
-  const session = sessions?.find((s: ChatSession) => s.id === sessionId);
+  const effectiveSessionId = sessionId || hookActive || null;
+  const session = sessions?.find((s: ChatSession) => s.id === effectiveSessionId);
   const sessionCharacters = characters?.filter((c: Character) => session?.participantIds?.includes(c.id)) || [];
   
   // Get the main character for profile display
-  const mainCharacter = sessionCharacters[0] || characters?.[0];
+  // Determine main character: prefer explicit selectedCharacterId when no active session
+  const mainCharacter = sessionCharacters[0] || characters?.find(c => c.id === selectedCharacterId) || characters?.[0];
   const [editOpen, setEditOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+  // Listen for external request to open group chat creator (e.g., big green button)
+  useEffect(() => {
+    const g = globalThis as unknown as { addEventListener?: (t: string, cb: () => void) => void; removeEventListener?: (t: string, cb: () => void) => void };
+    const handler = () => setGroupModalOpen(true);
+    if (g.addEventListener) g.addEventListener('open-group-chat-creator', handler);
+    return () => { if (g.removeEventListener) g.removeEventListener('open-group-chat-creator', handler); };
+  }, []);
+  // Reference to bottom sentinel for auto-scroll
+  // Scroll anchor id
+  const scrollAnchorId = 'chat-scroll-anchor';
+
+  // Ensure hook active session matches prop if provided
+  useEffect(() => {
+    if (effectiveSessionId && hookActive !== effectiveSessionId) {
+      try { setActiveSessionId(effectiveSessionId); } catch { /* ignore */ }
+    }
+  }, [effectiveSessionId, hookActive, setActiveSessionId]);
+
+  // When active session changes, auto-switch to chat tab if we have messages or user had chat previously
+  useEffect(() => {
+    if (!effectiveSessionId) {
+      // No session -> make sure we are on profile tab
+      if (activeTab !== 'profile') setActiveTab('profile');
+      return;
+    }
+    (async () => {
+      const data = await getSessionMessages(effectiveSessionId);
+      setMessages(data);
+      if (data.length > 0 && activeTab !== 'chat') setActiveTab('chat');
+    })();
+  }, [effectiveSessionId]);
+
+  // Load messages when session changes or tab becomes chat
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (activeTab !== 'chat' || !effectiveSessionId) return;
+      const data = await getSessionMessages(effectiveSessionId);
+      if (!cancelled) setMessages(data);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [effectiveSessionId, activeTab, getSessionMessages]);
+
+  // Listen for global updates to refresh while in chat tab
+  useEffect(() => {
+    if (activeTab !== 'chat') return;
+    const handler = () => {
+      if (!effectiveSessionId) return;
+      getSessionMessages(effectiveSessionId).then(setMessages).catch(() => { /* ignore */ });
+    };
+    const g = globalThis as unknown as { addEventListener?: (t: string, cb: () => void) => void; removeEventListener?: (t: string, cb: () => void) => void };
+    if (g?.addEventListener) {
+      g.addEventListener('chat-sessions-updated', handler);
+      return () => g.removeEventListener && g.removeEventListener('chat-sessions-updated', handler);
+    }
+    return undefined;
+  }, [activeTab, effectiveSessionId, getSessionMessages]);
+
+  // Listen for explicit active-session change events to switch to chat
+  useEffect(() => {
+    const onActiveChanged = (e: unknown) => {
+      const evt = e as { detail?: { sessionId?: string } };
+      if (evt.detail?.sessionId) {
+        // Load messages and show chat
+        getSessionMessages(evt.detail.sessionId).then(setMessages);
+        setActiveTab('chat');
+      }
+    };
+    const g = globalThis as unknown as { addEventListener?: (t: string, cb: (e: unknown) => void) => void; removeEventListener?: (t: string, cb: (e: unknown) => void) => void };
+    if (g?.addEventListener) {
+      g.addEventListener('chat-active-session-changed', onActiveChanged);
+      return () => g.removeEventListener && g.removeEventListener('chat-active-session-changed', onActiveChanged);
+    }
+    return undefined;
+  }, [getSessionMessages]);
+
+  // Auto scroll on messages change
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      type Elem = { scrollIntoView?: (opts?: unknown) => void } | null;
+      const g = globalThis as unknown as { document?: { getElementById: (id: string) => Elem } };
+      const el: Elem = g.document ? g.document.getElementById(scrollAnchorId) : null;
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, [messages, activeTab]);
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || !effectiveSessionId) return;
+    const text = chatInput.trim();
+    setChatInput('');
+    // Optimistic append
+  const optimistic: ChatMessage = { id: `temp-${Date.now()}`, characterId: undefined, content: text, timestamp: new Date(), type: 'text', metadata: undefined };
+  setMessages(prev => [...prev, optimistic]);
+    try {
+      await sendMessage(effectiveSessionId, text, 'user');
+      const refreshed = await getSessionMessages(effectiveSessionId);
+      setMessages(refreshed);
+    } catch {
+      // Rollback optimistic if needed
+    }
+  };
+
+  // Character-specific sessions list (individual only)
+  const characterSessionList = React.useMemo(() => {
+    if (!mainCharacter) return [] as ChatSession[];
+    return sessions.filter(s => s.type === 'individual' && s.participantIds.includes(mainCharacter.id))
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  }, [sessions, mainCharacter]);
+
+  const handleSelectSession = async (id: string) => {
+    await switchToSession(id);
+    setShowSessionList(false);
+    setActiveTab('chat');
+  };
+
+  const handleNewSession = async () => {
+    if (!mainCharacter) return;
+    const newId = await createSession('individual', [mainCharacter.id]);
+    await switchToSession(newId);
+    setShowSessionList(false);
+    setActiveTab('chat');
+  };
   
   // Mock stats for the design
   const stats = {
@@ -71,9 +214,11 @@ export function ChatInterface({ sessionId, onBack, onStartChat }: ChatInterfaceP
     );
   }
 
+  const isGroup = session?.type === 'group';
+
   return (
-    <div className="h-full flex flex-col bg-[#1a1a1a] text-white">
-      {/* Status Bar */}
+    <div className={`h-full flex flex-col bg-[#1a1a1a] text-white ${isGroup ? 'group-chat-layout' : ''}`}>      
+      {!isGroup && (
       <div className="bg-[#0f0f0f] h-[32px] flex items-center justify-between px-6 text-white text-xs flex-shrink-0">
         <span className="font-medium">9:41</span>
         <div className="flex items-center gap-1">
@@ -81,23 +226,69 @@ export function ChatInterface({ sessionId, onBack, onStartChat }: ChatInterfaceP
           <WifiHigh size={16} className="text-white" />
           <BatteryMedium size={16} className="text-white" />
         </div>
-      </div>
+      </div>) }
 
       {/* Header */}
-  <div className="bg-[#1a1a1a] h-[73px] border-b border-[rgba(255,255,255,0.04)] px-4 flex items-center justify-between flex-shrink-0">
+  <div className={`h-[73px] border-b border-[rgba(255,255,255,0.04)] px-4 flex items-center justify-between flex-shrink-0 ${isGroup ? 'bg-[#141414]' : 'bg-[#1a1a1a]'}`}>
         <div className="flex items-center gap-3">
-          <Avatar className="w-10 h-10">
-            <AvatarImage src={mainCharacter.avatar} alt={mainCharacter.name} />
-            <AvatarFallback>{mainCharacter.name?.slice(0, 2)}</AvatarFallback>
-          </Avatar>
-          <div>
-            <h2 className="text-white font-semibold">{mainCharacter.name}</h2>
-            <p className="text-[#43e97b] text-xs">Online now</p>
-          </div>
+          {isGroup ? (
+            <div className="flex items-center gap-2">
+              {session?.participantIds.slice(0,5).map(pid => {
+                const c = characters?.find(ch => ch.id === pid);
+                if (!c) return null;
+                return (
+                  <Avatar key={pid} className="w-8 h-8 border border-neutral-700">
+                    <AvatarImage src={c.avatar} />
+                    <AvatarFallback>{c.name.slice(0,2)}</AvatarFallback>
+                  </Avatar>
+                );
+              })}
+              {session && session.participantIds.length > 5 && (
+                <div className="text-[10px] text-gray-400">+{session.participantIds.length - 5}</div>
+              )}
+              <div className="ml-2">
+                <h2 className="text-white font-semibold text-sm">Group Chat</h2>
+                <p className="text-[#ff1372] text-[10px] uppercase tracking-wide">{session?.participantIds.length} participants</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <Avatar className="w-10 h-10">
+                <AvatarImage src={mainCharacter.avatar} alt={mainCharacter.name} />
+                <AvatarFallback>{mainCharacter.name?.slice(0, 2)}</AvatarFallback>
+              </Avatar>
+              <div>
+                <h2 className="text-white font-semibold">{mainCharacter.name}</h2>
+                <p className="text-[#43e97b] text-xs">Online now</p>
+              </div>
+            </>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm">
-            <MessageCircle size={16} className="text-gray-400" />
+        <div className="flex items-center gap-2 relative">
+          <Button variant="ghost" size="sm" onClick={() => setShowSessionList(v => !v)} aria-label="Character Chats">
+            <MessageCircle size={16} className={showSessionList ? 'text-[#ff1372]' : 'text-gray-400'} />
+          </Button>
+          {!isGroup && mainCharacter && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                const id = await createInterviewSession(mainCharacter.id);
+                await switchToSession(id);
+                setActiveTab('chat');
+              }}
+              className="text-xs"
+            >
+              Interview
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setGroupModalOpen(true)}
+            className="text-xs"
+          >
+            Group
           </Button>
           <Button variant="ghost" size="sm">
             <CheckCircle size={16} className="text-gray-400" />
@@ -106,10 +297,39 @@ export function ChatInterface({ sessionId, onBack, onStartChat }: ChatInterfaceP
           <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)} aria-label="Edit character">
             <PencilSimple size={16} className="text-gray-300" />
           </Button>
+          {showSessionList && (
+            <div className="absolute top-full right-0 mt-2 w-64 bg-[#111] border border-neutral-800 rounded-xl shadow-xl z-50 p-2 space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs font-semibold text-gray-300">Chats with {mainCharacter?.name}</span>
+                <Button size="sm" variant="ghost" className="text-[10px] px-1 h-5" onClick={handleNewSession}>New</Button>
+              </div>
+              <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1 pr-1">
+                {characterSessionList.length === 0 && (
+                  <div className="text-[11px] text-gray-500 px-2 py-3 text-center">No chats yet. Start one!</div>
+                )}
+                {characterSessionList.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => handleSelectSession(s.id)}
+                    className={`w-full text-left px-2 py-2 rounded-lg border text-[11px] transition-colors ${s.id === effectiveSessionId ? 'border-[#ff1372] bg-[#ff1372]/10 text-white' : 'border-neutral-800 hover:bg-neutral-800 text-gray-300'}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate">Chat</span>
+                      <span className="text-[10px] text-gray-500">{s.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between text-[10px] text-gray-500">
+                      <span>{s.messageCount ?? messages.length} msgs</span>
+                      {s.endedAt && <span className="text-[9px] text-yellow-500">ended</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Stats Bar */}
+      {!isGroup && (
       <div className="bg-neutral-800 h-[52px] border-b border-[rgba(255,255,255,0.02)] shadow-[0_10px_30px_-12px_rgba(255,19,145,0.45)] flex items-center px-4 flex-shrink-0">
         <div className="flex w-full items-center justify-between gap-6 max-w-[980px] mx-auto text-xs">
           {/* Love */}
@@ -154,10 +374,11 @@ export function ChatInterface({ sessionId, onBack, onStartChat }: ChatInterfaceP
             </div>
           </div>
         </div>
-      </div>
+      </div>) }
 
       {/* Content Area */}
-      <div className="flex-1 overflow-hidden">
+  <div className={`flex-1 overflow-hidden ${isGroup ? 'pb-2' : ''}`}>
+        {activeTab === 'profile' && (
         <ScrollArea className="h-full p-4">
           {/* Character Profile */}
           <div className="space-y-6">
@@ -308,13 +529,37 @@ export function ChatInterface({ sessionId, onBack, onStartChat }: ChatInterfaceP
             </div>
           </div>
         </ScrollArea>
+        )}
+        {(activeTab === 'chat' || isGroup) && (
+          <div className="flex flex-col h-full">
+            <ScrollArea className="flex-1 p-4">
+              <div className="space-y-4">
+                {messages.map(m => {
+                  const isUser = !m.characterId; // user message if no characterId
+                  return (
+                    <div key={m.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap ${isUser ? 'bg-[#ff1372] text-white' : 'bg-neutral-800 text-gray-200 border border-neutral-700'}`}>
+                        {m.content}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div id={scrollAnchorId} />
+              </div>
+            </ScrollArea>
+            <form onSubmit={handleSend} className="p-3 border-t border-neutral-800 flex gap-2 bg-[#111]">
+              <Input value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder="Message..." className="bg-neutral-800 border-neutral-700 text-sm" />
+              <Button type="submit" disabled={!chatInput.trim()} variant="secondary" className="bg-[#ff1372] hover:bg-[#ff1372]/80 text-white border-none">Send</Button>
+            </form>
+          </div>
+        )}
       </div>
 
-      {/* Bottom Navigation */}
+      {!isGroup && (
         <div className="relative w-full flex justify-center mb-4">
           <div className="w-full max-w-[420px] px-4">
             <div className="bg-[rgba(15,15,15,0.85)] rounded-xl border border-[rgba(255,255,255,0.03)] px-2 py-2">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+  <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="w-full">
           <TabsList className="grid grid-cols-5 bg-transparent h-14 gap-3">
             <TabsTrigger 
               value="profile" 
@@ -330,7 +575,6 @@ export function ChatInterface({ sessionId, onBack, onStartChat }: ChatInterfaceP
             <TabsTrigger 
               value="chat" 
               className="flex flex-col items-center gap-1 h-14 rounded-lg px-2 text-gray-400"
-              onClick={() => onStartChat?.(mainCharacter.id)}
             >
               <MessageCircle size={18} />
               <span className="text-xs">Chat</span>
@@ -360,9 +604,10 @@ export function ChatInterface({ sessionId, onBack, onStartChat }: ChatInterfaceP
         </Tabs>
             </div>
           </div>
-        </div>
+        </div>) }
       {/* Editor dialog for editing character */}
       <CharacterCreatorRepo open={editOpen} onOpenChange={setEditOpen} character={mainCharacter} />
+      <GroupChatCreator open={groupModalOpen} onClose={() => setGroupModalOpen(false)} />
     </div>
   );
 }

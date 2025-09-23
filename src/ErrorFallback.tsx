@@ -2,6 +2,7 @@ import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert";
 import { Button } from "./components/ui/button";
 
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { logger } from './lib/logger';
 
 interface ErrorFallbackProps {
   error: Error;
@@ -11,7 +12,7 @@ interface ErrorFallbackProps {
 export const ErrorFallback = ({ error, resetErrorBoundary }: ErrorFallbackProps) => {
   // Show error boundary in both development and production
   // This prevents the black screen issue while still showing useful error information
-  console.error('Application error caught by ErrorFallback:', error);
+  logger.error('Application error caught by ErrorFallback:', error);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">

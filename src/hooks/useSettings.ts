@@ -1,7 +1,7 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { getSetting, setSetting, listSettings, deleteSetting } from '@/repo/settings';
-import { queryClient, queryKeys } from '@/lib/query';
 import { logger } from '@/lib/logger';
+import { queryClient, queryKeys } from '@/lib/query';
+import { deleteSetting, getSetting, listSettings, setSetting } from '@/repo/settings';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 export function useSettings() {

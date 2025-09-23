@@ -1,6 +1,6 @@
 // repo/settings-new.ts - Updated settings using unified storage
-import { StorageAdapter } from '../storage/adapters';
 import { logger } from '@/lib/logger';
+import { StorageAdapter } from '../storage/adapters';
 
 export async function listSettings() {
   // For now, return empty array since we don't have a full settings list in the adapter

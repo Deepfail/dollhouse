@@ -1,171 +1,149 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
+import React, { useState } from 'react';
 
 interface GroupChatCreatorProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onStarted?: (sessionId: string) => void;
+  onClose: () => void;
 }
 
-export function GroupChatCreator({ open, onOpenChange, onStarted }: GroupChatCreatorProps) {
+interface RoleDraft { role: string; objective: string; }
+
+export const GroupChatCreator: React.FC<GroupChatCreatorProps> = ({ open, onClose }) => {
   const { characters } = useHouseFileStorage();
-  const { createSession } = useChat();
-  const [query, setQuery] = useState('');
+  const { createGroupSession, switchToSession } = useChat() as unknown as {
+    createGroupSession: (ids: string[], roles?: Record<string, { role: string; objective?: string; priority?: 'low' | 'medium' | 'high' }>) => Promise<string>;
+    switchToSession: (id: string) => Promise<void>;
+  };
   const [selected, setSelected] = useState<string[]>([]);
-  const [goals, setGoals] = useState<Record<string, { goal: string; priority: 'low'|'medium'|'high' }>>({});
-  
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return characters || [];
-    return (characters || []).filter(c => (c.name || '').toLowerCase().includes(q));
-  }, [characters, query]);
+  const [roles, setRoles] = useState<Record<string, RoleDraft>>({});
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!open) return null;
 
   const toggle = (id: string) => {
     setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-    setGoals(prev => prev[id] ? prev : { ...prev, [id]: { goal: '', priority: 'medium' } });
   };
 
-  const start = async () => {
-    if (selected.length < 2) {
-      toast.error('Pick at least two participants');
-      return;
-    }
-    const hiddenGoals: Record<string, { goal: string; priority: 'low'|'medium'|'high' }> = {};
-    for (const id of selected) {
-      const g = goals[id];
-      if (g?.goal?.trim()) hiddenGoals[id] = { goal: g.goal.trim(), priority: g.priority || 'medium' };
-    }
+  const updateField = (id: string, field: keyof RoleDraft, value: string) => {
+    setRoles(prev => ({
+      ...prev,
+      [id]: {
+        ...(prev[id] || { role: '', objective: '' }),
+        [field]: value
+      }
+    }));
+  };
+
+  const handleCreate = async () => {
+    if (selected.length < 2) return;
+    setSubmitting(true);
     try {
-      const sessionId = await createSession('group', selected, { hiddenGoals });
-      toast.success('Group chat started');
-      onOpenChange(false);
-      if (sessionId && onStarted) onStarted(sessionId);
-      // reset state for next time
-      setQuery('');
-      setSelected([]);
-      setGoals({});
-    } catch (e) {
-      console.error(e);
-      toast.error('Failed to create group chat');
+      const payload: Record<string, { role: string; objective?: string; priority?: 'low' | 'medium' | 'high' }> = {};
+      for (const id of selected) {
+        const draft = roles[id];
+        if (draft?.role) payload[id] = { role: draft.role, objective: draft.objective || undefined, priority: 'medium' };
+      }
+      const sessionId = await createGroupSession(selected, Object.keys(payload).length ? payload : undefined);
+      await switchToSession(sessionId);
+      onClose();
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[900px] max-w-[95vw] bg-[#0f1115] text-white border border-zinc-800">
-        <DialogHeader>
-          <DialogTitle>Create Group Chat</DialogTitle>
-        </DialogHeader>
-        <div className="grid grid-cols-2 gap-4">
-          {/* Left: participant picker */}
-          <div className="flex flex-col rounded-xl border border-zinc-800 bg-[#151822]">
-            <div className="p-3 border-b border-zinc-800">
-              <Input
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder="Search characters..."
-                className="bg-black/40 text-white placeholder:text-zinc-500 border-zinc-700"
-              />
-            </div>
-            <ScrollArea className="flex-1 p-2 h-[420px]">
-              <div className="space-y-2">
-                {filtered.map((c: any) => {
-                  const isSel = selected.includes(c.id);
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => toggle(c.id)}
-                      className={`w-full flex items-center gap-3 p-2 rounded-lg border ${isSel ? 'border-primary/50 bg-primary/10' : 'border-zinc-800 hover:bg-white/5'}`}
-                    >
-                      <Avatar className="w-8 h-8 border border-zinc-700">
-                        <AvatarImage src={c.avatar} alt={c.name} />
-                        <AvatarFallback className="bg-zinc-800 text-white text-xs">
-                          {(c.name || '?').slice(0,2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 text-left">
-                        <div className="text-sm font-medium">{c.name}</div>
-                        <div className="text-[11px] text-zinc-400">Level {c.stats?.level ?? 1}</div>
-                      </div>
-                      {isSel && <Badge variant="secondary" className="text-[10px]">Selected</Badge>}
-                    </button>
-                  );
-                })}
-                {(filtered.length === 0) && (
-                  <div className="text-sm text-zinc-400 p-3">No characters found</div>
-                )}
-              </div>
-            </ScrollArea>
-            <div className="p-3 border-t border-zinc-800 text-xs text-zinc-400 flex items-center justify-between">
-              <div>{selected.length} selected</div>
-              <div className="space-x-2">
-                <Button size="sm" variant="outline" onClick={() => setSelected([])}>Clear</Button>
-                <Button size="sm" variant="outline" onClick={() => setSelected((characters||[]).map((c:any)=>c.id))}>Select All</Button>
-              </div>
-            </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-3xl mx-auto bg-[#111] border border-neutral-800 rounded-2xl shadow-xl flex flex-col h-[70vh]">
+        <div className="p-4 border-b border-neutral-800 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-white">Create Group Chat</h2>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+            <Button size="sm" disabled={selected.length < 2 || submitting} onClick={handleCreate}>
+              {submitting ? 'Creating…' : 'Start'}
+            </Button>
           </div>
-
-          {/* Right: hidden objectives editor */}
-          <div className="flex flex-col rounded-xl border border-zinc-800 bg-[#151822]">
-            <div className="p-3 border-b border-zinc-800 flex items-center justify-between">
-              <div className="text-sm font-medium">Hidden Objectives</div>
-              <div className="text-xs text-zinc-400">Optional — kept secret from the user.</div>
+        </div>
+        <div className="flex flex-1 overflow-hidden">
+          <ScrollArea className="w-1/3 border-r border-neutral-800">
+            <div className="p-3 space-y-2">
+              {characters?.map(c => {
+                const active = selected.includes(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => toggle(c.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left border transition-colors ${active ? 'border-[#ff1372] bg-[#ff1372]/10 text-white' : 'border-neutral-800 hover:bg-neutral-900 text-gray-300'}`}
+                  >
+                    <Avatar className="w-8 h-8">
+                      <AvatarImage src={c.avatar} />
+                      <AvatarFallback>{c.name.slice(0,2)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium truncate">{c.name}</div>
+                      <div className="text-[10px] text-gray-500 truncate">{c.role || 'Character'}</div>
+                    </div>
+                    <div className={`w-2 h-2 rounded-full ${active ? 'bg-[#ff1372]' : 'bg-neutral-700'}`} />
+                  </button>
+                );
+              })}
             </div>
-            <ScrollArea className="flex-1 p-3 h-[420px]">
-              <div className="space-y-3">
-                {selected.length === 0 && (
-                  <div className="text-sm text-zinc-400">Select participants to set objectives.</div>
-                )}
-                {selected.map(id => {
-                  const c = (characters || []).find((x:any) => x.id === id);
-                  const st = goals[id] || { goal: '', priority: 'medium' as const };
-                  return (
-                    <div key={id} className="p-3 rounded-lg border border-zinc-800 bg-black/20">
-                      <div className="flex items-center gap-3 mb-2">
-                        <Avatar className="w-8 h-8 border border-zinc-700">
-                          <AvatarImage src={c?.avatar} alt={c?.name} />
-                          <AvatarFallback className="bg-zinc-800 text-white text-xs">{(c?.name||'?').slice(0,2).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div className="text-sm font-medium">{c?.name || id}</div>
+          </ScrollArea>
+          <div className="flex-1 p-4">
+            <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-3">Roles & Objectives</h3>
+            {selected.length === 0 && (
+              <div className="text-[11px] text-gray-500">Select at least two characters to define a group.</div>
+            )}
+            <div className="space-y-4 overflow-y-auto pr-2 max-h-full">
+              {selected.map(id => {
+                const char = characters?.find(c => c.id === id);
+                if (!char) return null;
+                const draft = roles[id] || { role: '', objective: '' };
+                return (
+                  <div key={id} className="border border-neutral-800 rounded-lg p-3 bg-neutral-900/40">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Avatar className="w-7 h-7">
+                        <AvatarImage src={char.avatar} />
+                        <AvatarFallback>{char.name.slice(0,2)}</AvatarFallback>
+                      </Avatar>
+                      <span className="text-xs font-medium text-white truncate">{char.name}</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-[10px] uppercase tracking-wide text-gray-500 block mb-1">Role</label>
+                        <Input
+                          value={draft.role}
+                          onChange={e => updateField(id, 'role', e.target.value)}
+                          placeholder="e.g. Secretly protective leader"
+                          className="h-8 text-xs"
+                        />
                       </div>
-                      <Input
-                        value={st.goal}
-                        onChange={(e) => setGoals(prev => ({ ...prev, [id]: { ...st, goal: e.target.value } }))}
-                        placeholder="e.g., Convince Ava to accept my plan without revealing my intentions"
-                        className="bg-black/40 text-white placeholder:text-zinc-500 border-zinc-700"
-                      />
-                      <div className="flex gap-2 mt-2">
-                        {(['low','medium','high'] as const).map(p => (
-                          <Button
-                            key={p}
-                            size="sm"
-                            variant={st.priority === p ? 'default' : 'outline'}
-                            onClick={() => setGoals(prev => ({ ...prev, [id]: { ...st, priority: p } }))}
-                          >
-                            {p}
-                          </Button>
-                        ))}
+                      <div>
+                        <label className="text-[10px] uppercase tracking-wide text-gray-500 block mb-1">Objective (hidden)</label>
+                        <Input
+                          value={draft.objective}
+                          onChange={e => updateField(id, 'objective', e.target.value)}
+                          placeholder="e.g. Gain others' trust without revealing past"
+                          className="h-8 text-xs"
+                        />
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </ScrollArea>
-            <div className="p-3 border-t border-zinc-800 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button onClick={start} disabled={selected.length < 2}>Start Group Chat</Button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+        <div className="p-3 border-t border-neutral-800 text-[10px] text-gray-500 flex items-center justify-between">
+          <span>{selected.length} selected</span>
+          <span>Hidden objectives are never revealed directly.</span>
+        </div>
+      </div>
+    </div>
   );
-}
+};

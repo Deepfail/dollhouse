@@ -4,5 +4,17 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"cSpell.words": [
+			"conv",
+			"deepseek",
+			"Dexie",
+			"hidream",
+			"Lustify",
+			"openrouter",
+			"Openrouter",
+			"Qwen",
+			"sdxl"
+		]
+	}
 }

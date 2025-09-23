@@ -1,44 +1,45 @@
+import { logger } from '@/lib/logger';
 import { getDb, saveDatabase } from '../lib/db';
 
-export async function listSettings() {
+export async function listSettings(): Promise<Array<Record<string, unknown>>> {
   const { db } = await getDb();
-  const rows: any[] = [];
+  const rows: Array<Record<string, unknown>> = [];
   db.exec({
     sql: 'SELECT * FROM settings ORDER BY key',
     rowMode: 'object',
-    callback: (r: any) => rows.push(r)
+    callback: (r: Record<string, unknown>) => rows.push(r)
   });
   return rows;
 }
 
-export async function getSetting<T = any>(key: string): Promise<T | null> {
-  console.log(`🔍 Getting setting ${key}...`);
+export async function getSetting<T = unknown>(key: string): Promise<T | null> {
+  logger.log(`🔍 Getting setting ${key}...`);
   const { db } = await getDb();
-  const rows: any[] = [];
+  const rows: Array<Record<string, unknown>> = [];
   db.exec({
     sql: 'SELECT value FROM settings WHERE key=? LIMIT 1',
     bind: [key],
     rowMode: 'object',
-    callback: (r: any) => rows.push(r)
+    callback: (r: Record<string, unknown>) => rows.push(r)
   });
   const row = rows[0];
   if (!row) {
-    console.log(`❌ Setting ${key} not found`);
+    logger.log(`❌ Setting ${key} not found`);
     return null;
   }
   
   try {
-    const parsed = JSON.parse(row.value);
-    console.log(`✅ Setting ${key} loaded:`, parsed);
-    return parsed;
+    const parsed = JSON.parse(String((row as Record<string, unknown>).value));
+    logger.log(`✅ Setting ${key} loaded:`, parsed);
+    return parsed as T;
   } catch {
-    console.log(`✅ Setting ${key} loaded (string):`, row.value);
-    return row.value as T;
+    logger.log(`✅ Setting ${key} loaded (string):`, (row as Record<string, unknown>).value);
+    return ((row as Record<string, unknown>).value as unknown) as T;
   }
 }
 
-export async function setSetting<T = any>(key: string, value: T): Promise<void> {
-  console.log(`💾 Setting ${key} to:`, value);
+export async function setSetting<T = unknown>(key: string, value: T): Promise<void> {
+  logger.log(`💾 Setting ${key} to:`, value);
   const { db } = await getDb();
   const serializedValue = typeof value === 'string' ? value : JSON.stringify(value);
   
@@ -48,7 +49,7 @@ export async function setSetting<T = any>(key: string, value: T): Promise<void> 
     bind: [key, serializedValue]
   });
   
-  console.log(`✅ Setting ${key} saved to database`);
+  logger.log(`✅ Setting ${key} saved to database`);
   
   // Database auto-saves with OPFS
   await saveDatabase();
@@ -62,15 +63,17 @@ export async function deleteSetting(key: string): Promise<void> {
   });
 }
 
-export async function getSettingsAsObject(): Promise<Record<string, any>> {
+export async function getSettingsAsObject(): Promise<Record<string, unknown>> {
   const settings = await listSettings();
-  const result: Record<string, any> = {};
+  const result: Record<string, unknown> = {};
   
   for (const setting of settings) {
     try {
-      result[setting.key] = JSON.parse(setting.value);
+      const k = String((setting as Record<string, unknown>).key);
+      result[k] = JSON.parse(String((setting as Record<string, unknown>).value));
     } catch {
-      result[setting.key] = setting.value;
+      const k = String((setting as Record<string, unknown>).key);
+      result[k] = (setting as Record<string, unknown>).value;
     }
   }
   

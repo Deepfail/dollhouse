@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { AIService } from '@/lib/aiService';
+import { logger } from '@/lib/logger';
 import { Character } from '@/types';
 import {
     Image as ImageIcon,
@@ -105,7 +106,7 @@ export function CharacterCreator({ open = false, onOpenChange, character }: Char
       toast.success('Character data generated successfully!');
       
     } catch (error) {
-      console.error('Generation error:', error);
+  logger.error('Generation error:', error);
       toast.error('Failed to generate character data. Please check your AI settings.');
     } finally {
       setIsGenerating(false);
@@ -135,7 +136,7 @@ export function CharacterCreator({ open = false, onOpenChange, character }: Char
         toast.error('Image generation failed');
       }
     } catch (error) {
-      console.error('Image generation error:', error);
+  logger.error('Image generation error:', error);
       toast.error('Failed to generate image. Please check your AI settings.');
     } finally {
       setIsGenerating(false);
@@ -206,7 +207,7 @@ export function CharacterCreator({ open = false, onOpenChange, character }: Char
       setCurrentTab('basic');
       onOpenChange?.(false);
     } catch (error) {
-      console.error('Save error:', error);
+  logger.error('Save error:', error);
       toast.error('Failed to save character');
     }
   };

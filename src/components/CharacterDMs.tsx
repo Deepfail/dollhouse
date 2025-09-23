@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { logger } from '@/lib/logger';
 import { getCharacterDMs } from '@/storage/adapters';
 import { ChatCircle, PaperPlane } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
@@ -46,7 +47,7 @@ export function CharacterDMs({ characterId }: CharacterDMsProps) {
         setActiveConversation(dms[0]);
       }
     } catch (error) {
-      console.error('Failed to load DMs:', error);
+  logger.error('Failed to load DMs:', error);
       toast.error('Failed to load conversations');
     } finally {
       setIsLoading(false);
@@ -58,7 +59,7 @@ export function CharacterDMs({ characterId }: CharacterDMsProps) {
     
     try {
       // TODO: Implement actual message sending with new storage
-      console.log('Sending message:', newMessage);
+  logger.log('Sending message:', newMessage);
       
       // Update UI optimistically
       setActiveConversation(prev => prev ? {
@@ -70,7 +71,7 @@ export function CharacterDMs({ characterId }: CharacterDMsProps) {
       setNewMessage('');
       toast.success('Message sent!');
     } catch (error) {
-      console.error('Failed to send message:', error);
+  logger.error('Failed to send message:', error);
       toast.error('Failed to send message');
     }
   };

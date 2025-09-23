@@ -1,7 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import {
@@ -11,31 +10,42 @@ import {
 } from '@phosphor-icons/react';
 import { useMemo } from 'react';
 
+interface CharacterLike {
+  id: string;
+  name?: string;
+  avatar?: string;
+  role?: string;
+  stats?: Record<string, unknown>;
+}
+
 interface SidebarProps {
   onStartChat?: (characterId: string) => void;
+  onSelectCharacter?: (characterId: string) => void;
   onStartGroupChat?: (sessionId?: string) => void;
   onStartScene?: (sessionId: string) => void;
 }
 
-export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: SidebarProps) {
-  const { house, characters, isLoading } = useHouseFileStorage();
-  const { sessions, switchToSession } = useChat();
-  const isMobile = useIsMobile();
+export function Sidebar({ onStartChat, onSelectCharacter, onStartGroupChat }: SidebarProps) {
+  const { house, characters } = useHouseFileStorage();
+  useChat(); // retain hook for potential future reactive behavior (side-effects)
 
   // UI-level dedupe as a final guard
-  const visibleCharacters = useMemo(() => {
+  const visibleCharacters: CharacterLike[] = useMemo(() => {
     const byId = new Set<string>();
-    const out: any[] = [];
+    const out: CharacterLike[] = [];
     for (const c of characters || []) {
-      if (byId.has(c.id)) continue;
+      if (!c?.id || byId.has(c.id)) continue;
       byId.add(c.id);
-      out.push(c);
+      out.push({ id: c.id, name: c.name, avatar: c.avatar, role: (c as unknown as CharacterLike).role, stats: (c as unknown as CharacterLike).stats });
     }
     return out;
   }, [characters]);
 
-  const startIndividualChat = (characterId: string) => {
-    if (onStartChat) {
+  const selectCharacter = (characterId: string) => {
+    if (onSelectCharacter) {
+      onSelectCharacter(characterId);
+    } else if (onStartChat) {
+      // fallback: maintain old behavior if selection handler not provided
       onStartChat(characterId);
     }
   };
@@ -125,7 +135,7 @@ export function Sidebar({ onStartChat, onStartGroupChat, onStartScene }: Sidebar
                 <div
                   key={character.id}
                   className="flex items-center gap-3 p-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 cursor-pointer transition-colors"
-                  onClick={() => startIndividualChat(character.id)}
+                  onClick={() => selectCharacter(character.id)}
                 >
                   <div className="relative">
                     <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-600">

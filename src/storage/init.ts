@@ -1,7 +1,7 @@
 // storage/init.ts - Zero-hang initialization with auto-fallback
+import { logger } from '@/lib/logger';
 import { initIndexedDB } from './engines/indexeddb';
 import { Storage, canUseSqliteWasm, isTauri, setGlobalStorage, timeout } from './index';
-import { logger } from '@/lib/logger';
 
 // Minimal typed helpers for safe global feature detection without using `any`
 type MaybeNavigator = { storage?: { getDirectory?: () => unknown } };

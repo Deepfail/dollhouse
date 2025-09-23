@@ -1,19 +1,18 @@
-import { useState, useRef, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { useFileStorage } from '@/hooks/useFileStorage';
 import { useChat } from '@/hooks/useChat';
+import { useFileStorage } from '@/hooks/useFileStorage';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { ChatMessage } from '@/types';
-import { PaperPlaneTilt as Send, ChatCircle as MessageCircle, Users, Camera, Warning, ArrowLeft, Image as ImageIcon, MagicWand } from '@phosphor-icons/react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner';
 import { AIService } from '@/lib/aiService';
+import { ArrowLeft, Camera, Image as ImageIcon, MagicWand, ChatCircle as MessageCircle, PaperPlaneTilt as Send, Users, Warning } from '@phosphor-icons/react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 interface ChatInterfaceProps {
   sessionId: string | null;

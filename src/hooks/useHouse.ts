@@ -1,7 +1,8 @@
+import { logger } from '@/lib/logger';
+import { Character, House, Room } from '@/types';
 import { useEffect } from 'react';
-import { useSimpleStorage } from './useSimpleStorage';
-import { House, Character, Room, ChatSession, CopilotUpdate } from '@/types';
 import { useRelationshipDynamics } from './useRelationshipDynamics';
+import { useSimpleStorage } from './useSimpleStorage';
 
 const DEFAULT_HOUSE: House = {
   id: 'main-house',
@@ -226,14 +227,7 @@ export function useHouse() {
   // Ensure house is never undefined by providing the default
   const safeHouse = house || DEFAULT_HOUSE;
   
-  // Ensure critical fields exist with proper defaults
-  const normalizedHouse = {
-    ...safeHouse,
-    characters: safeHouse.characters || [],
-    rooms: safeHouse.rooms || DEFAULT_HOUSE.rooms,
-    aiSettings: safeHouse.aiSettings || DEFAULT_HOUSE.aiSettings,
-    autoCreator: safeHouse.autoCreator || DEFAULT_HOUSE.autoCreator
-  };
+  // Ensure critical fields exist with proper defaults (applied by normalize/handlers below)
   
   // Utility function to repair character-room relationships
   const repairCharacterRoomSync = (house: House): House => {
@@ -256,7 +250,7 @@ export function useHouse() {
     );
     
     if (orphanedCharacters.length > 0) {
-      console.log(`Repairing ${orphanedCharacters.length} orphaned characters:`, orphanedCharacters.map(c => c.name));
+      logger.log(`Repairing ${orphanedCharacters.length} orphaned characters:`, orphanedCharacters.map(c => c.name));
       needsRepair = true;
       
       // Find a suitable room for orphaned characters
@@ -291,7 +285,7 @@ export function useHouse() {
     );
     
     if (roomsWithInvalidResidents.length > 0) {
-      console.log('Cleaning up invalid room residents');
+      logger.log('Cleaning up invalid room residents');
       needsRepair = true;
       
       repairedHouse.rooms = house.rooms.map(room => ({
@@ -301,7 +295,7 @@ export function useHouse() {
     }
     
     if (needsRepair) {
-      console.log('Character-room sync repaired');
+      logger.log('Character-room sync repaired');
       repairedHouse.updatedAt = new Date();
     }
     
@@ -321,8 +315,9 @@ export function useHouse() {
     }
     
     // Migrate provider from spark to openrouter (legacy migration)
-    if ((safeHouse.aiSettings as any)?.provider === 'spark') {
-      console.log('Migrating house settings: switching from spark to openrouter');
+    const _aiSettingsRec = safeHouse.aiSettings as Record<string, unknown> | undefined;
+    if (_aiSettingsRec && _aiSettingsRec['provider'] === 'spark') {
+      logger.log('Migrating house settings: switching from spark to openrouter');
       updatedHouse.aiSettings = {
         ...updatedHouse.aiSettings,
         provider: 'openrouter',
@@ -337,7 +332,7 @@ export function useHouse() {
     );
     
     if (charactersNeedingUpdate.length > 0) {
-      console.log('Initializing progression for existing characters');
+      logger.log('Initializing progression for existing characters');
       updatedHouse.characters = updatedHouse.characters.map(char => {
         if (!char.progression) {
           return initializeCharacterDynamics(char);
@@ -352,7 +347,7 @@ export function useHouse() {
     const charactersWithoutRoom = updatedHouse.characters.filter(char => !char.roomId);
     
     if (charactersWithoutRoom.length > 0 && commonRoom) {
-      console.log(`Assigning ${charactersWithoutRoom.length} characters to ${commonRoom.name}`);
+      logger.log(`Assigning ${charactersWithoutRoom.length} characters to ${commonRoom.name}`);
       updatedHouse.characters = updatedHouse.characters.map(char => {
         if (!char.roomId) {
           return { ...char, roomId: commonRoom.id, updatedAt: new Date() };
@@ -379,21 +374,21 @@ export function useHouse() {
   }, [initializeCharacterDynamics]);
   
   const addCharacter = (character: Character) => {
-    console.log('=== useHouse.addCharacter called ===');
-    console.log('Adding character:', character.name, character.id);
+    logger.log('=== useHouse.addCharacter called ===');
+    logger.log('Adding character:', character.name, character.id);
     
     // Initialize relationship dynamics for new characters
     const initializedCharacter = initializeCharacterDynamics(character);
     
     setHouse(current => {
       const currentHouse = current || DEFAULT_HOUSE;
-      console.log('Current house characters count:', currentHouse.characters.length);
+      logger.log('Current house characters count:', currentHouse.characters.length);
       
       // Basic duplicate checking - only prevent actual data duplicates
       const existingById = currentHouse.characters.find(c => c.id === initializedCharacter.id);
       
       if (existingById) {
-        console.warn('Character with ID already exists, skipping:', initializedCharacter.id);
+        logger.warn('Character with ID already exists, skipping:', initializedCharacter.id);
         return currentHouse;
       }
       
@@ -413,8 +408,8 @@ export function useHouse() {
         updatedAt: new Date()
       };
       
-      console.log('New house characters count:', newHouse.characters.length);
-      console.log('Character added successfully:', initializedCharacter.name);
+  logger.log('New house characters count:', newHouse.characters.length);
+  logger.log('Character added successfully:', initializedCharacter.name);
       
       return newHouse;
     });
@@ -595,12 +590,12 @@ export function useHouse() {
   };
 
   const updateSettings = (updates: Partial<House>) => {
-    console.log('=== useHouse.updateSettings called ===');
-    console.log('Settings updates:', updates);
+    logger.log('=== useHouse.updateSettings called ===');
+    logger.log('Settings updates:', updates);
     
     setHouse(current => {
       const currentHouse = current || DEFAULT_HOUSE;
-      console.log('Current AI settings before update:', currentHouse.aiSettings);
+      logger.log('Current AI settings before update:', currentHouse.aiSettings);
       
       const newHouse = {
         ...currentHouse,
@@ -608,27 +603,27 @@ export function useHouse() {
         updatedAt: new Date()
       };
       
-      console.log('New AI settings after update:', newHouse.aiSettings);
-      console.log('Settings updated successfully');
+  logger.log('New AI settings after update:', newHouse.aiSettings);
+  logger.log('Settings updated successfully');
       
       return newHouse;
     });
   };
 
   const updateHouse = (updates: Partial<House> | ((current: House) => House)) => {
-    console.log('=== useHouse.updateHouse called ===');
-    console.log('Updates type:', typeof updates);
+    logger.log('=== useHouse.updateHouse called ===');
+    logger.log('Updates type:', typeof updates);
     
     setHouse(current => {
       const currentHouse = current || DEFAULT_HOUSE;
-      console.log('Current house before update:', currentHouse);
+      logger.log('Current house before update:', currentHouse);
       
       let updated: House;
       
       if (typeof updates === 'function') {
         // Functional update - call the function with current house
-        updated = updates(currentHouse);
-        console.log('Functional update applied');
+  updated = updates(currentHouse);
+  logger.log('Functional update applied');
       } else {
         // Object update - merge with current house
         updated = {
@@ -636,15 +631,15 @@ export function useHouse() {
           ...updates,
           updatedAt: new Date()
         };
-        console.log('Object update applied:', updates);
+        logger.log('Object update applied:', updates);
       }
       
-      console.log('House after update applied:', updated);
-      console.log('New AI settings:', updated.aiSettings);
+      logger.log('House after update applied:', updated);
+      logger.log('New AI settings:', updated.aiSettings);
       
       // Extra validation for AI settings
       if (updated.aiSettings?.apiKey) {
-        console.log('API Key validation:', {
+        logger.log('API Key validation:', {
           keyLength: updated.aiSettings.apiKey.length,
           keyTrimmedLength: updated.aiSettings.apiKey.trim().length,
           keyStartsWith: updated.aiSettings.apiKey.startsWith('sk-or-'),
