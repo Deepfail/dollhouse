@@ -401,8 +401,9 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
               ]
               const characterIntro = characterIntros[Math.floor(Math.random() * characterIntros.length)]
               
-              // Send the character's opening message
-              await sendMessage(sessionId, characterIntro, character.id, { copilot: false })
+              // Send the character's opening message as a system message to avoid FK constraints
+              // This simulates the character entering and speaking
+              await sendMessage(sessionId, characterIntro, 'system', { copilot: false })
               logger.log('💬 Character introduction sent:', characterIntro)
             } catch (e) {
               logger.warn('Failed to send scene prompt', e)
