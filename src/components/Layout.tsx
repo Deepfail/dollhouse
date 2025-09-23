@@ -81,6 +81,10 @@ export function Layout({
             onSelectCharacter={onSelectCharacter}
             onStartGroupChat={onStartGroupChat}
             onStartScene={onStartScene}
+            onSwitchToSession={(sessionId) => {
+              setChatSessionId(sessionId);
+              setShowChat(true);
+            }}
           />
         </div>
       </div>
@@ -103,6 +107,10 @@ export function Layout({
           onSelectCharacter={onSelectCharacter}
           onStartGroupChat={onStartGroupChat}
           onStartScene={onStartScene}
+          onSwitchToSession={(sessionId) => {
+            setChatSessionId(sessionId);
+            setShowChat(true);
+          }}
         />
       </div>
       
