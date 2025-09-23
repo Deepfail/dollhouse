@@ -1,150 +1,129 @@
-import { useState, useEffect } from 'react';
-import { Layout } from '@/components/Layout';
-import { HouseView } from '@/components/HouseView';
 import { ChatInterface } from '@/components/ChatInterface';
+import { HouseView } from '@/components/HouseView';
+import { InterviewChat } from '@/components/InterviewChat';
+import { Layout } from '@/components/Layout';
 import { SceneInterface } from '@/components/SceneInterface';
-import { useChat } from '@/hooks/useChat';
-import { useSceneMode } from '@/hooks/useSceneMode';
-import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { Toaster } from '@/components/ui/sonner';
+import { useChat } from '@/hooks/useChat';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+// useSceneMode was imported previously for scene features; not required here currently
+import { setGlobalStorage } from '@/storage/index';
+import { initStorage } from '@/storage/init';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { logger } from './lib/logger';
 
 function App() {
   const [currentView, setCurrentView] = useState<'house' | 'chat' | 'scene'>('house');
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const { createSession, sessions, switchToSession, setActiveSessionId: setChatActiveSessionId } = useChat();
-  const { activeSessions } = useSceneMode();
-  const { house, isLoading, error } = useHouseFileStorage();
+  // NEW: track a user-selected character independent of chat sessions
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
+  const [storageReady, setStorageReady] = useState(false);
+
+  // Initialize storage system first
+  useEffect(() => {
+    const initializeStorage = async () => {
+      try {
+        logger.log('🔧 Initializing unified storage system...');
+        const storage = await initStorage();
+        setGlobalStorage(storage);
+        logger.log('✅ Storage initialized successfully!');
+        
+        setStorageReady(true);
+      } catch (err) {
+        logger.error('❌ Storage initialization failed:', err);
+        toast.error('Failed to initialize storage');
+      }
+    };
+
+    initializeStorage();
+  }, []);
+
+  return storageReady ? <AppContent currentView={currentView} setCurrentView={setCurrentView} activeSessionId={activeSessionId} setActiveSessionId={setActiveSessionId} selectedCharacterId={selectedCharacterId} setSelectedCharacterId={setSelectedCharacterId} /> : <LoadingScreen />;
+}
+
+function LoadingScreen() {
+  return (
+    <div className="h-screen bg-background flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-muted-foreground">Initializing storage...</p>
+      </div>
+    </div>
+  );
+}
+
+function AppContent({ 
+  currentView, 
+  setCurrentView, 
+  activeSessionId, 
+  setActiveSessionId,
+  selectedCharacterId,
+  setSelectedCharacterId
+}: {
+  currentView: 'house' | 'chat' | 'scene';
+  setCurrentView: (view: 'house' | 'chat' | 'scene') => void;
+  activeSessionId: string | null;
+  setActiveSessionId: (id: string | null) => void;
+  selectedCharacterId: string | null;
+  setSelectedCharacterId: (id: string | null) => void;
+}) {
+  const { createSession, sessions, setActiveSessionId: setChatActiveSessionId, sessionsLoaded, activeSessionId: hookActive } = useChat();
+  const { house, isLoading } = useHouseFileStorage();
 
   // Debug logging with error handling
   useEffect(() => {
     try {
-      const debugInfo = {
-        currentView,
-        activeSessionId,
-        charactersCount: house?.characters?.length || 0,
-        chatSessionsCount: sessions?.length || 0,
-        sceneSessionsCount: activeSessions?.length || 0,
-        provider: house?.aiSettings?.provider || 'not set',
-        hasApiKey: !!(house?.aiSettings?.apiKey?.trim())
-      };
-
-      console.log('=== App Debug Information ===');
-      console.log('Debug Info:', debugInfo);
-      
-      if (house?.characters && house.characters.length > 0) {
-        console.log('Available Characters:');
-        house.characters.forEach(char => {
-          console.log(`• ${char.name} (${char.id.slice(0, 8)}...)`);
-        });
-      }
-      
-      if (sessions && sessions.length > 0) {
-        console.log('Available Sessions:');
-        sessions.forEach(session => {
-          console.log(`• ${session.type} - ${session.id.slice(0, 8)}... (${session.participantIds?.length || 0} participants)`);
-        });
-      }
-      
-      if (activeSessionId) {
-        const activeSession = sessions?.find(s => s.id === activeSessionId);
-        console.log('Active Session Found:', activeSession ? 'YES' : 'NO');
-        if (activeSession) {
-          console.log('Active Session Details:', {
-            id: activeSession.id.slice(0, 8) + '...',
-            type: activeSession.type,
-            messageCount: activeSession.messages?.length || 0,
-            participants: activeSession.participantIds?.length || 0
-          });
-        }
-      }
-      
-      console.log('=== End App Debug ===');
-    } catch (error) {
-      console.error('Error in debug logging:', error);
+      const activeId = activeSessionId || hookActive;
+      const debugInfo = { currentView, activeId, sessionsLoaded, sessionCount: sessions.length };
+      logger.log('[AppDebug]', debugInfo);
+    } catch (e) {
+      logger.debug('Ignored error while gathering debug info', e);
     }
-  }, [currentView, activeSessionId, house?.characters, sessions, activeSessions]);
+  }, [currentView, activeSessionId, hookActive, sessionsLoaded, sessions.length]);
 
+  // LEGACY: handleStartChat previously always created a session. We retain for explicit chat actions (e.g., START STORY buttons).
   const handleStartChat = async (characterId: string) => {
-    console.log('=== handleStartChat called ===');
-    console.log('Character ID:', characterId);
-    
     try {
-      if (!house?.characters || house.characters.length === 0) {
-        toast.error('No characters available');
-        return;
-      }
-      
-      const character = house?.characters?.find(c => c.id === characterId);
-      if (!character) {
-        toast.error('Character not found');
-        return;
-      }
-      
-      // Clear any existing active session to avoid conflicts
-      setActiveSessionId(null);
-      
-      const sessionId = createSession('individual', [characterId]);
-      console.log('createSession returned:', sessionId);
-      
+      if (!house?.characters || house.characters.length === 0) return;
+      const character = house.characters.find(c => c.id === characterId);
+      if (!character) return;
+      // Reuse pattern: create a fresh session ONLY when explicitly invoked
+      const sessionId = await createSession('individual', [characterId]);
       if (sessionId) {
-        // Set the active session immediately
         setActiveSessionId(sessionId);
         setChatActiveSessionId(sessionId);
         setCurrentView('chat');
-        toast.success(`Started chat with ${character.name}`);
-      } else {
-        console.error('Failed to create session for character:', characterId);
-        toast.error('Failed to create chat session');
+        setSelectedCharacterId(characterId);
       }
-    } catch (error) {
-      console.error('Error in handleStartChat:', error);
-      toast.error('Failed to start chat');
+    } catch (e) {
+      logger.error('Explicit chat start failed', e);
     }
   };
 
-  const handleStartGroupChat = async (sessionId?: string) => {
-    console.log('=== handleStartGroupChat called ===');
-    console.log('Session ID provided:', sessionId);
-    
+  // NEW: selection without spawning a chat session
+  const handleSelectCharacter = (characterId: string) => {
+    setSelectedCharacterId(characterId);
+    // Navigate to chat/profile view without creating session
+    setCurrentView('chat');
+  };
+
+  // REVISED: no automatic group session creation. Instead, emit event to open the GroupChatCreator modal.
+  const handleStartGroupChat = () => {
     try {
-      if (sessionId) {
-        // Use existing session
-        setActiveSessionId(sessionId);
-        setChatActiveSessionId(sessionId);
-        setCurrentView('chat');
-        toast.success('Started group chat');
-      } else {
-        // Create new group chat with all characters
-        const characterIds = (house?.characters || []).map(c => c.id);
-        console.log('Character IDs for group chat:', characterIds);
-        
-        if (characterIds.length > 1) {
-          const newSessionId = createSession('group', characterIds);
-          console.log('Group session created:', newSessionId);
-          
-          if (newSessionId) {
-            setActiveSessionId(newSessionId);
-            setChatActiveSessionId(newSessionId);
-            setCurrentView('chat');
-            toast.success(`Started group chat with ${characterIds.length} characters`);
-          } else {
-            toast.error('Failed to create group chat');
-          }
-        } else if (characterIds.length === 1) {
-          toast.error('Need at least 2 characters for group chat. You only have 1 character.');
-        } else {
-          toast.error('No characters available for group chat');
-        }
+      const g = globalThis as unknown as { dispatchEvent?: (e: unknown) => void; CustomEvent?: new (type: string, init?: unknown) => unknown };
+      if (g?.dispatchEvent && g?.CustomEvent) {
+        g.dispatchEvent(new g.CustomEvent('open-group-chat-creator'));
       }
-    } catch (error) {
-      console.error('Error in handleStartGroupChat:', error);
-      toast.error('Failed to start group chat');
+      // Ensure we are on chat view to see modal
+      setCurrentView('chat');
+    } catch (e) {
+      logger.error('Failed to trigger group chat creator', e);
     }
   };
 
   const handleStartScene = (sessionId: string) => {
-    console.log('handleStartScene called with sessionId:', sessionId);
+    logger.log('handleStartScene called with sessionId:', sessionId);
     
     try {
       // Simply set the active session and switch view
@@ -153,7 +132,7 @@ function App() {
       
       toast.success('Scene started! Session ID: ' + sessionId.slice(0, 12));
     } catch (error) {
-      console.error('Error in handleStartScene:', error);
+      logger.error('Error in handleStartScene:', error);
       toast.error('Failed to start scene');
     }
   };
@@ -163,9 +142,23 @@ function App() {
       setCurrentView('house');
       setActiveSessionId(null);
     } catch (error) {
-      console.error('Error in handleBackToHouse:', error);
+      logger.error('Error in handleBackToHouse:', error);
     }
   };
+
+  // If activeSessionId is set externally (e.g., via Sidebar switchToSession), ensure we navigate to chat
+  useEffect(() => {
+    const id = activeSessionId || hookActive;
+    if (id) {
+      setCurrentView('chat');
+      setChatActiveSessionId(id);
+    } else if (sessionsLoaded && sessions.length > 0 && currentView === 'chat') {
+      // If we tried to go to chat but no active session, adopt most recent
+      const fallback = sessions[0].id;
+      setActiveSessionId(fallback);
+      setChatActiveSessionId(fallback);
+    }
+  }, [activeSessionId, hookActive, sessionsLoaded, sessions, currentView, setChatActiveSessionId]);
 
   // Show loading state while file storage is initializing
   if (isLoading) {
@@ -179,40 +172,31 @@ function App() {
     );
   }
 
-  // Show error state if file storage failed
-  if (error) {
-    return (
-      <div className="h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-500 mb-4">Failed to load house data: {error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="h-screen bg-background">
       <Layout
-        currentView={currentView}
         onStartChat={handleStartChat}
         onStartGroupChat={handleStartGroupChat}
+        onSelectCharacter={handleSelectCharacter}
         onStartScene={handleStartScene}
       >
         {currentView === 'house' ? (
           <HouseView />
         ) : currentView === 'chat' ? (
-          <ChatInterface 
-            sessionId={activeSessionId} 
-            onBack={handleBackToHouse}
-            onStartChat={handleStartChat}
-            onStartGroupChat={handleStartGroupChat}
-          />
+          (() => {
+            const active = sessions.find(s => s.id === activeSessionId);
+            if (active?.type === 'interview' && activeSessionId) {
+              return <InterviewChat sessionId={activeSessionId} onExit={handleBackToHouse} />;
+            }
+            return (
+              <ChatInterface 
+                sessionId={activeSessionId} 
+                selectedCharacterId={selectedCharacterId}
+                onBack={handleBackToHouse}
+                onStartGroupChat={handleStartGroupChat}
+              />
+            );
+          })()
         ) : (
           <SceneInterface 
             sessionId={activeSessionId!}
