@@ -116,13 +116,7 @@ export function Layout({
       
       {/* Center - Main Content or Universal Chat */}
       <div className="flex-1 flex flex-col bg-[#0f0f0f] relative">
-        <UniversalToolbar 
-          position="top"
-          currentView={currentView}
-          onViewChange={onViewChange}
-          showChat={showChat}
-          onToggleChat={() => setShowChat(!showChat)}
-        />
+        <UniversalToolbar position="top" />
         
         <div className="flex-1 overflow-hidden">
           {showChat && chatSessionId ? (
