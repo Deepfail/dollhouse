@@ -233,6 +233,18 @@ export class AIService {
       logger.warn('Failed to load user assessment for Wingman', e);
     }
 
+    // Add relationship context and conversation history
+    try {
+      const contextMod = await import('@/lib/contextStorage');
+      const contextSummary = await contextMod.contextStorage.getContextSummaryForAli('user');
+      if (contextSummary && contextSummary !== 'No previous interactions recorded yet.') {
+        systemPrompt += `\n\n${contextSummary}`;
+        systemPrompt += `\nUse this relationship context to inform your responses. Reference past conversations and relationship dynamics when relevant.`;
+      }
+    } catch (e) {
+      logger.warn('Failed to load relationship context for Ali', e);
+    }
+
     // Add character information from the house
     if (params.characters && params.characters.length > 0) {
       systemPrompt += `\n\nCharacters in the House:\n`;

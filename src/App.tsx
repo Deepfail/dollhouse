@@ -5,6 +5,7 @@ import { SceneInterface } from '@/components/SceneInterface';
 import { Toaster } from '@/components/ui/sonner';
 import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { useConversationAnalytics } from '@/hooks/useConversationAnalytics';
 import { setGlobalStorage } from '@/storage/index';
 import { initStorage } from '@/storage/init';
 import { useEffect, useState } from 'react';
@@ -76,8 +77,11 @@ function AppContent({
   selectedCharacterId: string | null;
   setSelectedCharacterId: (id: string | null) => void;
 }) {
-  const { createSession, sessions, setActiveSessionId: setChatActiveSessionId, sessionsLoaded } = useChat();
+  const { createSession, sessions, setActiveSessionId: setChatActiveSessionId } = useChat();
   const { house, isLoading } = useHouseFileStorage();
+  
+  // Initialize conversation analytics for auto-summarization
+  const { isInitialized: analyticsInitialized } = useConversationAnalytics();
 
   // Listen for Ali's direct session switches
   useEffect(() => {
