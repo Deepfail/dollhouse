@@ -85,6 +85,32 @@ function AppContent({
     }
   }, [currentView, activeSessionId, hookActive, sessionsLoaded, sessions.length]);
 
+  // Listen for Ali's direct session switches to avoid double-creation
+  useEffect(() => {
+    const handleDirectSessionSwitch = (event: Event) => {
+      const { sessionId, characterId } = (event as any).detail;
+      logger.log('🎯 Ali direct session switch:', sessionId, characterId);
+      
+      // Set the session directly without creating a new one
+      setActiveSessionId(sessionId);
+      setChatActiveSessionId(sessionId);
+      setCurrentView('chat');
+      setSelectedCharacterId(characterId);
+      
+      // Show success message
+      const character = house?.characters?.find(c => c.id === characterId);
+      if (character) {
+        toast.success(`${character.name} is in your room now...`, { duration: 3000 });
+      }
+    };
+
+    globalThis.addEventListener('ali-direct-session-switch', handleDirectSessionSwitch);
+    
+    return () => {
+      globalThis.removeEventListener('ali-direct-session-switch', handleDirectSessionSwitch);
+    };
+  }, [setActiveSessionId, setChatActiveSessionId, setCurrentView, setSelectedCharacterId, house?.characters]);
+
   // LEGACY: handleStartChat previously always created a session. We retain for explicit chat actions (e.g., START STORY buttons).
   const handleStartChat = async (characterId: string) => {
     try {

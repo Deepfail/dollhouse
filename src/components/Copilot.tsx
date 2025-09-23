@@ -403,9 +403,22 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
             const characterIntro = characterIntros[Math.floor(Math.random() * characterIntros.length)]
             await sendMessage(sessionId, characterIntro, 'system', { copilot: false })
             
-            // 5. Switch to chat view
-            logger.log('🎯 Calling onStartChat with:', character.name, character.id)
-            onStartChat?.(sceneOrChat.characterId)
+            // 5. Switch to chat view - DIRECTLY set the session we created
+            logger.log('🎯 Setting active session directly:', sessionId)
+            
+            // Use a custom event to bypass the onStartChat double-creation
+            try {
+              const g = globalThis as typeof globalThis & { dispatchEvent: Function; CustomEvent: any };
+              if (g?.dispatchEvent && g?.CustomEvent) {
+                g.dispatchEvent(new g.CustomEvent('ali-direct-session-switch', { 
+                  detail: { sessionId, characterId: sceneOrChat.characterId } 
+                }));
+              }
+            } catch (e) {
+              logger.warn('Failed to dispatch direct session switch', e);
+              // Fallback to onStartChat but it will create duplicate
+              onStartChat?.(sceneOrChat.characterId);
+            }
           }
           
           setIsTyping(false)
