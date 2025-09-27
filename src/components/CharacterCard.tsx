@@ -69,6 +69,9 @@ interface CharacterCardProps {
   onDelete?: (characterId: string) => void;
   compact?: boolean;
   source?: string; // NEW: Help identify where this card is rendered from
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
 const getRarityIcon = (rarity?: Character['rarity']) => {
@@ -106,8 +109,18 @@ export function CharacterCard({
   onDelete,
   compact = false,
   source = 'unknown', // NEW: Default source
+  open,
+  onOpenChange,
+  hideTrigger = false,
 }: CharacterCardProps) {
-  const [showDetails, setShowDetails] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const showDetails = open ?? internalOpen;
+  const handleOpenChange = (value: boolean) => {
+    if (open === undefined) {
+      setInternalOpen(value);
+    }
+    onOpenChange?.(value);
+  };
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [showCreateImage, setShowCreateImage] = useState(false);
   const [newImagePrompt, setNewImagePrompt] = useState('');
@@ -425,12 +438,13 @@ Return only the image prompt, nothing else.`;
   if (compact) {
     return (
       <>
-        <Card 
-          className="p-3 hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-primary/20 hover:border-l-primary"
-          onClick={() => setShowDetails(true)}
-          data-character-id={character.id}
-          data-character-source={source}
-        >
+        {!hideTrigger && (
+          <Card 
+            className="p-3 hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-primary/20 hover:border-l-primary"
+            onClick={() => handleOpenChange(true)}
+            data-character-id={character.id}
+            data-character-source={source}
+          >
           <div className="flex items-center gap-3">
             <Avatar className="w-12 h-12 border-2 border-primary/20">
               <AvatarImage src={character.avatar} alt={character.name} />
@@ -537,8 +551,9 @@ Return only the image prompt, nothing else.`;
             </div>
           </div>
         </Card>
+        )}
 
-        <Dialog open={showDetails} onOpenChange={setShowDetails}>
+        <Dialog open={showDetails} onOpenChange={handleOpenChange}>
           <DialogContent className="w-full h-full md:w-[90vw] md:max-w-[1200px] md:max-h-[85vh] md:rounded-3xl overflow-hidden p-0 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 md:border-4 border-gray-300 dark:border-gray-600 shadow-2xl">
             <DialogHeader className="sr-only">
               <DialogTitle>{character.name} - Character Interface</DialogTitle>
@@ -1720,7 +1735,7 @@ Return only the image prompt, nothing else.`;
         </Dialog>
       )}
 
-      <Card className="p-4 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setShowDetails(true)}>
+  <Card className="p-4 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => handleOpenChange(true)}>
         <div className="flex items-start gap-3 mb-4">
           <Avatar className="w-12 h-12">
             <AvatarImage src={character.avatar} alt={character.name} />

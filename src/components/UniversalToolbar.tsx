@@ -1,9 +1,8 @@
 import { AISettings } from '@/components/AISettings';
 import { SessionManager } from '@/components/SessionManager';
-import { DevDashboard } from '@/components/DevDashboard';
 import { Button } from '@/components/ui/button';
 import { WingmanSettings } from '@/components/WingmanSettings';
-import { Gear, List, Robot, Rocket, Sparkle, X, Bug } from '@phosphor-icons/react';
+import { Gear, List, Robot, Rocket, Sparkle, X } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 
 // Minimal class merge utility (avoids external dependency / missing file)
@@ -23,7 +22,6 @@ export function UniversalToolbar({ className, position = 'bottom' }: UniversalTo
   // Dev / panels state
   const [devOpen, setDevOpen] = useState(false);
   const [wingmanOpen, setWingmanOpen] = useState(false);
-  const [debugOpen, setDebugOpen] = useState(false);
   // Keyboard shortcut: Ctrl/Cmd + Shift + A to open AI settings directly (focus toggles toolbar)
   useEffect(() => {
     type Globalish = {
@@ -79,7 +77,7 @@ export function UniversalToolbar({ className, position = 'bottom' }: UniversalTo
                   <Gear size={14} className="mr-1" /> AI
                 </Button>
               </AISettings>
-              <Button size="sm" variant="outline" className="h-8 text-xs border-white/10 hover:bg-white/10" onClick={() => { setWingmanOpen(true); setDevOpen(false); setDebugOpen(false); }}>
+              <Button size="sm" variant="outline" className="h-8 text-xs border-white/10 hover:bg-white/10" onClick={() => { setWingmanOpen(true); setDevOpen(false); }}>
                 <Robot size={14} className="mr-1" /> Copilot
               </Button>
               <Button size="sm" variant="outline" className="h-8 text-xs border-white/10 hover:bg-white/10">
@@ -88,11 +86,8 @@ export function UniversalToolbar({ className, position = 'bottom' }: UniversalTo
               <Button size="sm" variant="outline" className="h-8 text-xs border-white/10 hover:bg-white/10">
                 <Sparkle size={14} className="mr-1" /> Boost
               </Button>
-              <Button size="sm" variant="outline" className="h-8 text-xs border-white/10 hover:bg-white/10" onClick={() => { setDevOpen(true); setWingmanOpen(false); setDebugOpen(false); }}>
+              <Button size="sm" variant="outline" className="h-8 text-xs border-white/10 hover:bg-white/10" onClick={() => { setDevOpen(true); setWingmanOpen(false); }}>
                 <List size={14} className="mr-1" /> Sessions
-              </Button>
-              <Button size="sm" variant="outline" className="h-8 text-xs border-white/10 hover:bg-white/10" onClick={() => { setDebugOpen(true); setDevOpen(false); setWingmanOpen(false); }}>
-                <Bug size={14} className="mr-1" /> Debug
               </Button>
             </div>
             <Button size="sm" variant="ghost" className="h-8 w-8 p-0 shrink-0 hover:bg-white/10" aria-label="Close toolbar" onClick={() => setOpen(false)}>
@@ -115,11 +110,6 @@ export function UniversalToolbar({ className, position = 'bottom' }: UniversalTo
             )}
           </div>
         </div>
-      )}
-
-      {/* Debug Dashboard */}
-      {debugOpen && (
-        <DevDashboard onClose={() => setDebugOpen(false)} />
       )}
     </div>
   );

@@ -53,7 +53,7 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
   // Quick actions currently unused in this pared-down Copilot; re-enable if needed.
 
   // Chats/scenes (for launching sessions)
-  const { createSession, getSessionMessages, sendMessage, sessions, sessionsLoaded, deleteSession, createInterviewSession } = useChat()
+  const { createSession, setActiveSessionId, getSessionMessages, sendMessage, sessions, sessionsLoaded, deleteSession, createInterviewSession } = useChat()
   const { createSceneSession } = useSceneMode()
 
   // Copilot session management
@@ -206,20 +206,8 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
       const m = message.match(p)
       if (m) {
         const name = m[1]
-        logger.log('🔍 Looking for character:', name)
         const ch = characters?.find(c => c.name.toLowerCase() === name.toLowerCase())
-        logger.log('✨ Found character:', ch?.name || 'NOT FOUND')
-        if (ch) {
-          // Create rich contextual prompt based on the command
-          const contextPrompts = [
-            `${ch.name} has just received a request to come to your room. She's curious about why you called for her and approaches with interest.`,
-            `You've summoned ${ch.name} to your private space. She enters your room, wondering what you have in mind.`,
-            `${ch.name} appears at your door, having been invited to your room. She's ready to spend some intimate time with you.`,
-            `${ch.name} has come to your room as requested. The atmosphere is charged with possibility as she looks at you expectantly.`
-          ]
-          const randomPrompt = contextPrompts[Math.floor(Math.random() * contextPrompts.length)]
-          return { type: 'chat', characterId: ch.id, prompt: randomPrompt }
-        }
+        if (ch) return { type: 'chat', characterId: ch.id, prompt: `${ch.name} has just been asked to go to your room.` }
       }
     }
 
@@ -287,9 +275,6 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
     const text = inputMessage.trim()
     if (!text || !copilotSessionId) return
 
-    logger.log('🤖 Ali processing command:', text)
-    logger.log('🏠 Available characters:', characters?.map(c => c.name))
-
     const userMsg: CopilotMessage = { id: `user-${Date.now()}`, sender: 'user', content: text, timestamp: new Date() }
     await persist([...copilotMessages, userMsg])
     setInputMessage('')
@@ -302,7 +287,8 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
       // Command: restart chat with a character
       const restartId = parseRestartChatCommand(text)
       if (restartId) {
-        await createSession('individual', [restartId])
+        const sid = await createSession('individual', [restartId])
+        setActiveSessionId(sid)
         onStartChat?.(restartId)
         setIsTyping(false)
         return
@@ -338,7 +324,8 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
       const interviewCharId = parseInterviewCommand(text);
       if (interviewCharId) {
         try {
-          await createInterviewSession(interviewCharId);
+          const sid = await createInterviewSession(interviewCharId);
+          setActiveSessionId(sid);
           onStartChat?.(interviewCharId);
         } catch (e) { logger.warn('Interview session creation failed', e); }
         setIsTyping(false);
@@ -347,86 +334,15 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
 
       // Command: custom scene/chat
       const sceneOrChat = await parseCustomSceneCommand(text)
-      logger.log('🎭 Parsed scene command:', sceneOrChat)
       if (sceneOrChat) {
         if (sceneOrChat.type === 'chat') {
-          // Find the character for personalized responses
-          const character = characters?.find(c => c.id === sceneOrChat.characterId)
-          
-          if (!character) {
-            logger.warn('❌ Character not found:', sceneOrChat.characterId)
-            const errorMsg: CopilotMessage = {
-              id: `error-${Date.now()}`,
-              sender: 'copilot',
-              content: "I couldn't find that character. Try using their exact name.",
-              timestamp: new Date(),
-            }
-            await persist([...copilotMessages, userMsg, errorMsg])
-            setIsTyping(false)
-            return
-          }
-
-          // 1. Ali responds FIRST in the Copilot sidebar
-          const aliResponses = [
-            `✨ *Ali's eyes light up with a knowing smile* Of course! I'll send ${character.name} to your room right away. She's been thinking about you...`,
-            `🌟 *Ali nods with a mischievous grin* Consider it done. ${character.name} will be there shortly - I have a feeling she's been waiting for this invitation.`,
-            `💫 *Ali gestures gracefully* ${character.name} is on her way to you now. She seemed excited when I mentioned it...`,
-            `✨ *Ali's voice carries a hint of magic* I'll bring ${character.name} to your room immediately. Something tells me this encounter will be... special.`
-          ]
-          const aliResponse = aliResponses[Math.floor(Math.random() * aliResponses.length)]
-          
-          // Add Ali's response to Copilot chat
-          const aliMsg: CopilotMessage = {
-            id: `ali-${Date.now()}`,
-            sender: 'copilot',
-            content: aliResponse,
-            timestamp: new Date(),
-          }
-          await persist([...copilotMessages, userMsg, aliMsg])
-
-          // 2. Create the session
-          const sessionId = await createSession('individual', [sceneOrChat.characterId])
-          logger.log('📱 Session created:', sessionId)
-          
-          if (sessionId) {
-            // 3. Send scene setup prompt (invisible)
-            const scenePrompt = `You are ${character.name}. You have just been asked to come to the user's room. The atmosphere is intimate and you're curious about why they called for you. Enter the scene naturally, perhaps with a gentle knock or by stepping through the doorway. Show your personality and your relationship dynamic with them. Keep the response engaging and set up the scene for an interesting conversation.`
-            await sendMessage(sessionId, scenePrompt, 'system', { copilot: false })
-            
-            // 4. Send character introduction (visible in chat)
-            const characterIntros = [
-              `*${character.name} appears at your doorway with a curious smile* Hey... Ali said you wanted to see me? *steps inside* What's on your mind?`,
-              `*${character.name} knocks softly before entering* You called for me? *looks around your room with interest* This feels... intimate.`,
-              `*${character.name} enters quietly, her eyes meeting yours* Ali told me you wanted me to come to your room. *sits down nearby* I'm here now.`,
-              `*${character.name} steps through the doorway* So... Ali said you needed me? *settles in comfortably* I have to admit, I was hoping you'd ask.`
-            ]
-            const characterIntro = characterIntros[Math.floor(Math.random() * characterIntros.length)]
-            await sendMessage(sessionId, characterIntro, 'system', { copilot: false })
-            
-            // 5. Switch to chat view - DIRECTLY set the session we created
-            logger.log('🎯 Setting active session directly:', sessionId)
-            
-            // Use a custom event to bypass the onStartChat double-creation
-            try {
-              const g = globalThis as typeof globalThis & { dispatchEvent: Function; CustomEvent: any };
-              if (g?.dispatchEvent && g?.CustomEvent) {
-                g.dispatchEvent(new g.CustomEvent('ali-direct-session-switch', { 
-                  detail: { sessionId, characterId: sceneOrChat.characterId } 
-                }));
-              }
-            } catch (e) {
-              logger.warn('Failed to dispatch direct session switch', e);
-              // Fallback to onStartChat but it will create duplicate
-              onStartChat?.(sceneOrChat.characterId);
-            }
-          }
-          
-          setIsTyping(false)
-          return // CRITICAL: Stop processing here
+          const sid = await createSession('individual', [sceneOrChat.characterId])
+          setActiveSessionId(sid)
+          onStartChat?.(sceneOrChat.characterId)
         } else if (sceneOrChat.type === 'scene') {
           await createCustomSceneChat(sceneOrChat.characterId, sceneOrChat.context, sceneOrChat.customPrompt)
         } else if (sceneOrChat.type === 'interview') {
-          try { await createInterviewSession(sceneOrChat.characterId); onStartChat?.(sceneOrChat.characterId); } catch (e) { logger.warn('Interview creation failed', e); }
+          try { const sid = await createInterviewSession(sceneOrChat.characterId); setActiveSessionId(sid); onStartChat?.(sceneOrChat.characterId); } catch (e) { logger.warn('Interview creation failed', e); }
         }
         setIsTyping(false)
         return
@@ -474,7 +390,7 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
       setIsTyping(false)
       inputRef.current?.focus?.()
     }
-  }, [inputMessage, copilotMessages, copilotSessionId, persist, parseRestartChatCommand, parseImageGenerationCommand, parseCustomSceneCommand, createSession, onStartChat, createCustomSceneChat, sendMessage, getSessionMessages])
+  }, [inputMessage, copilotMessages, copilotSessionId, persist, parseRestartChatCommand, parseImageGenerationCommand, parseCustomSceneCommand, createSession, setActiveSessionId, onStartChat, createCustomSceneChat, sendMessage, getSessionMessages])
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
@@ -553,7 +469,8 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
             onClick={async () => {
               try {
                 if (!selectedCharacterId) return
-                await createSession('individual', [selectedCharacterId])
+                const sid = await createSession('individual', [selectedCharacterId])
+                setActiveSessionId(sid)
                 onStartChat?.(selectedCharacterId)
               } catch (e) {
                 logger.error('Failed to start chat session', e)
@@ -571,8 +488,16 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
           <Button variant="outline" size="sm" className="justify-start" onClick={async () => {
             try {
               if (!selectedCharacterId) return;
-              await createInterviewSession(selectedCharacterId);
-              onStartChat?.(selectedCharacterId);
+              const sid = await createInterviewSession(selectedCharacterId);
+              setActiveSessionId(sid);
+              // Fire event so App's effect navigates to chat view
+              try {
+                interface CE { new(type: string, init?: { detail?: unknown }): unknown }
+                const g = globalThis as unknown as { dispatchEvent?: (e: unknown) => void; CustomEvent?: CE };
+                if (g?.dispatchEvent && g?.CustomEvent) {
+                  g.dispatchEvent(new g.CustomEvent('chat-active-session-changed', { detail: { sessionId: sid } }));
+                }
+              } catch (evtErr) { logger.warn('Failed to broadcast interview session activation', evtErr); }
             } catch (e) {
               logger.error('Failed to start interview session', e);
             }

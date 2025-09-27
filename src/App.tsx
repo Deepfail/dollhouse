@@ -1,158 +1,88 @@
-import { HouseView } from '@/components/HouseView';
-import { InterviewChat } from '@/components/InterviewChat';
-import { Layout } from '@/components/Layout';
-import { SceneInterface } from '@/components/SceneInterface';
-import { Toaster } from '@/components/ui/sonner';
-import { useChat } from '@/hooks/useChat';
-import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { useConversationAnalytics } from '@/hooks/useConversationAnalytics';
-import { setGlobalStorage } from '@/storage/index';
-import { initStorage } from '@/storage/init';
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
-import { logger } from './lib/logger';
+import { DatingSimShell } from '@/components/DatingSimShell';
+import { Toaster } from '@/components/ui/sonner';
+import { initStorage } from '@/storage/init';
+import { logger } from '@/lib/logger';
 
-function App() {
-  const [currentView, setCurrentView] = useState<'house' | 'chat' | 'scene'>('house');
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
-  const [storageReady, setStorageReady] = useState(false);
-
-  // Initialize storage system first
-  useEffect(() => {
-    const initializeStorage = async () => {
-      try {
-        logger.log('🔧 Initializing unified storage system...');
-        const storage = await initStorage();
-        setGlobalStorage(storage);
-        logger.log('✅ Storage initialized successfully!');
-        
-        setStorageReady(true);
-      } catch (err) {
-        logger.error('❌ Storage initialization failed:', err);
-        toast.error('Failed to initialize storage');
-      }
-    };
-
-    initializeStorage();
-  }, []);
-
-  return storageReady ? (
-    <AppContent 
-      currentView={currentView} 
-      setCurrentView={setCurrentView} 
-      activeSessionId={activeSessionId} 
-      setActiveSessionId={setActiveSessionId} 
-      selectedCharacterId={selectedCharacterId} 
-      setSelectedCharacterId={setSelectedCharacterId} 
-    />
-  ) : (
-    <LoadingScreen />
-  );
-}
-
-function LoadingScreen() {
+function LoadingScreen({ message }: { message: string }) {
   return (
-    <div className="h-screen bg-[#0f0f0f] flex items-center justify-center">
+    <div className="flex h-screen w-full items-center justify-center bg-[#0f0f15] text-white">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-        <p className="text-gray-400">Initializing storage...</p>
+        <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-[#ff1372]" />
+        <p className="text-sm text-white/60">{message}</p>
       </div>
     </div>
   );
 }
 
-function AppContent({ 
-  currentView, 
-  setCurrentView, 
-  activeSessionId, 
-  setActiveSessionId,
-  selectedCharacterId,
-  setSelectedCharacterId
-}: {
-  currentView: 'house' | 'chat' | 'scene';
-  setCurrentView: (view: 'house' | 'chat' | 'scene') => void;
-  activeSessionId: string | null;
-  setActiveSessionId: (id: string | null) => void;
-  selectedCharacterId: string | null;
-  setSelectedCharacterId: (id: string | null) => void;
-}) {
-  const { createSession, sessions, setActiveSessionId: setChatActiveSessionId } = useChat();
-  const { house, isLoading } = useHouseFileStorage();
-  
-  // Initialize conversation analytics for auto-summarization
-  const { isInitialized: analyticsInitialized } = useConversationAnalytics();
+function ErrorScreen({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="flex h-screen w-full items-center justify-center bg-[#0f0f15] text-white">
+      <div className="max-w-md space-y-5 text-center">
+        <h1 className="text-2xl font-semibold">Storage failed to initialize</h1>
+        <p className="text-sm text-white/60">{message}</p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded-xl bg-[#ff1372] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#ff1372]/90"
+        >
+          Try again
+        </button>
+      </div>
+    </div>
+  );
+}
 
-  // Listen for Ali's direct session switches
+export default function App() {
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [errorMessage, setErrorMessage] = useState<string>('Something went wrong while preparing your house data.');
+  const [retryToken, setRetryToken] = useState(0);
+
   useEffect(() => {
-    const handleDirectSessionSwitch = (event: Event) => {
-      const { sessionId, characterId } = (event as any).detail;
-      logger.log('🎯 Ali direct session switch:', sessionId, characterId);
-      
-      setActiveSessionId(sessionId);
-      setChatActiveSessionId(sessionId);
-      setCurrentView('chat');
-      setSelectedCharacterId(characterId);
-      
-      const character = house?.characters?.find(c => c.id === characterId);
-      if (character) {
-        toast.success(`${character.name} is in your room now...`, { duration: 3000 });
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      setStatus('loading');
+      try {
+        logger.log('🔧 Bootstrapping storage for dating sim shell');
+        await initStorage();
+        if (!cancelled) {
+          setStatus('ready');
+        }
+      } catch (error) {
+        logger.error('❌ Storage initialization failed', error);
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : 'Unknown error.';
+          setErrorMessage(message || 'Unknown error.');
+          setStatus('error');
+        }
       }
     };
 
-    (globalThis as any).addEventListener('ali-direct-session-switch', handleDirectSessionSwitch);
-    
-    return () => {
-      (globalThis as any).removeEventListener('ali-direct-session-switch', handleDirectSessionSwitch);
-    };
-  }, [setActiveSessionId, setChatActiveSessionId, setCurrentView, setSelectedCharacterId, house?.characters]);
+    void bootstrap();
 
-  if (isLoading) {
+    return () => {
+      cancelled = true;
+    };
+  }, [retryToken]);
+
+  if (status === 'loading') {
+    return <LoadingScreen message="Warming the roster and syncing the rooms…" />;
+  }
+
+  if (status === 'error') {
     return (
-      <div className="h-screen bg-[#0f0f0f] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading house data...</p>
-        </div>
-      </div>
+      <ErrorScreen
+        message={errorMessage}
+        onRetry={() => setRetryToken((token) => token + 1)}
+      />
     );
   }
 
-  // Function to render main content based on current view
-  const renderMainContent = () => {
-    switch (currentView) {
-      case 'house':
-        return <HouseView />;
-      case 'chat': {
-        const active = sessions.find(s => s.id === activeSessionId);
-        if (active?.type === 'interview' && activeSessionId) {
-          return <InterviewChat sessionId={activeSessionId} onExit={() => setCurrentView('house')} />;
-        }
-        // Universal chat will be handled by Layout
-        return <HouseView />; 
-      } 
-      case 'scene':
-        return activeSessionId ? (
-          <SceneInterface 
-            sessionId={activeSessionId}
-            onClose={() => setCurrentView('house')}
-          />
-        ) : <HouseView />;
-      default:
-        return <HouseView />;
-    }
-  };
-
   return (
-    <div className="h-screen bg-[#0f0f0f]">
-      <Layout
-        activeSessionId={activeSessionId}
-      >
-        {renderMainContent()}
-      </Layout>
+    <>
+      <DatingSimShell />
       <Toaster />
-    </div>
+    </>
   );
 }
-
-export default App;
