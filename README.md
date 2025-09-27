@@ -10,10 +10,10 @@ characters on demand.
 - **Character roster.** Quickly browse your girls, inspect personalities, and jump back into existing chats.
 - **Immersive chat stage.** A streamlined conversation panel with session switching, stat callouts, and a modern message composer.
 - **Girl Manager Copilot.** Sidebar assistant powered by existing hooks (`useChat`, `useAutoCharacterCreator`, `useQuickActions`) that can:
-	- generate new girls
-	- recommend scene setups
-	- execute house-wide quick actions
-	- hold a planning conversation to keep scenarios on track
+  - generate new girls
+  - recommend scene setups
+  - execute house-wide quick actions
+  - hold a planning conversation to keep scenarios on track
 - **Storage bootstrap.** The app waits for the unified storage layer before rendering so your roster and sessions load cleanly.
 
 ## Getting Started

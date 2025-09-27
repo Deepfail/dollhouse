@@ -1,23 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { useQuickActions } from '@/hooks/useQuickActions';
 import { useAutoCharacterCreator } from '@/hooks/useAutoCharacterCreator';
 import { useChat } from '@/hooks/useChat';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { useQuickActions } from '@/hooks/useQuickActions';
 import { AIService } from '@/lib/aiService';
 import { logger } from '@/lib/logger';
 import type { Character, ChatMessage } from '@/types';
 import {
-  ChartLineUp,
-  Gear,
-  Lightning,
-  MagicWand,
-  PaperPlaneRight,
-  UsersThree,
+    ChartLineUp,
+    Gear,
+    Lightning,
+    MagicWand,
+    PaperPlaneRight,
+    UsersThree,
 } from '@phosphor-icons/react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const QUICK_PROMPTS = [
   'Draft a scene where she tests new limits tonight.',

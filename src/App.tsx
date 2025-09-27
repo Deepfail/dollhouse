@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
 import { DatingSimShell } from '@/components/DatingSimShell';
 import { Toaster } from '@/components/ui/sonner';
-import { initStorage } from '@/storage/init';
 import { logger } from '@/lib/logger';
+import { initStorage } from '@/storage/init';
+import { useEffect, useState } from 'react';
 
 function LoadingScreen({ message }: { message: string }) {
   return (

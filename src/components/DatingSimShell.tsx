@@ -1,23 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useChat } from '@/hooks/useChat';
-import type { Character, ChatMessage, ChatSession } from '@/types';
-import { GirlManagerSidebar } from './GirlManagerSidebar';
-import { CharacterCard } from './CharacterCard';
-import { HouseSettings } from './HouseSettings';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { logger } from '@/lib/logger';
+import type { Character, ChatMessage, ChatSession } from '@/types';
 import {
-  ArrowRight,
-  ChatCircle,
-  ChatsCircle,
-  Star,
-  Users,
+    ArrowRight,
+    ChatCircle,
+    ChatsCircle,
+    Star,
+    Users,
 } from '@phosphor-icons/react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CharacterCard } from './CharacterCard';
+import { GirlManagerSidebar } from './GirlManagerSidebar';
+import { HouseSettings } from './HouseSettings';
 
 const EMPTY_STATE_TIPS = [
   'Use the Girl Manager to auto-create your first companion.',

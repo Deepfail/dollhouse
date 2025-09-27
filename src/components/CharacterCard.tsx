@@ -1,52 +1,49 @@
-import React, { useState, useMemo } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { useMemo, useState } from 'react';
 
 import {
-  Heart,
-  Smiley as Smile,
-  ChatCircle as MessageCircle,
-  Gift,
-  House,
-  Trophy,
-  Sparkle,
-  Check,
-  Clock,
-  Crown,
-  Lock,
-  Drop,
-  BookOpen,
-  Eye,
-  ShieldCheck,
-  Lightning,
-  Star,
-  Fire,
-  Users,
-  Calendar,
-  TrendUp,
-  Medal,
-  Pencil,
-  Trash,
-  Image as ImageIcon,
-  Download,
-  Plus
+    BookOpen,
+    Calendar,
+    Check,
+    Crown,
+    Download,
+    Drop,
+    Eye,
+    Fire,
+    Gift,
+    Heart,
+    House,
+    Image as ImageIcon,
+    Lightning,
+    Lock,
+    Medal,
+    ChatCircle as MessageCircle,
+    Pencil,
+    Plus,
+    ShieldCheck,
+    Smiley as Smile,
+    Sparkle,
+    Star,
+    Trash,
+    TrendUp,
+    Trophy,
+    Users
 } from '@phosphor-icons/react';
 
-import { Character } from '@/types';
-import { useFileStorage } from '@/hooks/useFileStorage';
 import { useChat } from '@/hooks/useChat';
+import { useFileStorage } from '@/hooks/useFileStorage';
 import { useRelationshipDynamics } from '@/hooks/useRelationshipDynamics';
 import { useStorySystem } from '@/hooks/useStorySystem';
-import { generatePersonality, generateBackground, generateFeatures, generateSystemPrompt } from '@/lib/characterGenerator';
+import { Character } from '@/types';
 import { toast } from 'sonner';
 
 interface GeneratedImage {
