@@ -32,5 +32,13 @@
   },
   "include": [
     "src"
+  ],
+  "exclude": [
+    "RECOVER/**",
+    "src/App-New.tsx",
+    "src/App-Original.tsx",
+    "src/index-recover.css",
+    "src/components/CharacterCard.v2.tsx",
+    "src/components/CharacterCard-recovered.tsx"
   ]
 }

@@ -52,6 +52,7 @@ export default [
       'dist/**',
       'build/**',
       '.git/**',
+      'RECOVER/**',
       '*.config.js',
       '*.config.ts',
     ],
