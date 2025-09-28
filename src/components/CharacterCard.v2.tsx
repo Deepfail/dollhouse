@@ -37,6 +37,9 @@ import {
     TrendUp,
     Trophy,
     Users,
+    User,
+    CurrencyDollar,
+    Code,
 } from '@phosphor-icons/react';
 import { useMemo, useState } from 'react';
 
@@ -684,6 +687,205 @@ export function CharacterCard({
     </TabsContent>
   );
 
+  const physicalTab = (
+    <TabsContent value="physical" className="h-full">
+      <ScrollArea className="h-full">
+        <div className="space-y-6 p-6">
+          <Card className="border-none bg-white/5 text-white">
+            <div className="space-y-4 p-6">
+              <h3 className="flex items-center gap-2 text-lg font-semibold">
+                <User className="h-5 w-5 text-pink-300" /> Physical Features
+              </h3>
+              
+              {/* Physical Attributes */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <h4 className="text-sm font-medium text-white/80 mb-2">Appearance</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Height:</span>
+                      <span>5'6" (168cm)</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Build:</span>
+                      <span>Athletic</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Hair:</span>
+                      <span>Long, Dark Brown</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Eyes:</span>
+                      <span>Hazel Green</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="text-sm font-medium text-white/80 mb-2">Physical Stats</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Age:</span>
+                      <span>23</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Measurements:</span>
+                      <span>34-26-36</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/60">Cup Size:</span>
+                      <span>C</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Physical Ratings */}
+              <div className="mt-6">
+                <h4 className="text-sm font-medium text-white/80 mb-3">Physical Ratings</h4>
+                <div className="space-y-3">
+                  {[
+                    { category: 'Face', score: 8.5, color: 'bg-pink-500' },
+                    { category: 'Body', score: 9.2, color: 'bg-purple-500' },
+                    { category: 'Curves', score: 8.8, color: 'bg-red-500' },
+                    { category: 'Skin', score: 9.0, color: 'bg-orange-500' },
+                    { category: 'Overall', score: 8.9, color: 'bg-gradient-to-r from-pink-500 to-purple-500' }
+                  ].map(({ category, score, color }) => (
+                    <div key={category}>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-white/70">{category}</span>
+                        <span className="font-semibold text-white">{score}/10</span>
+                      </div>
+                      <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full ${color} transition-all duration-300`}
+                          style={{ width: `${score * 10}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Physical Description */}
+              <div className="mt-6">
+                <h4 className="text-sm font-medium text-white/80 mb-2">Description</h4>
+                <p className="text-sm text-white/70 leading-relaxed">
+                  {character.name} has a naturally stunning appearance with perfect proportions. 
+                  Her athletic build showcases toned curves and graceful movement. Her expressive eyes 
+                  and warm smile create an irresistible combination that draws attention wherever she goes.
+                </p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </ScrollArea>
+    </TabsContent>
+  );
+
+  const valueTab = (
+    <TabsContent value="value" className="h-full">
+      <ScrollArea className="h-full">
+        <div className="space-y-6 p-6">
+          <Card className="border-none bg-white/5 text-white">
+            <div className="space-y-4 p-6">
+              <h3 className="flex items-center gap-2 text-lg font-semibold">
+                <CurrencyDollar className="h-5 w-5 text-green-300" /> Market Valuation
+              </h3>
+              
+              {/* Overall Value */}
+              <div className="text-center p-6 bg-gradient-to-r from-green-900/20 to-emerald-900/20 rounded-xl border border-green-500/20">
+                <div className="text-3xl font-bold text-green-400 mb-2">$125,000</div>
+                <div className="text-sm text-green-300">Estimated Market Value</div>
+                <div className="text-xs text-white/60 mt-1">Premium Tier • Rare Quality</div>
+              </div>
+
+              {/* Value Breakdown */}
+              <div className="grid gap-4 sm:grid-cols-2 mt-6">
+                <div>
+                  <h4 className="text-sm font-medium text-white/80 mb-3">Value Factors</h4>
+                  <div className="space-y-2 text-sm">
+                    {[
+                      { factor: 'Physical Beauty', value: '$45,000', weight: '36%' },
+                      { factor: 'Personality', value: '$25,000', weight: '20%' },
+                      { factor: 'Rarity', value: '$20,000', weight: '16%' },
+                      { factor: 'Experience', value: '$15,000', weight: '12%' },
+                      { factor: 'Age Factor', value: '$12,000', weight: '10%' },
+                      { factor: 'Skills', value: '$8,000', weight: '6%' }
+                    ].map(({ factor, value, weight }) => (
+                      <div key={factor} className="flex justify-between items-center">
+                        <span className="text-white/60">{factor}</span>
+                        <div className="text-right">
+                          <div className="text-white font-medium">{value}</div>
+                          <div className="text-xs text-white/40">{weight}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium text-white/80 mb-3">Market Analysis</h4>
+                  <div className="space-y-3">
+                    <div className="p-3 bg-green-900/20 rounded-lg border border-green-500/20">
+                      <div className="text-sm font-medium text-green-400">Recommendation: HOLD</div>
+                      <div className="text-xs text-white/60 mt-1">
+                        High-value asset with strong appreciation potential
+                      </div>
+                    </div>
+                    
+                    <div className="text-xs text-white/70 space-y-1">
+                      <div className="flex justify-between">
+                        <span>Value Trend:</span>
+                        <span className="text-green-400">↗ +15% (6m)</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Market Demand:</span>
+                        <span className="text-yellow-400">High</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Depreciation Risk:</span>
+                        <span className="text-green-400">Low</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Target Demographics */}
+              <div className="mt-6">
+                <h4 className="text-sm font-medium text-white/80 mb-3">Target Demographics</h4>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    'Executives (25-45)',
+                    'High-net-worth individuals',
+                    'Collectors of rare beauty',
+                    'Premium experience seekers'
+                  ].map((demographic, index) => (
+                    <div key={index} className="flex items-center gap-2 text-sm text-white/70">
+                      <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
+                      {demographic}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Investment Notes */}
+              <div className="mt-6 p-4 bg-blue-900/20 rounded-lg border border-blue-500/20">
+                <h4 className="text-sm font-medium text-blue-300 mb-2">Investment Notes</h4>
+                <p className="text-xs text-white/70 leading-relaxed">
+                  Premium asset with exceptional physical ratings and desirable personality traits. 
+                  Strong appreciation potential due to rarity and high demand in target demographics. 
+                  Consider long-term hold for maximum value realization.
+                </p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </ScrollArea>
+    </TabsContent>
+  );
+
   const feedTab = (
     <TabsContent value="feed" className="h-full">
       <ScrollArea className="h-full">
@@ -802,86 +1004,66 @@ export function CharacterCard({
     </TabsContent>
   );
 
-  const settingsTab = (
-    <TabsContent value="settings" className="h-full">
+  const promptsTab = (
+    <TabsContent value="prompts" className="h-full">
       <ScrollArea className="h-full">
         <div className="space-y-6 p-6">
           <Card className="border-none bg-white/5 text-white">
             <div className="space-y-3 p-6">
               <h3 className="flex items-center gap-2 text-lg font-semibold">
-                <ShieldCheck className="h-5 w-5 text-emerald-300" /> AI Prompts
+                <Code className="h-5 w-5 text-emerald-300" /> Character Prompts
               </h3>
               <div className="space-y-4 text-sm text-white/70">
                 <div>
-                  <div className="text-xs uppercase tracking-wide text-white/40">System Prompt</div>
-                  <pre className="mt-1 whitespace-pre-wrap rounded-lg border border-white/10 bg-white/5 p-3">
-                    {character.prompts?.system ?? 'No system prompt configured yet.'}
-                  </pre>
+                  <label className="block text-white/80 font-medium mb-2">System Prompt</label>
+                  <textarea 
+                    className="w-full h-24 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm resize-none"
+                    defaultValue={character.system_prompt || `You are ${character.name}, a character with the following personality: ${character.personality}. Stay in character and respond naturally.`}
+                  />
                 </div>
+                
                 <div>
-                  <div className="text-xs uppercase tracking-wide text-white/40">Personality Prompt</div>
-                  <pre className="mt-1 whitespace-pre-wrap rounded-lg border border-white/10 bg-white/5 p-3">
-                    {character.prompts?.personality ?? 'No personality prompt configured yet.'}
-                  </pre>
+                  <label className="block text-white/80 font-medium mb-2">Personality Prompt</label>
+                  <textarea 
+                    className="w-full h-20 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm resize-none"
+                    defaultValue={character.personality || 'Friendly, engaging, and thoughtful'}
+                  />
                 </div>
-                <div>
-                  <div className="text-xs uppercase tracking-wide text-white/40">Background</div>
-                  <pre className="mt-1 whitespace-pre-wrap rounded-lg border border-white/10 bg-white/5 p-3">
-                    {character.prompts?.background ?? 'No background prompt configured yet.'}
-                  </pre>
-                </div>
-                <div>
-                  <div className="text-xs uppercase tracking-wide text-white/40">Image Prompt</div>
-                  <pre className="mt-1 whitespace-pre-wrap rounded-lg border border-white/10 bg-white/5 p-3">
-                    {character.imageDescription ?? 'No optimized image prompt yet.'}
-                  </pre>
-                </div>
-              </div>
-            </div>
-          </Card>
 
-          <Card className="border-none bg-white/5 text-white">
-            <div className="space-y-4 p-6">
-              <h3 className="flex items-center gap-2 text-lg font-semibold">
-                <Users className="h-5 w-5 text-blue-300" /> Bonds & Preferences
-              </h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-                  <h4 className="text-sm font-medium text-white/80">Bonds</h4>
-                  {Object.keys(progression.bonds).length === 0 ? (
-                    <p className="mt-2 text-xs text-white/50">No bonds recorded.</p>
-                  ) : (
-                    <div className="mt-3 space-y-1 text-xs">
-                      {Object.entries(progression.bonds).map(([id, bond]) => (
-                        <div key={id} className="flex items-center justify-between rounded border border-white/10 bg-white/5 p-2">
-                          <span>{id.slice(0, 8)}...</span>
-                          <span className="text-white/80">{bond.type}</span>
-                          <span className="text-white/60">{bond.strength}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                <div>
+                  <label className="block text-white/80 font-medium mb-2">Background Context</label>
+                  <textarea 
+                    className="w-full h-20 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm resize-none"
+                    defaultValue={character.description || character.bio || 'Add background details here...'}
+                  />
                 </div>
-                <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-                  <h4 className="text-sm font-medium text-white/80">Preferences</h4>
-                  <div className="mt-3 space-y-2">
-                    <div>
-                      <span className="text-xs uppercase tracking-wide text-white/40">Likes</span>
-                      <p>{dots(progression.userPreferences.likes, 'No data')}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs uppercase tracking-wide text-white/40">Dislikes</span>
-                      <p>{dots(progression.userPreferences.dislikes, 'No data')}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs uppercase tracking-wide text-white/40">Turn Ons</span>
-                      <p>{dots(progression.userPreferences.turnOns, 'No data')}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs uppercase tracking-wide text-white/40">Turn Offs</span>
-                      <p>{dots(progression.userPreferences.turnOffs, 'No data')}</p>
-                    </div>
-                  </div>
+
+                <div>
+                  <label className="block text-white/80 font-medium mb-2">Response Style</label>
+                  <textarea 
+                    className="w-full h-16 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm resize-none"
+                    defaultValue="Respond in character with natural, engaging dialogue. Keep responses conversational and true to personality."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-white/80 font-medium mb-2">Scenario Context</label>
+                  <textarea 
+                    className="w-full h-16 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm resize-none"
+                    defaultValue="You are in a comfortable, private setting where you can speak freely and openly."
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white">
+                    Save Prompts
+                  </Button>
+                  <Button size="sm" variant="outline" className="border-white/20">
+                    Reset to Default
+                  </Button>
+                  <Button size="sm" variant="outline" className="border-white/20">
+                    Test Prompts
+                  </Button>
                 </div>
               </div>
             </div>
@@ -903,7 +1085,7 @@ export function CharacterCard({
           </div>
           <div className="flex flex-col">
             <Tabs defaultValue="overview" className="flex h-full flex-col">
-              <TabsList className="grid grid-cols-5 gap-2 border-b border-white/10 bg-[#080814] p-4 pb-2">
+              <TabsList className="grid grid-cols-6 gap-2 border-b border-white/10 bg-[#080814] p-4 pb-2">
                 <TabsTrigger value="overview" className="flex flex-col items-center gap-1 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
                   <Star className="h-4 w-4" />
                   Profile
@@ -912,25 +1094,30 @@ export function CharacterCard({
                   <TrendUp className="h-4 w-4" />
                   Stats
                 </TabsTrigger>
+                <TabsTrigger value="physical" className="flex flex-col items-center gap-1 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+                  <User className="h-4 w-4" />
+                  Physical
+                </TabsTrigger>
+                <TabsTrigger value="value" className="flex flex-col items-center gap-1 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+                  <CurrencyDollar className="h-4 w-4" />
+                  Value
+                </TabsTrigger>
                 <TabsTrigger value="feed" className="flex flex-col items-center gap-1 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
                   <ImageIcon className="h-4 w-4" />
                   Feed
                 </TabsTrigger>
-                <TabsTrigger value="memories" className="flex flex-col items-center gap-1 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
-                  <BookOpen className="h-4 w-4" />
-                  Memories
-                </TabsTrigger>
-                <TabsTrigger value="settings" className="flex flex-col items-center gap-1 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
-                  <ShieldCheck className="h-4 w-4" />
-                  Settings
+                <TabsTrigger value="prompts" className="flex flex-col items-center gap-1 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+                  <Code className="h-4 w-4" />
+                  Prompts
                 </TabsTrigger>
               </TabsList>
               <div className="flex-1 overflow-hidden">
                 {overviewTab}
                 {statsTab}
+                {physicalTab}
+                {valueTab}
                 {feedTab}
-                {memoriesTab}
-                {settingsTab}
+                {promptsTab}
               </div>
             </Tabs>
           </div>

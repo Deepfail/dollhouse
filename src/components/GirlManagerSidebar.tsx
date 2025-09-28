@@ -2,6 +2,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle, 
+  AlertDialogTrigger 
+} from '@/components/ui/alert-dialog';
 import { useAutoCharacterCreator } from '@/hooks/useAutoCharacterCreator';
 import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
@@ -16,6 +28,9 @@ import {
     MagicWand,
     PaperPlaneRight,
     UsersThree,
+    Trash,
+    ChatCircle,
+    Robot,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -310,6 +325,23 @@ export function GirlManagerSidebar({
     characters,
   ]);
 
+  // State for managing chat history deletion
+  const [showDeleteChatDialog, setShowDeleteChatDialog] = useState(false);
+
+  const handleDeleteChatHistory = useCallback(async () => {
+    if (!managerSessionId) return;
+    
+    try {
+      // Delete all messages in the manager session
+      await sendMessage(managerSessionId, 'Chat history cleared', 'system', { copilot: true });
+      setMessages([]);
+      setShowDeleteChatDialog(false);
+      logger.log('🗑️ Manager chat history cleared');
+    } catch (error) {
+      logger.error('Failed to clear chat history:', error);
+    }
+  }, [managerSessionId, sendMessage]);
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#0c0c12] text-white">
       <header className="border-b border-white/5 px-4 pb-3 pt-4 flex-shrink-0 xl:px-6 xl:pb-4 xl:pt-6">
@@ -345,151 +377,221 @@ export function GirlManagerSidebar({
         </div>
       </header>
 
-  <ScrollArea className="flex-1 min-h-0 px-4 py-4 xl:px-6 xl:py-5">
-        <div className="space-y-6">
-          <section>
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
-                  Girl lab
-                </h3>
-                <p className="mt-1 text-xs text-white/60">
-                  Tune personalities or drop in someone brand new.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={isSpawning}
-                onClick={() => void handleCreateRandomCharacter()}
-                className="rounded-lg border-[#ff1372]/50 text-[#ff1372] hover:bg-[#ff1372]/10"
-              >
-                <MagicWand size={14} className="mr-2" />
-                {isSpawning ? 'Summoning…' : 'Generate New Girl'}
-              </Button>
-            </div>
-            <div className="mt-4 grid gap-3">
-              {scenarioIdeas.map((idea) => (
-                <button
-                  key={idea}
-                  onClick={() => setDraft(idea)}
-                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left text-xs text-white/70 transition hover:border-[#ff1372]/40 hover:text-white xl:px-4 xl:py-3"
-                >
-                  {idea}
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <Separator className="bg-white/5" />
-
-          <section>
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
-                  Quick actions
-                </h3>
-                <p className="mt-1 text-xs text-white/60">
-                  Rapid adjustments across the entire roster.
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-2">
-              {quickActions.slice(0, 4).map((action) => (
-                <Button
-                  key={action.id}
-                  variant="secondary"
-                  className="justify-start rounded-lg bg-white/5 text-xs text-white/70 hover:bg-[#ff1372]/15 hover:text-white"
-                  onClick={() => void executeAction(action.id)}
-                >
-                  <Lightning size={14} className="mr-2 text-[#ff1372]" />
-                  <div>
-                    <div className="font-semibold text-white">{action.label}</div>
-                    {action.description && (
-                      <p className="text-[10px] text-white/50">{action.description}</p>
-                    )}
-                  </div>
-                </Button>
-              ))}
-            </div>
-          </section>
-
-          <Separator className="bg-white/5" />
-
-          <section>
-            <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
-              Suggested prompts
-            </h3>
-            <div className="mt-3 grid gap-2">
-              {QUICK_PROMPTS.map((prompt) => (
-                <button
-                  key={prompt}
-                  onClick={() => setDraft(prompt)}
-                  className="rounded-lg border border-white/10 bg-transparent px-3 py-2 text-left text-xs text-white/60 transition hover:border-[#ff1372]/30 hover:text-white"
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
-          </section>
-        </div>
-      </ScrollArea>
-
-      <footer className="border-t border-white/5 px-4 py-4 flex-shrink-0 xl:px-6">
-        <ScrollArea className="h-40 rounded-xl border border-white/10 bg-white/5 p-3 xl:h-52 xl:p-4">
-          <div className="space-y-3">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
-                    message.sender === 'user'
-                      ? 'bg-[#ff1372] text-white'
-                      : 'border border-white/10 bg-[#0f0f15] text-white/70'
-                  }`}
-                >
-                  {message.content}
-                </div>
-              </div>
-            ))}
-            {messages.length === 0 && (
-              <div className="rounded-lg border border-dashed border-white/10 bg-transparent p-4 text-center text-xs text-white/50">
-                Ask me for a scenario, a new girl, or how to raise her stats today.
-              </div>
-            )}
-            {isResponding && (
-              <div className="text-center text-[10px] uppercase tracking-[0.3em] text-white/40">
-                Thinking…
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-
-        <form
-          className="mt-3 flex items-center gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void handleSend();
-          }}
-        >
-          <Input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="Ask the manager for a scene, stat boost, or new girl…"
-            className="rounded-xl border-white/10 bg-white/5 text-xs text-white placeholder:text-white/40"
-          />
-          <Button
-            type="submit"
-            disabled={!draft.trim() || isResponding}
-            className="rounded-xl bg-[#ff1372] text-white hover:bg-[#ff1372]/90"
+      <Tabs defaultValue="manager" className="flex-1 flex flex-col min-h-0">
+        <TabsList className="grid w-full grid-cols-2 rounded-none border-b border-white/5 bg-transparent p-0">
+          <TabsTrigger 
+            value="manager" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#ff1372] data-[state=active]:bg-transparent data-[state=active]:text-white"
           >
-            <PaperPlaneRight size={16} className="mr-1" />
-            Send
-          </Button>
-        </form>
-      </footer>
+            <Robot size={14} className="mr-2" />
+            Manager
+          </TabsTrigger>
+          <TabsTrigger 
+            value="chat" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#ff1372] data-[state=active]:bg-transparent data-[state=active]:text-white"
+          >
+            <ChatCircle size={14} className="mr-2" />
+            Chat
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="manager" className="flex-1 flex flex-col min-h-0 mt-0">
+          <ScrollArea className="flex-1 min-h-0 px-4 py-4 xl:px-6 xl:py-5">
+            <div className="space-y-6">
+              <section>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
+                      Girl lab
+                    </h3>
+                    <p className="mt-1 text-xs text-white/60">
+                      Tune personalities or drop in someone brand new.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isSpawning}
+                    onClick={() => void handleCreateRandomCharacter()}
+                    className="rounded-lg border-[#ff1372]/50 text-[#ff1372] hover:bg-[#ff1372]/10"
+                  >
+                    <MagicWand size={14} className="mr-2" />
+                    {isSpawning ? 'Summoning…' : 'Generate New Girl'}
+                  </Button>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  {scenarioIdeas.map((idea) => (
+                    <button
+                      key={idea}
+                      onClick={() => setDraft(idea)}
+                      className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left text-xs text-white/70 transition hover:border-[#ff1372]/40 hover:text-white xl:px-4 xl:py-3"
+                    >
+                      {idea}
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <Separator className="bg-white/5" />
+
+              <section>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
+                      Quick actions
+                    </h3>
+                    <p className="mt-1 text-xs text-white/60">
+                      Rapid adjustments across the entire roster.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-2">
+                  {quickActions.slice(0, 4).map((action) => (
+                    <Button
+                      key={action.id}
+                      variant="secondary"
+                      className="justify-start rounded-lg bg-white/5 text-xs text-white/70 hover:bg-[#ff1372]/15 hover:text-white"
+                      onClick={() => void executeAction(action.id)}
+                    >
+                      <Lightning size={14} className="mr-2 text-[#ff1372]" />
+                      <div>
+                        <div className="font-semibold text-white">{action.label}</div>
+                        {action.description && (
+                          <p className="text-[10px] text-white/50">{action.description}</p>
+                        )}
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              </section>
+
+              <Separator className="bg-white/5" />
+
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
+                  Suggested prompts
+                </h3>
+                <div className="mt-3 grid gap-2">
+                  {QUICK_PROMPTS.map((prompt) => (
+                    <button
+                      key={prompt}
+                      onClick={() => setDraft(prompt)}
+                      className="rounded-lg border border-white/10 bg-transparent px-3 py-2 text-left text-xs text-white/60 transition hover:border-[#ff1372]/30 hover:text-white"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            </div>
+          </ScrollArea>
+        </TabsContent>
+
+        <TabsContent value="chat" className="flex-1 flex flex-col min-h-0 mt-0">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+            <h3 className="text-sm font-semibold text-white">Copilot Chat</h3>
+            <div className="flex gap-2">
+              <AlertDialog open={showDeleteChatDialog} onOpenChange={setShowDeleteChatDialog}>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-white/60 hover:text-red-400"
+                  >
+                    <Trash size={12} className="mr-1" />
+                    Clear History
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Clear Chat History</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete all chat history with the copilot. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteChatHistory}
+                      className="bg-red-500 hover:bg-red-600"
+                    >
+                      Clear History
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </div>
+
+          <ScrollArea className="flex-1 min-h-0 px-4 py-4">
+            <div className="space-y-3">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
+                      message.sender === 'user'
+                        ? 'bg-[#ff1372] text-white'
+                        : 'border border-white/10 bg-[#0f0f15] text-white/70'
+                    }`}
+                  >
+                    {message.content}
+                  </div>
+                </div>
+              ))}
+              {messages.length === 0 && (
+                <div className="rounded-lg border border-dashed border-white/10 bg-transparent p-6 text-center text-xs text-white/50">
+                  <ChatCircle size={24} className="mx-auto mb-2 opacity-50" />
+                  <p>Start a conversation with your copilot.</p>
+                  <p className="mt-1 text-[10px] text-white/40">Ask for scenarios, character management, or house advice.</p>
+                </div>
+              )}
+              {isResponding && (
+                <div className="flex justify-start">
+                  <div className="border border-white/10 bg-[#0f0f15] text-white/70 rounded-xl px-3 py-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="flex space-x-1">
+                        <div className="w-1 h-1 bg-white/60 rounded-full animate-bounce"></div>
+                        <div className="w-1 h-1 bg-white/60 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                        <div className="w-1 h-1 bg-white/60 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                      </div>
+                      <span>Thinking...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </TabsContent>
+
+        <footer className="border-t border-white/5 px-4 py-4 flex-shrink-0 xl:px-6">
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleSend();
+            }}
+          >
+            <Input
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="Ask the manager for a scene, stat boost, or new girl…"
+              className="rounded-xl border-white/10 bg-white/5 text-xs text-white placeholder:text-white/40"
+              autoFocus
+            />
+            <Button
+              type="submit"
+              disabled={!draft.trim() || isResponding}
+              className="rounded-xl bg-[#ff1372] text-white hover:bg-[#ff1372]/90"
+            >
+              <PaperPlaneRight size={16} className="mr-1" />
+              Send
+            </Button>
+          </form>
+        </footer>
+      </Tabs>
     </div>
   );
 }
