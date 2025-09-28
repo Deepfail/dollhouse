@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { useAutoCharacterCreator } from '@/hooks/useAutoCharacterCreator';
 import { logger } from '@/lib/logger';
 import type { Character, ChatMessage, ChatSession } from '@/types';
 import {
@@ -48,6 +49,7 @@ interface CharacterRosterProps {
   onSelect: (characterId: string) => void;
   onStartChat: (characterId: string) => Promise<void>;
   onDeleteCharacter: (characterId: string) => Promise<void>;
+  onCreateCharacter: (gender: 'female' | 'male') => Promise<void>;
   sessions: ChatSession[];
   onViewProfile?: (character: Character) => void;
 }
@@ -58,6 +60,7 @@ function CharacterRoster({
   onSelect,
   onStartChat,
   onDeleteCharacter,
+  onCreateCharacter,
   sessions,
   onViewProfile,
 }: CharacterRosterProps) {
@@ -110,6 +113,7 @@ function CharacterRoster({
             size="sm"
             variant="outline"
             className="flex-1 text-xs border-white/10 hover:bg-white/5"
+            onClick={() => void onCreateCharacter(genderFilter === 'male' ? 'male' : 'female')}
           >
             <Plus size={12} className="mr-1" />
             Create New {genderFilter === 'male' ? 'Male' : 'Girl'}
@@ -440,6 +444,7 @@ export function DatingSimShell({
     isLoading: isLoadingHouse,
     removeCharacter,
   } = useHouseFileStorage();
+  const { createRandomCharacter, isCreating } = useAutoCharacterCreator();
   const {
     sessions,
     getSessionMessages,
@@ -558,6 +563,24 @@ export function DatingSimShell({
     [sessions, setChatActiveId, switchToSession, loadMessages],
   );
 
+  const handleCreateCharacter = useCallback(
+    async (gender: 'female' | 'male') => {
+      try {
+        // For now, we'll use the random character creator
+        // In the future, this could open a character creation dialog
+        const character = await createRandomCharacter();
+        if (character) {
+          toast.success(`${character.name} has been created!`);
+          setSelectedCharacterId(character.id);
+        }
+      } catch (error) {
+        logger.error('Failed to create character:', error);
+        toast.error('Failed to create character');
+      }
+    },
+    [createRandomCharacter],
+  );
+
   const handleDeleteCharacter = useCallback(
     async (characterId: string) => {
       try {
@@ -616,6 +639,7 @@ export function DatingSimShell({
         onSelect={(characterId: string) => setSelectedCharacterId(characterId)}
         onStartChat={handleStartChat}
         onDeleteCharacter={handleDeleteCharacter}
+        onCreateCharacter={handleCreateCharacter}
         sessions={sessions}
         onViewProfile={handleViewProfile}
       />
