@@ -17,7 +17,7 @@ interface HouseSettingsProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-interface AISettings {
+interface AIProviderSettings {
   textProvider: 'openrouter' | 'venice' | 'anthropic' | 'openai';
   textApiKey?: string;
   textModel: string;
@@ -34,7 +34,7 @@ interface HouseConfig {
   worldPrompt?: string;
   copilotPrompt?: string;
   copilotMaxTokens?: number;
-  aiSettings: AISettings;
+  aiSettings: AIProviderSettings;
   autoCreator: {
     enabled: boolean;
     interval: number;
@@ -120,7 +120,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     setLocalConfig(prev => ({ ...prev, ...updates }));
   };
 
-  const updateAISettings = (updates: Partial<AISettings>) => {
+  const updateAISettings = (updates: Partial<AIProviderSettings>) => {
     setLocalConfig(prev => ({
       ...prev,
       aiSettings: { ...prev.aiSettings, ...updates }
