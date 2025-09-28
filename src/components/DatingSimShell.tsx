@@ -44,14 +44,14 @@ function CharacterRoster({
 }: CharacterRosterProps) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#0f0f15] text-white border-r border-white/5">
-      <div className="px-5 py-6 border-b border-white/5 flex-shrink-0">
+      <div className="px-4 py-4 border-b border-white/5 flex-shrink-0 xl:px-5 xl:py-6">
         <h2 className="text-sm font-semibold text-white tracking-wide uppercase">Girls</h2>
         <p className="mt-1 text-xs text-white/60">
           Your active roster. Choose who to deepen tonight.
         </p>
       </div>
       <ScrollArea className="flex-1 min-h-0">
-        <div className="space-y-3 p-4">
+        <div className="space-y-3 p-3 xl:p-4">
           {characters.map((character) => {
             const activeSessions = sessions.filter((session) =>
               session.participantIds.includes(character.id),
@@ -70,7 +70,7 @@ function CharacterRoster({
                     : 'border-white/5 hover:border-[#ff1372]/40 hover:bg-white/5'
                 }`}
               >
-                <div className="flex items-center gap-3 px-4 py-3">
+                <div className="flex items-center gap-3 px-3 py-3 xl:px-4">
                   <Avatar className="h-12 w-12 border border-white/10">
                     <AvatarImage src={character.avatar} alt={character.name} />
                     <AvatarFallback>
@@ -91,7 +91,7 @@ function CharacterRoster({
                     </p>
                   </div>
                 </div>
-                <div className="px-4 pb-4">
+                <div className="px-3 pb-4 xl:px-4">
                   <div className="flex items-center gap-2 text-[11px] text-white/70">
                     <Star size={12} weight="fill" className="text-[#f4d03f]" />
                     <span>Affection {character.progression?.affection ?? 0}%</span>
@@ -193,7 +193,7 @@ function ChatPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#14141f] text-white">
-      <header className="flex items-center justify-between border-b border-white/5 px-8 py-6 flex-shrink-0">
+      <header className="flex items-center justify-between border-b border-white/5 px-4 py-4 flex-shrink-0 xl:px-8 xl:py-6">
         <div>
           <p className="text-[10px] uppercase tracking-[0.35em] text-white/40">
             Tonight's connection
@@ -224,7 +224,7 @@ function ChatPanel({
       </header>
 
       <div className="grid h-full min-h-0 grid-rows-[auto_1fr_auto]">
-        <div className="border-b border-white/5 px-8 py-3 flex-shrink-0">
+  <div className="border-b border-white/5 px-4 py-2 flex-shrink-0 xl:px-8 xl:py-3">
           {characterSessions.length > 0 ? (
             <div className="flex items-center gap-3 overflow-x-auto pb-2 text-xs text-white/70">
               <ChatsCircle size={16} className="text-[#ff1372]" />
@@ -251,8 +251,9 @@ function ChatPanel({
           )}
         </div>
 
-        <ScrollArea className="flex-1 min-h-0 px-8 py-6">
-          <div className="space-y-4">
+        <div className="flex-1 min-h-0">
+          <ScrollArea className="h-full px-4 py-4 xl:px-8 xl:py-6">
+            <div className="space-y-4">
             {!canChat && !isLoadingMessages && (
               <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-white/70">
                 <p>
@@ -293,9 +294,10 @@ function ChatPanel({
               );
             })}
           </div>
-        </ScrollArea>
+          </ScrollArea>
+        </div>
 
-        <div className="border-t border-white/5 px-8 py-6 flex-shrink-0">
+  <div className="border-t border-white/5 px-4 py-4 flex-shrink-0 xl:px-8 xl:py-6">
           <form
             className="flex items-center gap-3"
             onSubmit={(event) => {
@@ -486,7 +488,7 @@ export function DatingSimShell({
   }
 
   return (
-    <div className="grid h-screen w-full grid-cols-[320px_1fr_360px] overflow-hidden bg-[#090912] text-white">
+    <div className="grid h-screen w-full grid-cols-[260px_1fr_300px] overflow-x-hidden bg-[#090912] text-white xl:grid-cols-[300px_1fr_340px] 2xl:grid-cols-[320px_1fr_360px]">
       <CharacterRoster
         characters={characters}
         selectedId={selectedCharacterId}
@@ -507,7 +509,7 @@ export function DatingSimShell({
         onSwitchSession={handleSwitchSession}
         activeSessionId={activeSessionId}
       />
-      <div className="border-l border-white/5 bg-[#0f0f15]">
+  <div className="border-l border-white/5 bg-[#0f0f15]">
         <GirlManagerSidebar
           onFocusCharacter={(characterId: string) => setSelectedCharacterId(characterId)}
           onSessionActivated={handleSidebarSessionActivated}

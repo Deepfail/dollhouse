@@ -14,6 +14,7 @@ characters on demand.
   - recommend scene setups
   - execute house-wide quick actions
   - hold a planning conversation to keep scenarios on track
+- **Behavior analysis engine.** Every user message now runs through an AI-driven analysis pipeline that assigns nuanced behavior states, updates character memories, and posts actionable summaries back into the chat.
 - **Storage bootstrap.** The app waits for the unified storage layer before rendering so your roster and sessions load cleanly.
 
 ## Getting Started
@@ -31,6 +32,13 @@ Open the local URL that Vite prints (usually <http://localhost:5173>) to explore
 - The Girl Manager sidebar logic sits in `src/components/GirlManagerSidebar.tsx`.
 - Storage is initialized inside `src/App.tsx` via `initStorage()`.
 - Legacy components (HouseView, SceneInterface, etc.) remain in the repo for reference but are no longer rendered.
+
+## Behavior Analysis Overview
+
+- User messages trigger `useChat.sendMessage`, which now calls `analyzeBehavior` to evaluate the latest conversation slice.
+- Analysis results apply clamped stat and progression deltas, refresh each character's `behaviorProfile`, and persist relationship memories.
+- A rich `[Analysis]` system message is inserted with conversation context, per-character behavior summaries, and suggested follow-up actions for the player.
+- When the AI response is unavailable, a heuristic fallback still produces safe, conservative updates so the loop never stalls.
 
 ## Next Steps
 

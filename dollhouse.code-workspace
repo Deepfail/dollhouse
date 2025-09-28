@@ -15,6 +15,7 @@
 			"Openrouter",
 			"Qwen",
 			"sdxl"
-		]
+		],
+		"vitest.rootConfig": "./vite.config.ts"
 	}
 }

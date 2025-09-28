@@ -1,13 +1,85 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AIService } from '../lib/aiService';
+import { analyzeBehavior, buildMemoryEntries, createBehaviorProfile } from '../lib/behaviorAnalysis';
 import { getDb, saveDatabase } from '../lib/db';
 import { uuid } from '../lib/uuid';
 // Note: use in-app character list from useHouseFileStorage; avoid repo adapter to prevent mismatches
 import { aliProfileService } from '@/lib/aliProfile';
 import { legacyStorage } from '@/lib/legacyStorage';
 import { logger } from '@/lib/logger';
-import { ChatMessage, ChatSession } from '../types';
+import { Character, ChatMessage, ChatSession } from '../types';
 import { useHouseFileStorage } from './useHouseFileStorage';
+
+const clampNumber = (value: number, min = 0, max = 100): number => {
+  if (Number.isNaN(value)) return min;
+  return Math.min(Math.max(value, min), max);
+};
+
+type NumericProgressionKey = 'affection' | 'trust' | 'intimacy' | 'dominance' | 'jealousy' | 'possessiveness';
+
+const NUMERIC_PROGRESSION_KEYS: NumericProgressionKey[] = ['affection', 'trust', 'intimacy', 'dominance', 'jealousy', 'possessiveness'];
+
+const isNumericProgressionKey = (key: string): key is NumericProgressionKey =>
+  (NUMERIC_PROGRESSION_KEYS as string[]).includes(key);
+
+const SUMMARY_CONFIG = {
+  MIN_TOTAL_MESSAGES: 60,
+  KEEP_RECENT_MESSAGES: 28,
+  MIN_CHUNK_MESSAGES: 12,
+  MIN_CHUNK_CHARS: 1400
+} as const;
+
+type GlobalEventTargetLike = {
+  dispatchEvent?: (event: unknown) => void;
+  CustomEvent?: new (type: string, init?: { detail?: unknown }) => unknown;
+  addEventListener?: (type: string, listener: (event: unknown) => void) => void;
+  removeEventListener?: (type: string, listener: (event: unknown) => void) => void;
+};
+
+const getGlobalEventTarget = (): GlobalEventTargetLike | undefined => {
+  if (typeof globalThis === 'undefined') {
+    return undefined;
+  }
+  return globalThis as GlobalEventTargetLike;
+};
+
+const dispatchGlobalEvent = (name: string, detail?: unknown): void => {
+  const target = getGlobalEventTarget();
+  if (!target?.dispatchEvent || !target.CustomEvent) {
+    return;
+  }
+  try {
+    const EventCtor = target.CustomEvent;
+    const event = new EventCtor(name, { detail });
+    target.dispatchEvent(event);
+  } catch {
+    // noop
+  }
+};
+
+const addGlobalEventListener = (name: string, listener: (event: unknown) => void): void => {
+  const target = getGlobalEventTarget();
+  if (!target?.addEventListener) {
+    return;
+  }
+  try {
+    target.addEventListener(name, listener);
+  } catch {
+    // noop
+  }
+};
+
+const removeGlobalEventListener = (name: string, listener: (event: unknown) => void): void => {
+  const target = getGlobalEventTarget();
+  if (!target?.removeEventListener) {
+    return;
+  }
+  try {
+    target.removeEventListener(name, listener);
+  } catch {
+    // noop
+  }
+};
 
 export function useChat() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -111,7 +183,7 @@ export function useChat() {
         setSessions(loadedSessions);
         setSessionsLoaded(true);
         if (!options?.suppressBroadcast) {
-          try { window.dispatchEvent(new CustomEvent('chat-sessions-updated')); } catch {}
+          dispatchGlobalEvent('chat-sessions-updated');
         }
       } else {
         // Silent no-op; avoid log spam
@@ -126,8 +198,7 @@ export function useChat() {
     } finally {
       loadingRef.current = false;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sessions, sessionsLoaded]);
 
   const getSessionMessages = useCallback(async (sessionId: string): Promise<ChatMessage[]> => {
     try {
@@ -215,69 +286,128 @@ export function useChat() {
     }
   }
 
-  // On user messages, award small progression/stat changes to all participants (skip for copilot assistant usage)
+  // On user messages, run behavior analysis on all participants (skip for copilot assistant usage)
   if (senderId === 'user' && !options?.copilot) {
-        // Load session participants
-        const participantRows: any[] = [];
+        const participantRows: Array<{ character_id: string }> = [];
         db.exec({
           sql: 'SELECT character_id FROM session_participants WHERE session_id = ?',
           bind: [sessionId],
           rowMode: 'object',
-          callback: (r: any) => participantRows.push(r)
+          callback: (r: unknown) => {
+            const row = r as { character_id: string };
+            participantRows.push(row);
+          }
         });
         const participantIds = participantRows.map(p => p.character_id);
 
-        const statSummary: string[] = [];
-        for (const pid of participantIds) {
-          const char = (characters || []).find(c => c.id === pid);
-          if (!char) continue;
-          // Compute deltas
-          const xpDelta = 5;
-          const affectionDelta = 1;
-          const trustDelta = content.toLowerCase().includes('thank') || content.toLowerCase().includes('help') ? 2 : 1;
+        const participantCharacters: Character[] = participantIds
+          .map(pid => (characters || []).find(c => c.id === pid))
+          .filter((c): c is Character => Boolean(c));
 
-          const newExp = (char.stats?.experience || 0) + xpDelta;
-          const nextLevelExp = char.progression?.nextLevelExp || 100;
-          let newLevel = (char.stats?.level || 1);
-          let remainingExp = newExp;
-          if (newExp >= nextLevelExp) {
-            newLevel = newLevel + 1;
-            remainingExp = newExp - nextLevelExp;
+        if (participantCharacters.length) {
+          try {
+            const recentMessages = await getSessionMessages(sessionId);
+            const analysis = await analyzeBehavior({
+              sessionId,
+              messages: recentMessages,
+              characters: participantCharacters,
+              latestUserMessage: content
+            });
+
+            const summarySegments: string[] = [];
+            for (const adjustment of analysis.adjustments) {
+              const target = participantCharacters.find(c => c.id === adjustment.characterId);
+              const fullChar = (characters || []).find(c => c.id === adjustment.characterId);
+              if (!target || !fullChar) continue;
+
+              const updatedStats = { ...fullChar.stats };
+              const updatedProgression = { ...fullChar.progression };
+
+              if (adjustment.statAdjustments.stats) {
+                for (const [statKey, delta] of Object.entries(adjustment.statAdjustments.stats)) {
+                  if (typeof delta !== 'number' || Number.isNaN(delta)) continue;
+                  if (statKey === 'experience') {
+                    const nextLevelExp = updatedProgression?.nextLevelExp ?? 100;
+                    let updatedExp = (updatedStats.experience ?? 0) + delta;
+                    if (updatedExp < 0) updatedExp = 0;
+                    let newLevel = updatedStats.level ?? 1;
+                    let threshold = nextLevelExp;
+                    while (updatedExp >= threshold && threshold > 0) {
+                      updatedExp -= threshold;
+                      newLevel += 1;
+                      threshold = Math.round(threshold * 1.25);
+                    }
+                    updatedStats.experience = updatedExp;
+                    updatedStats.level = newLevel;
+                    if (updatedProgression) {
+                      updatedProgression.level = Math.max(updatedProgression.level || 1, newLevel);
+                      updatedProgression.nextLevelExp = threshold;
+                    }
+                  } else if (statKey in updatedStats) {
+                    const typedKey = statKey as keyof typeof updatedStats;
+                    const currentValue = Number(updatedStats[typedKey] ?? 0);
+                    updatedStats[typedKey] = clampNumber(currentValue + delta);
+                  }
+                }
+              }
+
+              if (adjustment.statAdjustments.progression) {
+                for (const [progKey, delta] of Object.entries(adjustment.statAdjustments.progression)) {
+                  if (typeof delta !== 'number' || Number.isNaN(delta)) continue;
+                  if (isNumericProgressionKey(progKey)) {
+                    const current = Number(updatedProgression?.[progKey] ?? 0);
+                    updatedProgression[progKey] = clampNumber(current + delta);
+                  }
+                }
+              }
+
+              const behaviorProfile = createBehaviorProfile(adjustment, fullChar.behaviorProfile);
+              const memories = buildMemoryEntries(fullChar, adjustment.memories);
+
+              await updateCharacter(fullChar.id, {
+                stats: updatedStats,
+                progression: updatedProgression,
+                behaviorProfile,
+                memories,
+                lastInteraction: new Date()
+              } as Partial<Character>);
+
+              summarySegments.push(`${fullChar.name}: ${adjustment.behavior} (${Math.round(adjustment.confidence * 100)}% confidence) - ${adjustment.summary}`);
+
+              for (const tag of adjustment.tags) {
+                await aliProfileService.addPreference({
+                  category: 'behavior',
+                  value: `${fullChar.name}:${tag}`,
+                  confidence: clampNumber(adjustment.confidence, 0.4, 0.95),
+                  source: 'analysis',
+                  context: sessionId
+                });
+              }
+            }
+
+            if (analysis.conversationSummary || summarySegments.length || analysis.followUpSuggestions.length) {
+              const messageParts = [
+                analysis.conversationSummary,
+                ...summarySegments,
+                analysis.followUpSuggestions.length ? `Follow-up ideas: ${analysis.followUpSuggestions.join(' | ')}` : ''
+              ].filter(Boolean);
+
+              if (messageParts.length) {
+                const sysId = uuid();
+                db.exec({
+                  sql: 'INSERT INTO messages (id, session_id, sender_id, content, created_at) VALUES (?, ?, ?, ?, ?)',
+                  bind: [sysId, sessionId, null, `[Analysis] ${messageParts.join('\n')}`, Date.now()]
+                });
+                db.exec({
+                  sql: 'UPDATE chat_sessions SET updated_at = ? WHERE id = ?',
+                  bind: [Date.now(), sessionId]
+                });
+                await saveDatabase();
+              }
+            }
+          } catch (analysisError) {
+            logger.warn('Behavior analysis failed', analysisError);
           }
-
-          // Apply bounded updates
-          const newAffection = Math.max(0, Math.min(100, (char.progression?.affection || 0) + affectionDelta));
-          const newTrust = Math.max(0, Math.min(100, (char.progression?.trust || 0) + trustDelta));
-
-          await updateCharacter(pid, {
-            stats: {
-              ...(char.stats || {}),
-              experience: remainingExp,
-              level: newLevel,
-            },
-            progression: {
-              ...(char.progression || {}),
-              affection: newAffection,
-              trust: newTrust,
-            },
-            lastInteraction: new Date(),
-          } as any);
-
-          statSummary.push(`${char.name}: +${xpDelta} XP, +${affectionDelta} affection, +${trustDelta} trust${newLevel > (char.stats?.level || 1) ? ' (level up!)' : ''}`);
-        }
-
-        // Insert a system message summarizing changes
-        if (statSummary.length) {
-          const sysId = uuid();
-          db.exec({
-            sql: 'INSERT INTO messages (id, session_id, sender_id, content, created_at) VALUES (?, ?, ?, ?, ?)',
-            bind: [sysId, sessionId, null, `[System] ${statSummary.join(' | ')}`, Date.now()]
-          });
-          db.exec({
-            sql: 'UPDATE chat_sessions SET updated_at = ? WHERE id = ?',
-            bind: [Date.now(), sessionId]
-          });
-          await saveDatabase();
         }
       }
 
@@ -295,7 +425,7 @@ export function useChat() {
       logger.error('❌ Failed to send message:', error);
       throw error;
     }
-  }, [loadSessions, sessions]);
+  }, [characters, getSessionMessages, loadSessions, sessions, updateCharacter]);
 
   const generateCharacterResponses = useCallback(async (sessionId: string, characterIds: string[], userMessage: string) => {
     try {
@@ -372,44 +502,75 @@ export function useChat() {
       // Long-term memory: summarize older parts of the conversation and persist
       let sessionSummary = '' as string;
       try {
-  const sumRows: { summary_text?: string; covered_until?: string }[] = [];
+        const sumRows: { summary_text?: string; covered_until?: string }[] = [];
         db.exec({
           sql: 'SELECT summary_text, covered_until FROM session_summaries WHERE session_id = ?',
           bind: [sessionId],
           rowMode: 'object',
           callback: (r: unknown) => { sumRows.push(r as { summary_text?: string; covered_until?: string }); }
         });
+
         sessionSummary = (sumRows[0]?.summary_text || '').trim();
         const lastCovered = sumRows[0]?.covered_until ? Number(sumRows[0].covered_until) : 0;
-        const THRESHOLD = 40; // summarize when more than this many messages exist
-        const KEEP_RECENT = 30; // keep this many raw recent messages
-        if (recentMessages.length > THRESHOLD) {
-          const toSummarize = recentMessages.slice(0, Math.max(0, recentMessages.length - KEEP_RECENT));
-          const lastIncludedTs = toSummarize.length ? Number(new Date(toSummarize[toSummarize.length - 1].timestamp)) : lastCovered;
-          if (lastIncludedTs > lastCovered) {
-            const textBlock = toSummarize.map(m => {
-              const sender = m.characterId ? (sessionChars.find((c: { id: string; name?: string }) => c.id === m.characterId)?.name || 'Character') : 'User';
-              if (typeof m.content === 'string' && m.content.startsWith('[System] ')) return '';
-              return `${sender}: ${m.content}`;
-            }).filter(Boolean).join('\n');
-            const summaryPrompt = `Summarize the following conversation succinctly without losing key facts, relationships, objectives, and ongoing threads. Keep it under 250 words.\n\n${textBlock}`;
-            let newSummary = '';
-            try {
-              newSummary = await AIService.generateResponse(summaryPrompt, undefined, undefined, { temperature: 0.2, max_tokens: 300 });
-            } catch (e) {
-              logger.warn('Summary generation failed; using placeholder.', e);
-              newSummary = '[Summary unavailable; continuing from recent context]';
+
+        const timestampMs = (value: ChatMessage['timestamp']): number => {
+          if (value instanceof Date) return value.getTime();
+          if (typeof value === 'number') return value;
+          return new Date(value).getTime();
+        };
+
+        if (recentMessages.length > SUMMARY_CONFIG.MIN_TOTAL_MESSAGES) {
+          const candidateMessages = recentMessages.slice(0, Math.max(0, recentMessages.length - SUMMARY_CONFIG.KEEP_RECENT_MESSAGES));
+          if (candidateMessages.length) {
+            const unsummarized = candidateMessages.filter(msg => timestampMs(msg.timestamp) > lastCovered);
+
+            if (unsummarized.length) {
+              const textLines = unsummarized.map(m => {
+                if (typeof m.content === 'string' && m.content.startsWith('[System] ')) return '';
+                const sender = m.characterId
+                  ? (sessionChars.find((c: { id: string; name?: string }) => c.id === m.characterId)?.name || 'Character')
+                  : 'User';
+                return `${sender}: ${m.content}`;
+              }).filter(Boolean);
+
+              const textBlock = textLines.join('\n');
+              const exceedsChunkThreshold = unsummarized.length >= SUMMARY_CONFIG.MIN_CHUNK_MESSAGES || textBlock.length >= SUMMARY_CONFIG.MIN_CHUNK_CHARS;
+
+              if (exceedsChunkThreshold && textBlock.trim().length) {
+                const summaryPrompt = `Summarize the following conversation succinctly without losing key facts, relationships, objectives, and ongoing threads. Keep it under 250 words.\n\n${textBlock}`;
+                let newSummary = '';
+                try {
+                  newSummary = await AIService.generateResponse(summaryPrompt, undefined, undefined, { temperature: 0.2, max_tokens: 300 });
+                } catch (e) {
+                  logger.warn('Summary generation failed; using placeholder.', e);
+                  newSummary = '[Summary unavailable; continuing from recent context]';
+                }
+
+                const lastIncludedTs = unsummarized.reduce((latest, msg) => Math.max(latest, timestampMs(msg.timestamp)), lastCovered);
+
+                if (lastIncludedTs > lastCovered) {
+                  const nowTs = Date.now();
+                  const trimmedSummary = newSummary.trim();
+
+                  if (sumRows.length > 0) {
+                    const merged = `${(sumRows[0].summary_text || '').trim()}\n\n${trimmedSummary}`.trim();
+                    db.exec({
+                      sql: 'UPDATE session_summaries SET summary_text = ?, covered_until = ?, updated_at = ? WHERE session_id = ?',
+                      bind: [merged, lastIncludedTs, nowTs, sessionId]
+                    });
+                    sessionSummary = merged;
+                  } else {
+                    db.exec({
+                      sql: 'INSERT INTO session_summaries (session_id, summary_text, covered_until, updated_at) VALUES (?, ?, ?, ?)',
+                      bind: [sessionId, trimmedSummary, lastIncludedTs, nowTs]
+                    });
+                    sessionSummary = trimmedSummary;
+                  }
+
+                  await saveDatabase();
+                }
+              }
             }
-            const nowTs = Date.now();
-            if (sumRows.length > 0) {
-              const merged = `${(sumRows[0].summary_text || '').trim()}\n\n${newSummary.trim()}`.trim();
-              db.exec({ sql: 'UPDATE session_summaries SET summary_text = ?, covered_until = ?, updated_at = ? WHERE session_id = ?', bind: [merged, lastIncludedTs, nowTs, sessionId] });
-              sessionSummary = merged;
-            } else {
-              db.exec({ sql: 'INSERT INTO session_summaries (session_id, summary_text, covered_until, updated_at) VALUES (?, ?, ?, ?)', bind: [sessionId, newSummary.trim(), lastIncludedTs, nowTs] });
-              sessionSummary = newSummary.trim();
-            }
-            await saveDatabase();
           }
         }
       } catch (e) {
@@ -619,14 +780,7 @@ Respond as ${character.name} in character. Keep your response natural and conver
   await loadSessions();
       setActiveSessionId(sessionId);
       try { legacyStorage.setItem('active_chat_session', sessionId); } catch { /* ignore */ }
-      try {
-  type CustomEventInitLike = { detail?: unknown } | undefined;
-  interface GlobalLike { dispatchEvent?: (e: unknown) => void; CustomEvent?: { new(type: string, init?: CustomEventInitLike): unknown }; }
-        const g = globalThis as unknown as GlobalLike;
-        if (g?.dispatchEvent && g?.CustomEvent) {
-          g.dispatchEvent(new g.CustomEvent('chat-active-session-changed', { detail: { sessionId } }));
-        }
-      } catch { /* ignore */ }
+      dispatchGlobalEvent('chat-active-session-changed', { sessionId });
   return sessionId;
     } catch (error) {
         logger.error('❌ Failed to create session:', error);
@@ -739,14 +893,7 @@ Respond as ${character.name} in character. Keep your response natural and conver
       await saveDatabase();
       setActiveSessionId(sessionId);
       try { legacyStorage.setItem('active_chat_session', sessionId); } catch { /* ignore */ }
-      try {
-  type CustomEventInitLike2 = { detail?: unknown } | undefined;
-  interface GlobalLike { dispatchEvent?: (e: unknown) => void; CustomEvent?: { new(type: string, init?: CustomEventInitLike2): unknown }; }
-        const g = globalThis as unknown as GlobalLike;
-        if (g?.dispatchEvent && g?.CustomEvent) {
-          g.dispatchEvent(new g.CustomEvent('chat-active-session-changed', { detail: { sessionId } }));
-        }
-      } catch { /* ignore */ }
+      dispatchGlobalEvent('chat-active-session-changed', { sessionId });
       await loadSessions();
     } catch (e) {
       logger.warn('Failed to switch/open session', e);
@@ -784,23 +931,11 @@ Respond as ${character.name} in character. Keep your response natural and conver
       const detail = anyEvt?.detail || {};
       if (detail.sessionId) setActiveSessionId(detail.sessionId);
     };
-    try {
-  interface GlobalLike { addEventListener?: (t: string, cb: (ev: unknown) => void) => void; }
-      const g = globalThis as unknown as GlobalLike;
-      if (g?.addEventListener) {
-        g.addEventListener('chat-sessions-updated', onSessionsUpdated);
-        g.addEventListener('chat-active-session-changed', onActiveChanged);
-      }
-    } catch { /* ignore */ }
+    addGlobalEventListener('chat-sessions-updated', onSessionsUpdated);
+    addGlobalEventListener('chat-active-session-changed', onActiveChanged);
     return () => {
-      try {
-  interface GlobalLike { removeEventListener?: (t: string, cb: (ev: unknown) => void) => void; }
-        const g = globalThis as unknown as GlobalLike;
-        if (g?.removeEventListener) {
-          g.removeEventListener('chat-sessions-updated', onSessionsUpdated);
-          g.removeEventListener('chat-active-session-changed', onActiveChanged);
-        }
-      } catch { /* ignore */ }
+      removeGlobalEventListener('chat-sessions-updated', onSessionsUpdated);
+      removeGlobalEventListener('chat-active-session-changed', onActiveChanged);
     };
   }, [loadSessions]);
 

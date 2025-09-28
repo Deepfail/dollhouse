@@ -312,7 +312,7 @@ export function GirlManagerSidebar({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#0c0c12] text-white">
-      <header className="border-b border-white/5 px-6 pb-4 pt-6 flex-shrink-0">
+      <header className="border-b border-white/5 px-4 pb-3 pt-4 flex-shrink-0 xl:px-6 xl:pb-4 xl:pt-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-[10px] uppercase tracking-[0.35em] text-white/40">Girl Manager</p>
@@ -345,7 +345,7 @@ export function GirlManagerSidebar({
         </div>
       </header>
 
-      <ScrollArea className="flex-1 min-h-0 px-6 py-5">
+  <ScrollArea className="flex-1 min-h-0 px-4 py-4 xl:px-6 xl:py-5">
         <div className="space-y-6">
           <section>
             <div className="flex items-center justify-between">
@@ -373,7 +373,7 @@ export function GirlManagerSidebar({
                 <button
                   key={idea}
                   onClick={() => setDraft(idea)}
-                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-xs text-white/70 transition hover:border-[#ff1372]/40 hover:text-white"
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left text-xs text-white/70 transition hover:border-[#ff1372]/40 hover:text-white xl:px-4 xl:py-3"
                 >
                   {idea}
                 </button>
@@ -435,8 +435,8 @@ export function GirlManagerSidebar({
         </div>
       </ScrollArea>
 
-      <footer className="border-t border-white/5 px-6 py-4 flex-shrink-0">
-        <ScrollArea className="h-52 rounded-xl border border-white/10 bg-white/5 p-4">
+      <footer className="border-t border-white/5 px-4 py-4 flex-shrink-0 xl:px-6">
+        <ScrollArea className="h-40 rounded-xl border border-white/10 bg-white/5 p-3 xl:h-52 xl:p-4">
           <div className="space-y-3">
             {messages.map((message) => (
               <div

@@ -1,55 +1,32 @@
-import { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useChat } from '@/hooks/useChat';
 import { useFileStorage } from '@/hooks/useFileStorage';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { fileStorage } from '@/lib/fileStorage';
 import { useQuickActions } from '@/hooks/useQuickActions';
-import { useChat } from '@/hooks/useChat';
 import { useSceneMode } from '@/hooks/useSceneMode';
-import { CopilotUpdate, ChatMessage } from '@/types';
 import { AIService } from '@/lib/aiService';
-import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
+import { fileStorage } from '@/lib/fileStorage';
+import { CopilotUpdate } from '@/types';
 import {
-  Robot,
-  Bell,
-  CheckCircle,
-  Warning as AlertTriangle,
-  Info,
-  Heart,
-  BatteryMedium as Battery,
-  Smiley as Smile,
-  Star,
-  Clock,
-  Key,
-  CheckCircle as Check,
-  XCircle as X,
-  PaperPlaneRight,
-  Chat,
-  House,
-  Bed,
-  ChartBar,
-  Lightning,
-  Shield,
-  Gift,
-  Trash,
-  Archive,
-  Notification,
-  Minus,
-  Plus,
-  Eye,
-  Gear as Settings,
-  User,
-  Users,
-  Sparkle,
-  MagnifyingGlass
+    Chat,
+    CheckCircle as Check,
+    House,
+    PaperPlaneRight,
+    Robot,
+    Gear as Settings,
+    Sparkle,
+    Trash,
+    User,
+    XCircle as X
 } from '@phosphor-icons/react';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 interface CopilotMessage {
   id: string;
@@ -550,8 +527,9 @@ Keep responses under 100 words and be helpful and engaging.`;
               <h4 className="font-medium">Recent Updates</h4>
             </div>
 
-            <ScrollArea className="flex-1 px-4">
-              <div className="space-y-2 pb-4">
+            <div className="flex-1 min-h-0">
+              <ScrollArea className="h-full px-4">
+                <div className="space-y-2 pb-4">
                 {safeUpdates.length === 0 ? (
                   <Card className="p-4 text-center bg-zinc-900 text-zinc-400 border-zinc-800">
                     <Robot size={24} className="mx-auto mb-2 opacity-50" />
@@ -601,7 +579,8 @@ Keep responses under 100 words and be helpful and engaging.`;
                     })
                 )}
               </div>
-            </ScrollArea>
+              </ScrollArea>
+            </div>
           </div>
 
           <Separator className="bg-zinc-800" />
@@ -634,8 +613,9 @@ Keep responses under 100 words and be helpful and engaging.`;
         <TabsContent value="chat" className="flex-1 flex flex-col mt-4 min-h-0">
           {/* Chat Messages */}
           <div className="flex-1 flex flex-col min-h-0">
-            <ScrollArea className="flex-1 px-4" ref={chatScrollRef}>
-              <div className="space-y-4 pb-4">
+            <div className="flex-1 min-h-0">
+              <ScrollArea className="h-full px-4" ref={chatScrollRef}>
+                <div className="space-y-4 pb-4">
                 {safeChatMessages.map(message => (
                   <div
                     key={message.id}
@@ -695,7 +675,8 @@ Keep responses under 100 words and be helpful and engaging.`;
 
                 <div ref={messagesEndRef} />
               </div>
-            </ScrollArea>
+              </ScrollArea>
+            </div>
           </div>
 
           {/* Input Area */}
