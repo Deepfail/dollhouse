@@ -1,40 +1,40 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  AlertDialog, 
-  AlertDialogAction, 
-  AlertDialogCancel, 
-  AlertDialogContent, 
-  AlertDialogDescription, 
-  AlertDialogFooter, 
-  AlertDialogHeader, 
-  AlertDialogTitle, 
-  AlertDialogTrigger 
-} from '@/components/ui/alert-dialog';
+import { useAutoCharacterCreator } from '@/hooks/useAutoCharacterCreator';
 import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { useAutoCharacterCreator } from '@/hooks/useAutoCharacterCreator';
 import { logger } from '@/lib/logger';
 import type { Character, ChatMessage, ChatSession } from '@/types';
 import {
-    ArrowRight,
-    ChatCircle,
-    ChatsCircle,
-    Star,
-    Users,
-    Trash,
-    Plus,
-    User,
-    UserCircle,
+  ArrowRight,
+  ChatCircle,
+  ChatsCircle,
+  Plus,
+  Star,
+  Trash,
+  User,
+  UserCircle,
+  Users,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { CharacterCard } from './CharacterCard';
 import { GirlManagerSidebar } from './GirlManagerSidebar';
 import { HouseSettings } from './HouseSettings';
-import { toast } from 'sonner';
 
 const EMPTY_STATE_TIPS = [
   'Use the Girl Manager to auto-create your first companion.',

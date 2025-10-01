@@ -1,13 +1,13 @@
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -20,31 +20,31 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  BookOpen,
-  ChartLineUp,
-  ChatsCircle,
-  Crown,
-  Download,
-  Drop,
-  Gift,
-  Heart,
-  House,
-  Image as ImageIcon,
-  Lightning,
-  ChatCircle as MessageCircle,
-  Pencil,
-  ShieldCheck,
-  Smiley as Smile,
-  Sparkle,
-  Star,
-  Trash,
-  TrendUp,
-  Trophy,
-  Users,
-  CurrencyDollar,
-  Code,
-  Brain,
-  IdentificationBadge,
+    BookOpen,
+    Brain,
+    ChartLineUp,
+    ChatsCircle,
+    Code,
+    Crown,
+    CurrencyDollar,
+    Download,
+    Drop,
+    Gift,
+    Heart,
+    House,
+    IdentificationBadge,
+    Image as ImageIcon,
+    Lightning,
+    ChatCircle as MessageCircle,
+    Pencil,
+    ShieldCheck,
+    Smiley as Smile,
+    Sparkle,
+    Star,
+    Trash,
+    TrendUp,
+    Trophy,
+    Users,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -56,10 +56,10 @@ import { useStorySystem } from '@/hooks/useStorySystem';
 import { AIService } from '@/lib/aiService';
 import { logger } from '@/lib/logger';
 import type {
-  Character,
-  RelationshipMilestone,
-  SexualMilestone,
-  StoryEntry,
+    Character,
+    RelationshipMilestone,
+    SexualMilestone,
+    StoryEntry,
 } from '@/types';
 
 interface GeneratedImage {
