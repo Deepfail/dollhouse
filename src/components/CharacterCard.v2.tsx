@@ -1,52 +1,53 @@
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import {
-    BookOpen,
-    Crown,
-    Download,
-    Drop,
-    Gift,
-    Heart,
-    House,
-    Image as ImageIcon,
-    Lightning,
-    ChatCircle as MessageCircle,
-    Pencil,
-    ShieldCheck,
-    Smiley as Smile,
-    Sparkle,
-    Star,
-    Trash,
-    TrendUp,
-    Trophy,
-    Users,
-    User,
-    CurrencyDollar,
-    Code,
+  BookOpen,
+  Crown,
+  Download,
+  Drop,
+  Gift,
+  Heart,
+  House,
+  Image as ImageIcon,
+  ChatCircle as MessageCircle,
+  Pencil,
+  Smiley as Smile,
+  Sparkle,
+  Star,
+  Trash,
+  TrendUp,
+  Trophy,
+  User,
+  CurrencyDollar,
+  Code,
 } from '@phosphor-icons/react';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useChat } from '@/hooks/useChat';
 import { useFileStorage } from '@/hooks/useFileStorage';
 import { useStorySystem } from '@/hooks/useStorySystem';
-import { Character, RelationshipMilestone, SexualMilestone, StoryEntry } from '@/types';
+import { Character, StoryEntry } from '@/types';
+import { toast } from 'sonner';
 
 interface GeneratedImage {
   id: string;
@@ -63,6 +64,7 @@ export interface CharacterCardProps {
   onGift?: (characterId: string) => void;
   onMove?: (characterId: string) => void;
   onEdit?: (character: Character) => void;
+  onSaveCharacter?: (characterId: string, updates: Partial<Character>) => Promise<boolean | void>;
   onDelete?: (characterId: string) => void;
   compact?: boolean;
   source?: string;
@@ -127,6 +129,7 @@ export function CharacterCard({
   onGift,
   onMove,
   onEdit,
+  onSaveCharacter,
   onDelete,
   compact = false,
   source = 'roster',
@@ -136,6 +139,91 @@ export function CharacterCard({
 }: CharacterCardProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
+  const profileDefaults = useMemo(
+    () => ({
+      name: character.name ?? '',
+      age: character.age != null ? String(character.age) : '',
+      description: character.description ?? '',
+      backstory: character.prompts?.background ?? '',
+      keywords: (character.features ?? []).join(', '),
+      avatar: character.avatar ?? '',
+    }),
+    [character],
+  );
+  const [profileDraft, setProfileDraft] = useState(profileDefaults);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  useEffect(() => {
+    setProfileDraft(profileDefaults);
+  }, [profileDefaults]);
+
+  const isProfileDirty = useMemo(
+    () =>
+      Object.keys(profileDefaults).some(
+        (key) => profileDefaults[key as keyof typeof profileDefaults] !== profileDraft[key as keyof typeof profileDraft],
+      ),
+    [profileDefaults, profileDraft],
+  );
+
+  const handleDraftChange = useCallback((field: keyof typeof profileDraft, value: string) => {
+    setProfileDraft((prev) => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleResetProfile = useCallback(() => {
+    setProfileDraft(profileDefaults);
+  }, [profileDefaults]);
+
+  const handleSaveProfile = useCallback(async () => {
+    if (!isProfileDirty) {
+      return;
+    }
+
+    const parsedAge = profileDraft.age.trim();
+    const ageNumber = parsedAge ? Number(parsedAge) : undefined;
+    if (parsedAge && Number.isNaN(ageNumber)) {
+      toast.error('Age must be a number');
+      return;
+    }
+
+    const keywords = profileDraft.keywords
+      .split(/[\n,]+/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    const prompts = character.prompts ?? { system: '', personality: '', background: '' };
+    const updates: Partial<Character> = {
+      name: profileDraft.name.trim(),
+      age: ageNumber,
+      description: profileDraft.description.trim(),
+      features: keywords,
+      avatar: profileDraft.avatar.trim() || undefined,
+      prompts: {
+        ...prompts,
+        background: profileDraft.backstory.trim(),
+      },
+    };
+
+    setIsSavingProfile(true);
+    try {
+      if (typeof onSaveCharacter === 'function') {
+        const result = await onSaveCharacter(character.id, updates);
+        if (result === false) {
+          throw new Error('save callback returned false');
+        }
+      } else if (typeof onEdit === 'function') {
+        onEdit({ ...character, ...updates });
+      } else {
+        toast.error('Saving is not available in this view yet.');
+        return;
+      }
+      toast.success('Character profile updated');
+    } catch (error) {
+      console.error('Failed to save character profile', error);
+      toast.error('Failed to update character profile');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }, [character, isProfileDirty, onEdit, onSaveCharacter, profileDraft]);
 
   const isDialogOpen = open ?? internalOpen;
   const handleOpenChange = (value: boolean) => {
@@ -146,7 +234,7 @@ export function CharacterCard({
   };
 
   const { sessions } = useChat();
-  const { getRecentStoryContext, analyzeEmotionalJourney } = useStorySystem();
+  const { analyzeEmotionalJourney } = useStorySystem();
   const { data: storedImages = [] } = useFileStorage<GeneratedImage[]>('generated-images.json', []);
 
   const stats = useMemo(() => {
@@ -219,26 +307,6 @@ export function CharacterCard({
     [storedImages, character.id],
   );
 
-  const milestoneSummary = useMemo(() => {
-    const relationshipMilestones = (progression.relationshipMilestones as RelationshipMilestone[]) ?? [];
-    const sexualMilestones = (progression.sexualMilestones as SexualMilestone[]) ?? [];
-    return {
-      relationship: {
-        achieved: relationshipMilestones.filter((m) => m.achieved).length,
-        total: relationshipMilestones.length,
-      },
-      sexual: {
-        achieved: sexualMilestones.filter((m) => m.achieved).length,
-        total: sexualMilestones.length,
-      },
-    };
-  }, [progression.relationshipMilestones, progression.sexualMilestones]);
-
-  const storySummary = useMemo(
-    () => getRecentStoryContext(character, 5),
-    [character, getRecentStoryContext],
-  );
-
   const emotionalJourney = useMemo(
     () => analyzeEmotionalJourney(character),
     [character, analyzeEmotionalJourney],
@@ -270,15 +338,6 @@ export function CharacterCard({
       icon: Drop,
     },
   ] as const;
-
-  const relationshipStats = [
-    { label: 'Affection', value: clamp(progression.affection, 0) },
-    { label: 'Trust', value: clamp(progression.trust, 0) },
-    { label: 'Intimacy', value: clamp(progression.intimacy, 0) },
-    { label: 'Dominance', value: clamp(progression.dominance, 50) },
-    { label: 'Jealousy', value: clamp(progression.jealousy, 0) },
-    { label: 'Possessiveness', value: clamp(progression.possessiveness, 0) },
-  ];
 
   const compatibilityStats = [
     { label: 'Overall', value: clamp(progression.sexualCompatibility.overall, 0) },
@@ -538,87 +597,138 @@ export function CharacterCard({
       <ScrollArea className="h-full">
         <div className="space-y-6 p-6">
           <Card className="border-none bg-white/5 text-white">
-            <div className="space-y-4 p-6">
-              <h3 className="text-lg font-semibold">Profile Snapshot</h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <h4 className="text-sm font-medium text-white/80">Personalities</h4>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {(character.personalities ?? []).length > 0 ? (
-                      character.personalities.map((trait) => (
-                        <Badge key={trait} variant="outline" className="bg-transparent text-xs text-white/70">
-                          {trait}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-sm text-white/50">No personality traits recorded yet.</span>
-                    )}
+            <div className="space-y-6 p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-lg font-semibold">Profile</h3>
+                  <Badge
+                    variant="outline"
+                    className={`${relationshipStatusColor(relationshipStatus)} border-white/15 bg-transparent text-[10px] capitalize`}
+                  >
+                    {relationshipStatus.replace(/_/g, ' ')}
+                  </Badge>
+                </div>
+                {source && source !== 'roster' ? (
+                  <Badge variant="outline" className="border-white/15 bg-white/5 text-xs uppercase tracking-wide text-white/70">
+                    Viewing from {source}
+                  </Badge>
+                ) : null}
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-[220px_1fr]">
+                <div className="flex flex-col items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 text-white/90">
+                  <Avatar className="h-32 w-32 rounded-3xl border border-white/10">
+                    <AvatarImage src={profileDraft.avatar} alt={profileDraft.name || character.name} />
+                    <AvatarFallback className="bg-white/10 text-2xl font-semibold">
+                      {(profileDraft.name || character.name || '?').slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="w-full space-y-2 text-sm">
+                    <Label htmlFor={`${character.id}-avatar`} className="text-xs uppercase tracking-[0.25em] text-white/50">
+                      Profile Picture URL
+                    </Label>
+                    <Input
+                      id={`${character.id}-avatar`}
+                      value={profileDraft.avatar}
+                      onChange={(event) => handleDraftChange('avatar', event.target.value)}
+                      placeholder="https://..."
+                      className="h-10 rounded-xl border-white/15 bg-white/5"
+                    />
                   </div>
                 </div>
-                <div>
-                  <h4 className="text-sm font-medium text-white/80">Features</h4>
-                  <p className="mt-2 text-sm text-white/60">
-                    {dots(character.features, 'No physical traits listed yet.')}
-                  </p>
-                </div>
-              </div>
-              {character.physicalStats && (
-                <div className="grid gap-3 text-sm text-white/60 sm:grid-cols-2">
-                  <div>Hair: <span className="text-white/80">{character.physicalStats.hairColor}</span></div>
-                  <div>Eyes: <span className="text-white/80">{character.physicalStats.eyeColor}</span></div>
-                  <div>Height: <span className="text-white/80">{character.physicalStats.height}</span></div>
-                  <div>Skin Tone: <span className="text-white/80">{character.physicalStats.skinTone}</span></div>
-                </div>
-              )}
-            </div>
-          </Card>
-
-          <Card className="border-none bg-white/5 text-white">
-            <div className="space-y-4 p-6">
-              <h3 className="text-lg font-semibold">Relationship Progress</h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-3">
-                  {relationshipStats.map(({ label, value }) => (
-                    <div key={label}>
-                      <div className="flex items-center justify-between text-sm text-white/70">
-                        <span>{label}</span>
-                        <span className="text-white/80">{value}%</span>
-                      </div>
-                      <Progress value={value} className="mt-1.5 h-2 bg-white/10" />
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <Label htmlFor={`${character.id}-name`} className="text-xs uppercase tracking-[0.25em] text-white/50">
+                        Name
+                      </Label>
+                      <Input
+                        id={`${character.id}-name`}
+                        value={profileDraft.name}
+                        onChange={(event) => handleDraftChange('name', event.target.value)}
+                        className="mt-1 h-10 rounded-xl border-white/15 bg-white/5"
+                      />
                     </div>
-                  ))}
-                </div>
-                <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-                  <div className="flex items-center justify-between">
-                    <span>Relationship Milestones</span>
-                    <span className="text-white/90">
-                      {milestoneSummary.relationship.achieved}/{milestoneSummary.relationship.total}
-                    </span>
+                    <div>
+                      <Label htmlFor={`${character.id}-age`} className="text-xs uppercase tracking-[0.25em] text-white/50">
+                        Age
+                      </Label>
+                      <Input
+                        id={`${character.id}-age`}
+                        type="number"
+                        min={0}
+                        value={profileDraft.age}
+                        onChange={(event) => handleDraftChange('age', event.target.value)}
+                        className="mt-1 h-10 rounded-xl border-white/15 bg-white/5"
+                      />
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span>Intimacy Milestones</span>
-                    <span className="text-white/90">
-                      {milestoneSummary.sexual.achieved}/{milestoneSummary.sexual.total}
-                    </span>
+
+                  <div>
+                    <Label htmlFor={`${character.id}-description`} className="text-xs uppercase tracking-[0.25em] text-white/50">
+                      Description
+                    </Label>
+                    <Textarea
+                      id={`${character.id}-description`}
+                      value={profileDraft.description}
+                      onChange={(event) => handleDraftChange('description', event.target.value)}
+                      className="mt-1 h-28 rounded-2xl border-white/15 bg-white/5 text-sm"
+                      placeholder="Who is she? What draws the player in?"
+                    />
                   </div>
-                  <div className="mt-4 rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-white/60">
-                    <h4 className="mb-1 flex items-center gap-2 text-sm font-medium text-white/80">
-                      <Lightning className="h-4 w-4 text-amber-300" />
-                      Unlocked Scenarios
-                    </h4>
-                    <p>{dots(progression.unlockedScenarios, 'No scenarios unlocked yet.')}</p>
+
+                  <div>
+                    <Label htmlFor={`${character.id}-backstory`} className="text-xs uppercase tracking-[0.25em] text-white/50">
+                      Backstory
+                    </Label>
+                    <Textarea
+                      id={`${character.id}-backstory`}
+                      value={profileDraft.backstory}
+                      onChange={(event) => handleDraftChange('backstory', event.target.value)}
+                      className="mt-1 h-32 rounded-2xl border-white/15 bg-white/5 text-sm"
+                      placeholder="Add context, history, and hooks for the AI."
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor={`${character.id}-keywords`} className="text-xs uppercase tracking-[0.25em] text-white/50">
+                      Keywords
+                    </Label>
+                    <Textarea
+                      id={`${character.id}-keywords`}
+                      value={profileDraft.keywords}
+                      onChange={(event) => handleDraftChange('keywords', event.target.value)}
+                      className="mt-1 h-24 rounded-2xl border-white/15 bg-white/5 text-sm"
+                      placeholder="comma or newline separated"
+                    />
                   </div>
                 </div>
               </div>
-            </div>
-          </Card>
 
-          <Card className="border-none bg-white/5 text-white">
-            <div className="space-y-4 p-6">
-              <h3 className="text-lg font-semibold">Story Context</h3>
-              <pre className="whitespace-pre-wrap text-sm leading-relaxed text-white/70">
-                {storySummary}
-              </pre>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+                <div className="text-xs uppercase tracking-[0.25em] text-white/40">
+                  {isProfileDirty ? 'Unsaved changes' : 'All changes saved'}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResetProfile}
+                    disabled={!isProfileDirty || isSavingProfile}
+                    className="rounded-full border-white/20 text-white/70 hover:text-white"
+                  >
+                    Reset
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveProfile}
+                    disabled={!isProfileDirty || isSavingProfile}
+                    className="rounded-full bg-[#ff1372] px-5 text-white hover:bg-[#ff1372]/85"
+                  >
+                    {isSavingProfile ? 'Saving…' : 'Save Profile'}
+                  </Button>
+                </div>
+              </div>
             </div>
           </Card>
         </div>
@@ -1018,7 +1128,7 @@ export function CharacterCard({
                   <label className="block text-white/80 font-medium mb-2">System Prompt</label>
                   <textarea 
                     className="w-full h-24 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm resize-none"
-                    defaultValue={character.system_prompt || `You are ${character.name}, a character with the following personality: ${character.personality}. Stay in character and respond naturally.`}
+                    defaultValue={character.prompts?.system || `You are ${character.name}, a character with the following personality: ${character.personality}. Stay in character and respond naturally.`}
                   />
                 </div>
                 
@@ -1034,7 +1144,7 @@ export function CharacterCard({
                   <label className="block text-white/80 font-medium mb-2">Background Context</label>
                   <textarea 
                     className="w-full h-20 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm resize-none"
-                    defaultValue={character.description || character.bio || 'Add background details here...'}
+                    defaultValue={character.description || character.prompts?.background || 'Add background details here...'}
                   />
                 </div>
 
@@ -1075,7 +1185,7 @@ export function CharacterCard({
 
   const dialogContent = (
     <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="w-full max-w-6xl overflow-hidden border border-white/10 bg-[#05050c] p-0 text-white">
+  <DialogContent className="w-full max-w-[1500px] overflow-hidden border border-white/10 bg-[#05050c] p-0 text-white sm:max-w-none lg:max-w-[1500px]">
         <DialogHeader className="sr-only">
           <DialogTitle>{character.name}</DialogTitle>
         </DialogHeader>
@@ -1085,28 +1195,32 @@ export function CharacterCard({
           </div>
           <div className="flex flex-col">
             <Tabs defaultValue="overview" className="flex h-full flex-col">
-              <TabsList className="grid grid-cols-6 gap-2 border-b border-white/10 bg-[#080814] p-4 pb-2">
-                <TabsTrigger value="overview" className="flex flex-col items-center gap-1 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+              <TabsList className="flex w-full flex-wrap gap-2 overflow-x-auto border-b border-white/10 bg-[#080814] p-4 pb-2">
+                <TabsTrigger value="overview" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
                   <Star className="h-4 w-4" />
                   Profile
                 </TabsTrigger>
-                <TabsTrigger value="stats" className="flex flex-col items-center gap-1 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+                <TabsTrigger value="stats" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
                   <TrendUp className="h-4 w-4" />
                   Stats
                 </TabsTrigger>
-                <TabsTrigger value="physical" className="flex flex-col items-center gap-1 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+                <TabsTrigger value="physical" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
                   <User className="h-4 w-4" />
                   Physical
                 </TabsTrigger>
-                <TabsTrigger value="value" className="flex flex-col items-center gap-1 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+                <TabsTrigger value="value" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
                   <CurrencyDollar className="h-4 w-4" />
                   Value
                 </TabsTrigger>
-                <TabsTrigger value="feed" className="flex flex-col items-center gap-1 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+                <TabsTrigger value="feed" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
                   <ImageIcon className="h-4 w-4" />
                   Feed
                 </TabsTrigger>
-                <TabsTrigger value="prompts" className="flex flex-col items-center gap-1 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+                <TabsTrigger value="memories" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+                  <BookOpen className="h-4 w-4" />
+                  Memories
+                </TabsTrigger>
+                <TabsTrigger value="prompts" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
                   <Code className="h-4 w-4" />
                   Prompts
                 </TabsTrigger>
@@ -1117,6 +1231,7 @@ export function CharacterCard({
                 {physicalTab}
                 {valueTab}
                 {feedTab}
+                {memoriesTab}
                 {promptsTab}
               </div>
             </Tabs>

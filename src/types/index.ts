@@ -385,6 +385,8 @@ export interface House {
   worldPrompt?: string;
   copilotPrompt?: string;
   copilotMaxTokens?: number;
+  copilotUseHouseContext?: boolean;
+  copilotContextDetail?: 'lite' | 'balanced' | 'detailed';
   
   // Auto character creator settings
   autoCreator: {

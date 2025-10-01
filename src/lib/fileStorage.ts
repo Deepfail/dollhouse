@@ -107,7 +107,7 @@ export class FileStorageSystem {
         currency: 1000,
         worldPrompt: 'Welcome to your Character Creator House!',
         copilotPrompt: 'You are a helpful House Manager AI.',
-        copilotMaxTokens: 75,
+  copilotMaxTokens: 75,
         autoCreator: {
           enabled: false,
           interval: 30,

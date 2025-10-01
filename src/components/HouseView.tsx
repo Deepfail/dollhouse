@@ -34,8 +34,8 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
     characters,
     isLoading,
     addCharacter,
-    removeCharacter,
-    updateCharacter,
+  removeCharacter,
+  updateCharacter,
     addRoom,
     removeRoom,
     assignCharacterToRoom,
@@ -273,6 +273,7 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
                           character={character}
                           onStartChat={onStartChat ?? (() => {})}
                           onDelete={handleDeleteCharacter}
+                          onSaveCharacter={(characterId, updates) => updateCharacter(characterId, updates)}
                           compact
                           source="houseview"
                         />
@@ -420,7 +421,9 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
               <select
                 className="w-full p-2 border rounded"
                 value={newRoomType}
-                onChange={e => setNewRoomType(e.target.value as any)}
+                onChange={(event) =>
+                  setNewRoomType(event.target.value === 'private' ? 'private' : 'shared')
+                }
               >
                 <option value="shared">Shared</option>
                 <option value="private">Private</option>

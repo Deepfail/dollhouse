@@ -2,6 +2,7 @@ import { AutoCharacterConfig, Character } from '@/types';
 import { AIService } from './aiService';
 import { aliProfileService } from './aliProfile';
 import { logger } from './logger';
+import { populateCharacterProfile } from './characterProfileBuilder';
 
 // Clean, minimal character generator that the app can use during runtime.
 // Purposefully small to avoid large prompt blobs and to be resilient when AI fails.
@@ -30,78 +31,67 @@ function determineRarity(weights: { common: number; rare: number; legendary: num
   return 'legendary' as const;
 }
 
-export async function generateRandomCharacter(config: AutoCharacterConfig, _house?: unknown): Promise<Character> {
-  const cfg = config ?? ({ themes: ['default'], rarityWeights: { common: 70, rare: 25, legendary: 5 } } as AutoCharacterConfig);
-  const id = generateUniqueCharacterId();
-  const type = cfg.themes?.[0] ?? 'default';
+export interface CharacterGenerationOptions {
+  request?: string;
+  overrides?: Partial<Character>;
+  preserveProvidedFields?: boolean;
+}
 
-  // Basic fallback values
-  let name = getRandomElement(['Alex', 'Sam', 'Riley', 'Jordan']);
-  // mark param as used to avoid unused variable lint
-  void _house;
-
-  try {
-    const prompt = `Suggest a single first name for type=${type}. Return only the name.`;
-    const resp = await AIService.generateResponse(prompt, undefined, undefined, { temperature: 0.7, max_tokens: 8 });
-    const cleaned = cleanJsonResponse(resp ?? '');
-    if (cleaned) name = cleaned.replace(/["']/g, '').trim();
-  } catch (e) {
-    logger.warn('AI name generation failed, using fallback', e);
-  }
-
-  const rarity = determineRarity(cfg.rarityWeights ?? { common: 70, rare: 25, legendary: 5 });
-  const statsBase = rarity === 'common' ? 30 : rarity === 'rare' ? 55 : 75;
-
-  const character: Character = {
-    id,
-    name,
-    description: '',
-    personality: '',
-    appearance: '',
-    imageDescription: '',
-    physicalStats: { hairColor: 'brown', eyeColor: 'brown', height: "5'6\"", weight: '130 lbs', skinTone: 'fair' },
-  role: '',
-  job: '',
-    personalities: [],
-    features: [],
-    classes: [],
-    unlocks: [],
-    stats: {
-      love: statsBase,
-      happiness: statsBase,
-      wet: 50,
-      willing: 50,
+const createBaseCharacter = (overrides: Partial<Character>): Character => {
+  const now = new Date();
+  return {
+    id: overrides.id || generateUniqueCharacterId(),
+    name: overrides.name || 'Unnamed',
+    description: overrides.description || '',
+    personality: overrides.personality || '',
+    appearance: overrides.appearance || '',
+    avatar: overrides.avatar,
+    gender: overrides.gender,
+    age: overrides.age,
+    imageDescription: overrides.imageDescription || '',
+    role: overrides.role || '',
+    job: overrides.job,
+    personalities: overrides.personalities || [],
+    features: overrides.features || [],
+    classes: overrides.classes || [],
+    unlocks: overrides.unlocks || [],
+    roomId: overrides.roomId,
+    stats: overrides.stats || {
+      love: 50,
+      happiness: 50,
+      wet: 40,
+      willing: 45,
       selfEsteem: 50,
-      loyalty: statsBase,
+      loyalty: 45,
       fight: 20,
       stamina: 50,
-      pain: 50,
+      pain: 40,
       experience: 0,
       level: 1
     },
-    skills: { hands: 0, mouth: 0, missionary: 0, doggy: 0, cowgirl: 0 },
-    rarity,
-    specialAbility: undefined,
-    preferredRoomType: 'standard',
-    roomId: 'common-room',
-    prompts: { system: '', personality: '', background: '' },
-    conversationHistory: [],
-    memories: [],
-    preferences: {},
-    relationships: {},
-    progression: {
+    skills: overrides.skills || { hands: 25, mouth: 25, missionary: 25, doggy: 25, cowgirl: 25 },
+    rarity: overrides.rarity || 'common',
+    specialAbility: overrides.specialAbility,
+    preferredRoomType: overrides.preferredRoomType || 'standard',
+    prompts: overrides.prompts || { system: '', personality: '', background: '' },
+    physicalStats: overrides.physicalStats || { hairColor: '', eyeColor: '', height: '', weight: '', skinTone: '' },
+    conversationHistory: overrides.conversationHistory || [],
+    memories: overrides.memories || [],
+    preferences: overrides.preferences || {},
+    relationships: overrides.relationships || {},
+    progression: overrides.progression || {
       level: 1,
       nextLevelExp: 100,
       unlockedFeatures: [],
       achievements: [],
       relationshipStatus: 'stranger',
-      affection: 50,
-      trust: 50,
-      intimacy: 0,
+      affection: 45,
+      trust: 45,
+      intimacy: 10,
       dominance: 50,
       jealousy: 30,
-      possessiveness: 30,
-      sexualExperience: 0,
+      possessiveness: 35,
+      sexualExperience: 5,
       kinks: [],
       limits: [],
       fantasies: [],
@@ -119,12 +109,73 @@ export async function generateRandomCharacter(config: AutoCharacterConfig, _hous
       sexualCompatibility: { overall: 50, kinkAlignment: 50, stylePreference: 50 },
       userPreferences: { likes: [], dislikes: [], turnOns: [], turnOffs: [] }
     },
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    autoGenerated: true
-  } as unknown as Character;
+    lastInteraction: overrides.lastInteraction,
+    createdAt: overrides.createdAt || now,
+    updatedAt: overrides.updatedAt || now,
+    autoGenerated: overrides.autoGenerated ?? true
+  } as Character;
+};
 
-  return character;
+export async function generateRandomCharacter(
+  config: AutoCharacterConfig,
+  _house?: unknown,
+  options: CharacterGenerationOptions = {}
+): Promise<Character> {
+  const cfg = config ?? ({ themes: ['default'], rarityWeights: { common: 70, rare: 25, legendary: 5 } } as AutoCharacterConfig);
+  const id = generateUniqueCharacterId();
+  const type = cfg.themes?.[0] ?? 'default';
+
+  // Basic fallback values
+  let name = options.overrides?.name || getRandomElement(['Alex', 'Sam', 'Riley', 'Jordan']);
+  // mark param as used to avoid unused variable lint
+  void _house;
+
+  try {
+    const prompt = `Suggest a single first name for type=${type}. Return only the name.`;
+    const resp = await AIService.generateResponse(prompt, undefined, undefined, { temperature: 0.7, max_tokens: 8 });
+    const cleaned = cleanJsonResponse(resp ?? '');
+    if (cleaned) name = cleaned.replace(/["']/g, '').trim();
+  } catch (e) {
+    logger.warn('AI name generation failed, using fallback', e);
+  }
+
+  const rarity = determineRarity(cfg.rarityWeights ?? { common: 70, rare: 25, legendary: 5 });
+  const statsBase = rarity === 'common' ? 30 : rarity === 'rare' ? 55 : 75;
+
+  const baseCharacter = createBaseCharacter({
+    id,
+    name,
+    rarity,
+    stats: {
+      love: statsBase,
+      happiness: statsBase,
+      wet: 50,
+      willing: 50,
+      selfEsteem: 50,
+      loyalty: statsBase,
+      fight: 20,
+      stamina: 50,
+      pain: 50,
+      experience: 0,
+      level: 1
+    },
+    skills: { hands: 20, mouth: 20, missionary: 20, doggy: 20, cowgirl: 20 },
+    ...options.overrides
+  });
+
+  const request = options.request
+    || `Design a ${rarity} companion for the Digital Dollhouse. Theme focus: ${type}. Highlight ${cfg.personalities?.slice(0, 3).join(', ') || 'distinct personality traits'} and ensure she feels unique.`;
+
+  await populateCharacterProfile(baseCharacter, {
+    request,
+    name,
+    theme: type,
+    existing: options.overrides,
+    mode: options.preserveProvidedFields ? 'preserve' : 'replace'
+  });
+
+  baseCharacter.updatedAt = new Date();
+  return baseCharacter;
 }
 
 export async function generateCharactersByTheme(theme: string, count: number, _house?: unknown): Promise<Character[]> {
@@ -132,9 +183,27 @@ export async function generateCharactersByTheme(theme: string, count: number, _h
   const chars: Character[] = [];
   for (let i = 0; i < count; i++) {
     // generateRandomCharacter is intentionally run sequentially for simplicity
-    chars.push(await generateRandomCharacter(cfg, _house));
+    chars.push(await generateRandomCharacter(cfg, _house, { request: `Create a ${theme}-inspired companion for the Digital Dollhouse.` }));
   }
   return chars;
+}
+
+export async function generateCharacterFromPrompt(
+  request: string,
+  options: { overrides?: Partial<Character>; preserveProvidedFields?: boolean } = {}
+): Promise<Character> {
+  const cfg: AutoCharacterConfig = {
+    themes: ['custom'],
+    personalities: [],
+    roles: [],
+    rarityWeights: { common: 60, rare: 30, legendary: 10 }
+  } as AutoCharacterConfig;
+
+  return generateRandomCharacter(cfg, undefined, {
+    request,
+    overrides: options.overrides,
+    preserveProvidedFields: options.preserveProvidedFields ?? false
+  });
 }
 
 // Ali-specific dynamic generation

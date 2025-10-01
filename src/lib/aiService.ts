@@ -186,95 +186,375 @@ export class AIService {
   }
 
   // --- Copilot dedicated methods ---
-  static async copilotRespond(params: { threadId: string; messages: { role: 'system' | 'user' | 'assistant'; content: string }[]; sessionId?: string; characters?: any[] }): Promise<string> {
+  static async copilotRespond(params: {
+    threadId: string;
+    messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
+    sessionId?: string;
+    characters?: any[];
+    copilotPrompt?: string;
+    housePrompt?: string;
+    maxTokens?: number;
+    temperature?: number;
+    includeHouseContext?: boolean;
+    contextDetail?: 'lite' | 'balanced' | 'detailed';
+  }): Promise<string> {
     // For now we ignore threadId beyond potential future continuity usage
     const proc: any = (typeof globalThis !== 'undefined' && (globalThis as any).process) ? (globalThis as any).process : undefined;
-    // Merge persisted Wingman settings if present
-    let systemPrompt = (proc?.env?.COPILOT_SYSTEM_PROMPT)
+
+    const userPrompt = params.copilotPrompt?.trim();
+    const envPrompt = (proc?.env?.COPILOT_SYSTEM_PROMPT)
       || 'You are Wingman (the in-app developer/creative copilot) for Dollhouse. Be concise, context-aware, and tool-aware.';
-    try {
-      // Check if this is an interview session
-      const isInterview = params.sessionId && await AIService.isInterviewSession(params.sessionId);
-      if (isInterview) {
-        // Use interview prompt instead of Wingman settings
-        const interviewPrompt = await AIService.getInterviewPrompt();
-        if (interviewPrompt) {
-          systemPrompt = interviewPrompt;
+
+    const hasCustomPrompt = Boolean(userPrompt);
+    const includeContext = params.includeHouseContext ?? true;
+    let systemPrompt = userPrompt || envPrompt;
+  const promptAdditions: string[] = [];
+  const detailLevel: 'lite' | 'balanced' | 'detailed' = params.contextDetail ?? 'balanced';
+  const detailRank: Record<'lite' | 'balanced' | 'detailed', number> = { lite: 0, balanced: 1, detailed: 2 };
+  const allowDetail = (level: 'lite' | 'balanced' | 'detailed') => detailRank[detailLevel] >= detailRank[level];
+
+    const truncate = (value: unknown, max = 180): string => {
+      if (!value) return '';
+      const text = String(value).replace(/\s+/g, ' ').trim();
+      if (!text) return '';
+      return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+    };
+
+    const toList = (value: unknown): string[] => {
+      if (!value) return [];
+      if (Array.isArray(value)) return value.map((item) => String(item)).filter(Boolean);
+      if (typeof value === 'string') {
+        return value
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+      return [];
+    };
+
+    const formatList = (label: string, items: string[], limit = 5): string | null => {
+      if (!items.length) return null;
+      const sliced = items.slice(0, limit);
+      const suffix = items.length > limit ? '...' : '';
+      return `${label}: ${sliced.join(', ')}${suffix}`;
+    };
+
+    const formatStats = (label: string, stats: Record<string, unknown>, keys: string[]): string | null => {
+      if (!stats) return null;
+      const parts = keys
+        .map((key) => {
+          const value = stats[key];
+          if (typeof value !== 'number') return null;
+          return `${key}:${Math.round(value)}`;
+        })
+        .filter(Boolean) as string[];
+      if (!parts.length) return null;
+      return `${label}: ${parts.join(', ')}`;
+    };
+
+    const buildCharacterSummary = (char: any, index: number, level: 'lite' | 'balanced' | 'detailed'): string | null => {
+      if (!char || !char.name) return null;
+
+      const sections: string[] = [];
+      const headerDetails: string[] = [];
+      if (char.role) headerDetails.push(String(char.role));
+      if (char.gender) headerDetails.push(String(char.gender));
+      if (char.age) headerDetails.push(`age ${char.age}`);
+
+      const headerSuffix = headerDetails.length ? ` (${headerDetails.join(', ')})` : '';
+      sections.push(`${index + 1}. ${char.name}${headerSuffix}`);
+
+      const summaryLimit = level === 'lite' ? 140 : level === 'balanced' ? 200 : 220;
+      if (char.description) sections.push(`Summary: ${truncate(char.description, summaryLimit)}`);
+      if (allowDetail('balanced') && char.appearance) {
+        const appearanceLimit = level === 'detailed' ? 200 : 160;
+        sections.push(`Appearance: ${truncate(char.appearance, appearanceLimit)}`);
+      }
+
+      if (allowDetail('balanced')) {
+        const personalityTraits = toList(char.personalities);
+        if (char.personality) personalityTraits.unshift(String(char.personality));
+        const personalityLine = formatList('Personality', personalityTraits, level === 'detailed' ? 6 : 4);
+        if (personalityLine) sections.push(personalityLine);
+      }
+
+      if (allowDetail('detailed')) {
+        const featureLine = formatList('Features', toList(char.features));
+        if (featureLine) sections.push(featureLine);
+      }
+
+      if (allowDetail('detailed') && char.skills) {
+        const skillLine = formatStats('Skills', char.skills, ['hands', 'mouth', 'missionary', 'doggy', 'cowgirl']);
+        if (skillLine) sections.push(skillLine);
+      }
+
+      if (char.stats) {
+        const statKeys = level === 'detailed'
+          ? ['love', 'happiness', 'wet', 'willing', 'loyalty', 'fight']
+          : ['love', 'happiness'];
+        const label = level === 'lite' ? 'Mood' : 'Core stats';
+        const coreStats = formatStats(label, char.stats, statKeys);
+        if (coreStats) sections.push(coreStats);
+      }
+
+      const progression = char.progression || {};
+      if (allowDetail('balanced') && progression.relationshipStatus) {
+        const relationshipKeys = level === 'detailed'
+          ? ['affection', 'trust', 'intimacy', 'dominance', 'jealousy', 'possessiveness']
+          : ['affection', 'trust', 'intimacy'];
+        const relationshipStats = formatStats('Relationship', progression, relationshipKeys);
+        sections.push(`Status: ${String(progression.relationshipStatus)}`);
+        if (relationshipStats) sections.push(relationshipStats);
+      }
+
+      if (allowDetail('detailed') && typeof progression.sexualExperience === 'number') {
+        sections.push(`Sexual experience: ${Math.round(progression.sexualExperience)}`);
+      }
+
+      if (allowDetail('detailed')) {
+        const kinksLine = formatList('Kinks', toList(progression.kinks));
+        if (kinksLine) sections.push(kinksLine);
+        const limitsLine = formatList('Limits', toList(progression.limits));
+        if (limitsLine) sections.push(limitsLine);
+      }
+
+      if (allowDetail('balanced')) {
+        const preferences = progression.userPreferences || {};
+        const likesLine = formatList('Likes', toList(preferences.likes));
+        if (likesLine) sections.push(likesLine);
+        const dislikesLine = formatList('Dislikes', toList(preferences.dislikes));
+        if (dislikesLine) sections.push(dislikesLine);
+        if (allowDetail('detailed')) {
+          const turnOns = formatList('Turn ons', toList(preferences.turnOns));
+          if (turnOns) sections.push(turnOns);
+          const turnOffs = formatList('Turn offs', toList(preferences.turnOffs));
+          if (turnOffs) sections.push(turnOffs);
         }
-      } else {
-        // Deferred import to avoid circulars
-        const wingKey = 'wingman_settings';
-        let stored: string | null = null;
-        try {
-          const lsMod = await import('@/lib/legacyStorage');
-          stored = (lsMod as any).legacyStorage.getItem(wingKey);
-        } catch { /* ignore storage load error */ }
-        if (stored) {
-          const parsed = JSON.parse(stored || '{}');
-          if (parsed.systemPrompt) systemPrompt = parsed.systemPrompt;
-          const extras: string[] = Array.isArray(parsed.extraPrompts) ? parsed.extraPrompts : [];
-          if (extras.length) {
-            systemPrompt = [systemPrompt, ...extras].join('\n');
+      }
+
+      if (allowDetail('detailed') && char.prompts) {
+        if (char.prompts.personality) sections.push(`Prompt - personality: ${truncate(char.prompts.personality, 200)}`);
+        if (char.prompts.background) sections.push(`Prompt - background: ${truncate(char.prompts.background, 200)}`);
+      }
+
+      if (allowDetail('detailed')) {
+        const memories = Array.isArray(char.memories) ? char.memories : [];
+        const notableMemories = memories
+          .filter((memory: any) => memory && (memory.importance === 'high' || memory.importance === 'medium'))
+          .slice(-3)
+          .map((memory: any) => `${memory.importance || 'low'}: ${truncate(memory.content, 150)}`);
+        if (notableMemories.length) {
+          sections.push(`Key memories: ${notableMemories.join(' | ')}`);
+        }
+
+        if (progression.significantEvents && Array.isArray(progression.significantEvents)) {
+          const significant = progression.significantEvents.slice(-2).map((event: any) => `${event.type || 'event'}: ${truncate(event.description, 140)}`);
+          if (significant.length) {
+            sections.push(`Recent events: ${significant.join(' | ')}`);
           }
         }
       }
-    } catch (e) {
-      logger.warn('Failed to load system prompt settings', e);
-    }
 
-    // Add user assessment from Ali profile
-    try {
-      const aliMod = await import('@/lib/aliProfile');
-      const assessment = await aliMod.aliProfileService.getUserAssessment();
-      if (assessment && assessment !== 'Unknown preferences') {
-        systemPrompt += `\n\nUser Assessment: ${assessment}`;
+      if (allowDetail('detailed')) {
+        const conversationHistory = Array.isArray(char.conversationHistory) ? char.conversationHistory : [];
+        if (conversationHistory.length) {
+          const recentMessages = conversationHistory
+            .slice(-3)
+            .map((msg: any) => {
+              if (!msg || !msg.content) return null;
+              const speaker = msg.characterId ? char.name : 'User';
+              return `${speaker}: ${truncate(msg.content, 140)}`;
+            })
+            .filter(Boolean) as string[];
+          if (recentMessages.length) {
+            sections.push(`Recent chats: ${recentMessages.join(' | ')}`);
+          }
+        }
       }
-    } catch (e) {
-      logger.warn('Failed to load user assessment for Wingman', e);
-    }
 
-    // Add character information from the house
-    if (params.characters && params.characters.length > 0) {
-      systemPrompt += `\n\nCharacters in the House:\n`;
-      params.characters.forEach((char: any, index: number) => {
-        systemPrompt += `${index + 1}. ${char.name} - ${char.description || 'No description'}\n`;
-        if (char.role) systemPrompt += `   Role: ${char.role}\n`;
-        if (char.personality) systemPrompt += `   Personality: ${char.personality}\n`;
-        if (char.appearance) systemPrompt += `   Appearance: ${char.appearance}\n`;
-        if (char.age) systemPrompt += `   Age: ${char.age}\n`;
-        systemPrompt += `\n`;
-      });
-      systemPrompt += `When referring to characters, use their actual names and details from above. Do not make up characters that don't exist in this list.`;
-    }
-
-    // Add escalation and banter instructions
-    systemPrompt += `\n\nInteraction Style: Engage in playful, exploratory, tempting banter. If user says no but shows interest, keep going playfully. If user gets violent, egg them on. Escalate if they're enjoying. Vary organic dialogue.`;
-
-    // Prefer configured OpenRouter model unless overridden via env var for copilot
-  let model = (proc?.env?.OPENROUTER_MODEL || proc?.env?.COPILOT_MODEL) || 'openai/gpt-4.1-mini';
-    let cfgForCopilot: { provider: string; apiKey: string; model: string } | null = null;
-    try {
-      cfgForCopilot = await AIService.getApiConfig() as any;
-      if (cfgForCopilot?.provider === 'openrouter' && cfgForCopilot.model) {
-        model = cfgForCopilot.model;
+      if (allowDetail('balanced') && char.behaviorProfile && char.behaviorProfile.summary) {
+        const label = level === 'lite' ? 'Vibe check' : 'Behavior summary';
+        sections.push(`${label}: ${truncate(char.behaviorProfile.summary, 160)}`);
       }
-    } catch {/* ignore config fallbacks */}
 
-    let apiKey = (proc?.env?.OPENROUTER_API_KEY) || '';
-    if (!apiKey && cfgForCopilot?.provider === 'openrouter') {
-      apiKey = cfgForCopilot.apiKey || '';
+      if (allowDetail('detailed') && char.progression && Array.isArray(char.progression.memorableEvents)) {
+        const moments = char.progression.memorableEvents.slice(-2).map((event: any) => truncate(event.description, 120));
+        if (moments.length) {
+          sections.push(`Memorable moments: ${moments.join(' | ')}`);
+        }
+      }
+
+      return sections.join('\n');
+    };
+
+    if (!hasCustomPrompt) {
+      try {
+        const isInterview = params.sessionId && await AIService.isInterviewSession(params.sessionId);
+        if (isInterview) {
+          const interviewPrompt = await AIService.getInterviewPrompt();
+          if (interviewPrompt) {
+            systemPrompt = interviewPrompt;
+          }
+        } else {
+          const wingKey = 'wingman_settings';
+          let stored: string | null = null;
+          try {
+            const lsMod = await import('@/lib/legacyStorage');
+            stored = (lsMod as any).legacyStorage.getItem(wingKey);
+          } catch { /* ignore storage load error */ }
+
+          if (stored) {
+            const parsed = JSON.parse(stored || '{}');
+            if (parsed.systemPrompt) {
+              systemPrompt = parsed.systemPrompt;
+            }
+            const extras: string[] = Array.isArray(parsed.extraPrompts) ? parsed.extraPrompts : [];
+            if (extras.length) {
+              promptAdditions.push(...extras);
+            }
+          }
+        }
+      } catch (e) {
+        logger.warn('Failed to load system prompt settings', e);
+      }
+
+      if (includeContext && params.housePrompt?.trim()) {
+        promptAdditions.push(`House Context: ${params.housePrompt.trim()}`);
+      }
+
+      if (includeContext) {
+        try {
+          const aliMod = await import('@/lib/aliProfile');
+          const assessment = await aliMod.aliProfileService.getUserAssessment();
+          if (assessment && assessment !== 'Unknown preferences') {
+            promptAdditions.push(`User Assessment: ${assessment}`);
+          }
+        } catch (e) {
+          logger.warn('Failed to load user assessment for Wingman', e);
+        }
+      }
+
+      if (includeContext && params.characters && params.characters.length > 0) {
+        const characterSummaries = params.characters
+          .map((char: any, index: number) => buildCharacterSummary(char, index, detailLevel))
+          .filter(Boolean) as string[];
+        if (characterSummaries.length) {
+          const rosterLabel = detailLevel === 'lite'
+            ? 'House Roster (friend mode):'
+            : detailLevel === 'balanced'
+              ? 'House Roster (balanced):'
+              : 'House Roster (analyst mode):';
+          const rosterPrompt = [rosterLabel, ...characterSummaries, 'Reference these characters exactly as described. Offer guidance about them but never impersonate them or invent new roster members.'].join('\n\n');
+          promptAdditions.push(rosterPrompt);
+        }
+      }
+
+      promptAdditions.push(
+        'Wingman Ground Rules:\n'
+        + '- Stay in your Wingman persona. You are the user\'s creative copilot, not an in-world character.\n'
+        + '- Respond in first-person as the assistant (e.g., "I can help you").\n'
+        + '- When the user asks about characters, describe options, plans, or next steps instead of roleplaying them.\n'
+        + '- Keep the tone collaborative, insightful, and actionable. Provide clear suggestions or follow-up questions.\n'
+        + '- If the user requests roleplay, politely redirect them to start a chat with the character instead.'
+      );
+    } else {
+      if (includeContext && params.housePrompt?.trim()) {
+        promptAdditions.push(`House Context: ${params.housePrompt.trim()}`);
+      }
+
+      if (includeContext && params.characters && params.characters.length > 0) {
+        const characterSummaries = params.characters
+          .map((char: any, index: number) => buildCharacterSummary(char, index, detailLevel))
+          .filter(Boolean) as string[];
+        if (characterSummaries.length) {
+          const rosterLabel = detailLevel === 'lite'
+            ? 'Current House Roster (friend mode):'
+            : detailLevel === 'balanced'
+              ? 'Current House Roster (balanced):'
+              : 'Current House Roster (analyst mode):';
+          const rosterPrompt = [rosterLabel, ...characterSummaries, 'Use only the characters listed above. Do not invent new house members.'].join('\n\n');
+          promptAdditions.push(rosterPrompt);
+        }
+      }
     }
+
+    systemPrompt = [systemPrompt, ...promptAdditions].join('\n\n');
+
+    const maxTokens = Number.isFinite(params.maxTokens) ? Math.max(1, Math.min(Math.floor(params.maxTokens as number), 4000)) : 512;
+    const temperature = typeof params.temperature === 'number' ? params.temperature : 0.2;
+
+    // Load configuration and resolve provider/model/api key
+    let cfgForCopilot: { provider?: string; apiKey?: string; model?: string; apiUrl?: string } | null = null;
+    try {
+      cfgForCopilot = (await AIService.getApiConfig()) as any;
+    } catch {
+      cfgForCopilot = null;
+    }
+
+    const provider: 'openrouter' | 'venice' = cfgForCopilot?.provider === 'venice' ? 'venice' : 'openrouter';
+    const envCopilotModel = proc?.env?.COPILOT_MODEL;
+    const envOpenRouterModel = proc?.env?.OPENROUTER_MODEL;
+    const envVeniceModel = proc?.env?.VENICE_COPILOT_MODEL || proc?.env?.VENICE_MODEL;
+
+    const model = provider === 'venice'
+      ? (cfgForCopilot?.model || envVeniceModel || 'llama-3.3-70b')
+      : (envOpenRouterModel || envCopilotModel || cfgForCopilot?.model || 'openai/gpt-4.1-mini');
+
+    const apiUrl = provider === 'venice' ? (cfgForCopilot?.apiUrl || '') : '';
+
+    let apiKey = '';
+    if (provider === 'venice') {
+      apiKey = proc?.env?.VENICE_API_KEY || proc?.env?.VENICE_TEXT_API_KEY || cfgForCopilot?.apiKey || '';
+    } else {
+      apiKey = proc?.env?.OPENROUTER_API_KEY || cfgForCopilot?.apiKey || '';
+    }
+
     if (!apiKey) {
       logger.warn('copilotRespond: no API key (env or stored config)');
       const last = params.messages[params.messages.length - 1];
       return AIService.generateAssistantReply('[no api key] ' + (last?.content || ''));
     }
 
-    const body = {
-      model,
-      messages: [ { role: 'system', content: systemPrompt }, ...params.messages ],
-      temperature: 0.2,
-    };
+    const payloadMessages = [{ role: 'system', content: systemPrompt }, ...params.messages];
+
+    if (provider === 'venice') {
+      const veniceHeaders: Record<string, string> = {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      };
+      try {
+        const ref = typeof globalThis !== 'undefined' && (globalThis as any)?.location?.origin ? (globalThis as any).location.origin : 'http://localhost';
+        if (ref) veniceHeaders['HTTP-Referer'] = ref;
+      } catch { /* ignore */ }
+
+      const veniceBody = {
+        model,
+        messages: payloadMessages,
+        temperature,
+        max_tokens: maxTokens,
+        top_p: 0.9,
+      };
+
+      const baseUrl = apiUrl || 'https://api.venice.ai/api/v1';
+      try {
+        const res = await safeFetch(`${baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: veniceHeaders,
+          body: JSON.stringify(veniceBody),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(`Venice error ${res.status}: ${text.slice(0, 200)}`);
+        }
+        const data = await res.json();
+        const content = data?.choices?.[0]?.message?.content;
+        return typeof content === 'string' ? content : '';
+      } catch (e) {
+        logger.error('copilotRespond Venice call failed; falling back to generateAssistantReply', e);
+        const last = params.messages[params.messages.length - 1];
+        return AIService.generateAssistantReply(last?.content || '');
+      }
+    }
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${apiKey}`,
@@ -290,7 +570,12 @@ export class AIService {
       const res = await safeFetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers,
-        body: JSON.stringify(body)
+        body: JSON.stringify({
+          model,
+          messages: payloadMessages,
+          temperature,
+          max_tokens: maxTokens,
+        })
       });
       if (!res.ok) {
         const text = await res.text().catch(() => '');
@@ -300,9 +585,9 @@ export class AIService {
       const content = data?.choices?.[0]?.message?.content;
       return typeof content === 'string' ? content : '';
     } catch (e) {
-      logger.error('copilotRespond failed; falling back to generateAssistantReply', e);
-  const last2 = params.messages[params.messages.length - 1];
-  return AIService.generateAssistantReply(last2?.content || '');
+      logger.error('copilotRespond OpenRouter call failed; falling back to generateAssistantReply', e);
+      const last2 = params.messages[params.messages.length - 1];
+      return AIService.generateAssistantReply(last2?.content || '');
     }
   }
 

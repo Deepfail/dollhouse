@@ -14,6 +14,7 @@ import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { AIService } from '@/lib/aiService';
 import { logger } from '@/lib/logger';
 import { Character } from '@/types';
+import { populateCharacterProfile } from '@/lib/characterProfileBuilder';
 import {
     Image as ImageIcon,
     Plus,
@@ -193,7 +194,14 @@ export function CharacterCreator({ open = false, onOpenChange, character }: Char
         updatedAt: now,
       };
 
-      await createCharacter(newCharacter);
+      const enrichedCharacter = await populateCharacterProfile(newCharacter, {
+        request: `Keep these canon facts: role ${newCharacter.role || 'companion'}, personality ${newCharacter.personality}, description ${newCharacter.description}, appearance ${newCharacter.appearance}. Generate cohesive prompts that keep her voice consistent and expand her backstory slightly.`,
+        name: newCharacter.name,
+        existing: newCharacter,
+        mode: 'preserve'
+      });
+
+      await createCharacter(enrichedCharacter);
 
       // Reset form and close dialog
       setName('');

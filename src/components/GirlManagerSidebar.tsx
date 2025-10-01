@@ -436,6 +436,10 @@ export function GirlManagerSidebar({
             messages: formatted,
             sessionId,
             characters,
+            copilotPrompt: house?.copilotPrompt,
+            housePrompt: house?.worldPrompt,
+            includeHouseContext: house?.copilotUseHouseContext ?? true,
+            contextDetail: house?.copilotContextDetail ?? 'balanced',
           });
         } else if (typeof AIService.generateAssistantReply === 'function') {
           reply = await AIService.generateAssistantReply(trimmed);
@@ -457,6 +461,10 @@ export function GirlManagerSidebar({
     refreshMessages,
     sendMessage,
     characters,
+    house?.copilotPrompt,
+    house?.worldPrompt,
+    house?.copilotUseHouseContext,
+    house?.copilotContextDetail,
     setActiveTab,
   ]);
 

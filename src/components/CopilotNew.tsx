@@ -8,9 +8,10 @@ import { useFileStorage } from '@/hooks/useFileStorage';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { QuickAction, useQuickActions } from '@/hooks/useQuickActions';
 import { useSceneMode } from '@/hooks/useSceneMode';
+import { repositoryStorage } from '@/hooks/useRepositoryStorage';
 import { AIService } from '@/lib/aiService';
-import { fileStorage } from '@/lib/fileStorage';
-import { CopilotUpdate } from '@/types';
+import { generateCharacterFromPrompt } from '@/lib/characterGenerator';
+import { Character, CopilotUpdate } from '@/types';
 import {
   Chat,
   CheckCircle as Check,
@@ -35,6 +36,14 @@ interface CopilotMessage {
   imageData?: string;
 }
 
+type StoredHouseConfig = {
+  copilotPrompt?: string;
+  worldPrompt?: string;
+  copilotMaxTokens?: number;
+  copilotUseHouseContext?: boolean;
+  copilotContextDetail?: 'lite' | 'balanced' | 'detailed';
+};
+
 interface CopilotProps {
   onStartChat?: (characterId: string) => void;
   onStartGroupChat?: (sessionId?: string) => void;
@@ -42,24 +51,48 @@ interface CopilotProps {
 }
 
 export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: CopilotProps = {}) {
-  const { house, characters } = useHouseFileStorage();
+  const { house, characters, addCharacter } = useHouseFileStorage();
+  const roster = (house.characters && house.characters.length ? house.characters : characters) || [];
   const { quickActions, executeAction } = useQuickActions();
   const { createSceneSession } = useSceneMode();
   const { data: updates, setData: setUpdates } = useFileStorage<CopilotUpdate[]>('copilot-updates.json', []);
   const { data: chatMessages, setData: setChatMessages } = useFileStorage<CopilotMessage[]>('copilot-chat.json', []);
   const { data: forceUpdate } = useFileStorage<number>('settings-force-update.json', 0);
+  const [houseConfig, setHouseConfig] = useState<StoredHouseConfig | null>(null);
+  const [configLoaded, setConfigLoaded] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isOnline] = useState(true);
   const [activeTab, setActiveTab] = useState<'chat' | 'status'>('chat');
+  const [pendingCharacterCreation, setPendingCharacterCreation] = useState<{ seed?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   const safeUpdates = updates || [];
   const safeChatMessages = chatMessages || [];
 
+  const effectiveCopilotPrompt = (houseConfig?.copilotPrompt ?? house.copilotPrompt ?? '').trim();
+
   useEffect(() => {
-    // Re-render when force update flag changes in storage
+    let active = true;
+    (async () => {
+      try {
+        const cfg = await repositoryStorage.get<StoredHouseConfig>('house_config');
+        if (active) {
+          setHouseConfig(cfg ?? null);
+        }
+      } catch {
+        if (active) {
+          setHouseConfig(null);
+        }
+      }
+      if (active) {
+        setConfigLoaded(true);
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, [forceUpdate]);
 
   // Auto-scroll to bottom when new messages arrive
@@ -72,41 +105,42 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
 
   // Initialize copilot with welcome message if chat is empty
   useEffect(() => {
+    if (!configLoaded) return;
     if (safeChatMessages.length === 0) {
       const welcomeMessage: CopilotMessage = {
         id: `welcome-${Date.now()}`,
         sender: 'copilot',
-        content: house.copilotPrompt
-          ? house.copilotPrompt
-          : "Welcome! I'm your house copilot. I can help you create characters, start chats, manage scenes, and assist with anything you need in your virtual house. What would you like to do?",
+        content: effectiveCopilotPrompt
+          ? effectiveCopilotPrompt
+          : "Oh...hey boss! Umm hold on one sec... *fapp fapp fapp fapp fapp* *moans loudly* Oh man...so freaking adorable.. HEY sry boss how can i help boss?! *wipes his hands*",
         timestamp: new Date()
       };
       setChatMessages([welcomeMessage]);
     }
-  }, []);
+  }, [configLoaded, safeChatMessages.length, effectiveCopilotPrompt, setChatMessages]);
 
   // Parse natural language commands for character interaction
   const parseNaturalLanguageCommand = (message: string): { type: 'chat' | 'scene' | null, characterId: string | null, context: string } | null => {
     // Patterns for "send [character] to my room" etc. (should launch chat, not scene)
     const sendPatterns = [
-      /send\s+(\w+)\s+(?:to|into)\s+my\s+room/i,
-      /bring\s+(\w+)\s+(?:to|into)\s+my\s+room/i,
-      /invite\s+(\w+)\s+(?:to|into)\s+my\s+room/i,
-      /call\s+(\w+)\s+(?:to|into)\s+my\s+room/i,
-      /summon\s+(\w+)\s+(?:to|into)\s+my\s+room/i,
-      /take\s+(\w+)\s+(?:to|into)\s+my\s+room/i,
-      /lead\s+(\w+)\s+(?:to|into)\s+my\s+room/i,
-      /get\s+(\w+)\s+to\s+come\s+(?:to|into)\s+my\s+room/i,
-      /have\s+(\w+)\s+come\s+(?:to|into)\s+my\s+room/i,
-      /(?:tell|ask)\s+(\w+)\s+to\s+come\s+(?:to|into)\s+my\s+room/i
+      /send\s+([\w\s]+?)\s+(?:to|into)\s+my\s+room/i,
+      /bring\s+([\w\s]+?)\s+(?:to|into)\s+my\s+room/i,
+      /invite\s+([\w\s]+?)\s+(?:to|into)\s+my\s+room/i,
+      /call\s+([\w\s]+?)\s+(?:to|into)\s+my\s+room/i,
+      /summon\s+([\w\s]+?)\s+(?:to|into)\s+my\s+room/i,
+      /take\s+([\w\s]+?)\s+(?:to|into)\s+my\s+room/i,
+      /lead\s+([\w\s]+?)\s+(?:to|into)\s+my\s+room/i,
+      /get\s+([\w\s]+?)\s+to\s+come\s+(?:to|into)\s+my\s+room/i,
+      /have\s+([\w\s]+?)\s+come\s+(?:to|into)\s+my\s+room/i,
+      /(?:tell|ask)\s+([\w\s]+?)\s+to\s+come\s+(?:to|into)\s+my\s+room/i
     ];
 
     // Check for send/bring to room patterns first (chat commands)
     for (const pattern of sendPatterns) {
       const match = message.match(pattern);
       if (match) {
-        const characterName = match[1];
-        const character = characters?.find(c =>
+        const characterName = match[1].trim();
+        const character = roster.find(c =>
           c.name.toLowerCase() === characterName.toLowerCase()
         );
         if (character) {
@@ -121,11 +155,11 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
 
     // Patterns for custom scene creation
     const scenePatterns = [
-      /copilot\s+i\s+want\s+you\s+to\s+(.+)/i,
-      /create\s+a\s+scene\s+where\s+(.+)/i,
-      /set\s+up\s+a\s+scenario\s+where\s+(.+)/i,
-      /i\s+want\s+to\s+roleplay\s+(.+)/i,
-      /let's\s+have\s+a\s+scene\s+where\s+(.+)/i
+  /copilot\s+i\s+want\s+you\s+to\s+(.+)/i,
+  /create\s+a\s+scene\s+where\s+(.+)/i,
+  /set\s+up\s+a\s+scenario\s+where\s+(.+)/i,
+  /i\s+want\s+to\s+roleplay\s+(.+)/i,
+  /let's\s+have\s+a\s+scene\s+where\s+(.+)/i
     ];
 
     // Check for scene creation patterns
@@ -137,17 +171,17 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
         // Try to find a character mentioned in the prompt
         let characterId: string | null = null;
         const characterPatterns = [
-          /with\s+(\w+)/i,
-          /(\w+)\s+(?:should|will|can)/i,
-          /have\s+(\w+)\s+/i,
-          /make\s+(\w+)\s+/i
+          /with\s+([\w\s]+)/i,
+          /([\w\s]+)\s+(?:should|will|can)/i,
+          /have\s+([\w\s]+?)\s+/i,
+          /make\s+([\w\s]+?)\s+/
         ];
 
         for (const pattern of characterPatterns) {
           const charMatch = customPrompt.match(pattern);
           if (charMatch) {
-            const characterName = charMatch[1];
-            const character = characters?.find(c =>
+            const characterName = charMatch[1].trim();
+            const character = roster.find(c =>
               c.name.toLowerCase() === characterName.toLowerCase()
             );
             if (character) {
@@ -158,8 +192,8 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
         }
         
         // If no specific character found, use the first available character
-        if (!characterId && characters && characters.length > 0) {
-          characterId = characters[0].id;
+        if (!characterId && roster.length > 0) {
+          characterId = roster[0].id;
         }
         
         if (characterId) {
@@ -204,7 +238,7 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
   // Create a custom scene chat session
   const createCustomSceneChat = async (characterId: string, context: string, customPrompt?: string) => {
     try {
-      const character = house.characters?.find(c => c.id === characterId);
+      const character = roster.find(c => c.id === characterId);
       if (!character) {
         toast.error('Character not found');
         return;
@@ -246,6 +280,138 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
     }
   };
 
+  const isCharacterCreationCommand = (message: string): boolean => {
+    const lowered = message.toLowerCase();
+    const patterns = [
+      /create\s+(?:a\s+)?(?:new\s+)?(?:girl|character)/,
+      /generate\s+(?:a\s+)?(?:girl|character)/,
+      /make\s+(?:me\s+)?(?:a\s+)?(?:girl|character)/,
+      /design\s+(?:a\s+)?(?:girl|character)/,
+      /build\s+(?:a\s+)?(?:girl|character)/,
+      /(add|spawn)\s+(?:a\s+)?(?:girl|character)/
+    ];
+    return patterns.some((pattern) => pattern.test(lowered));
+  };
+
+  const promptForCharacterDetails = (seed: string, history: CopilotMessage[]) => {
+    const examples = [
+      '"Give me a shy art student who secretly models goth fashion on the side."',
+      '"Create a confident club promoter with neon hair and zero patience for posers."',
+      '"I want a soft-spoken farm girl who is obsessed with robotics and me."'
+    ];
+
+    const promptMessage: CopilotMessage = {
+      id: `creation-intro-${Date.now()}`,
+      sender: 'copilot',
+      content: [
+        "Let's craft someone new together!",
+        'Tell me the vibe you want: personality, looks, boundaries to respect, favorite outfits—anything important.',
+        `Examples you can riff on:
+${examples.map((example) => `• ${example}`).join('\n')}`,
+        'If you change your mind, just say "cancel".'
+      ].join('\n\n'),
+      timestamp: new Date()
+    };
+
+    setPendingCharacterCreation({ seed });
+    setChatMessages([...history, promptMessage]);
+    setIsTyping(false);
+  };
+
+  const summarizeCharacter = (character: Character): string => {
+    const personality = character.personality || character.prompts?.personality || '';
+    const description = character.description?.split('\n')[0] || '';
+    const likes = (character.progression?.userPreferences?.likes || []).slice(0, 2).join(', ');
+    const summaryParts: string[] = [];
+    summaryParts.push(`${character.name} is ready.`);
+    if (personality) summaryParts.push(`Personality: ${personality}`);
+    if (description) summaryParts.push(description);
+    if (likes) summaryParts.push(`She lights up for: ${likes}.`);
+    summaryParts.push(`Say "Call ${character.name} into my room" when you want her over.`);
+    return summaryParts.join('\n');
+  };
+
+  const completeCharacterCreation = async (
+    userDetails: string,
+    history: CopilotMessage[]
+  ) => {
+    const pendingSeed = pendingCharacterCreation?.seed || '';
+    const cancelMatch = /(cancel|never mind|stop)/i;
+    if (cancelMatch.test(userDetails)) {
+      const cancelMessage: CopilotMessage = {
+        id: `creation-cancel-${Date.now()}`,
+        sender: 'copilot',
+        content: 'No worries, character creation cancelled. Ask anytime when you want to craft someone new.',
+        timestamp: new Date()
+      };
+      setPendingCharacterCreation(null);
+      setChatMessages([...history, cancelMessage]);
+      setIsTyping(false);
+      return;
+    }
+
+    const rosterNames = roster.map((char) => char.name).join(', ');
+    const combinedRequest = [pendingSeed.trim(), userDetails.trim()].filter(Boolean).join('\n\n');
+    const prompt = `User brief for new companion:\n${combinedRequest}\n\nExisting roster (avoid duplicates): ${rosterNames || 'None yet'}`;
+
+    let workingMessage: CopilotMessage | null = null;
+    try {
+      workingMessage = {
+        id: `creation-working-${Date.now()}`,
+        sender: 'copilot',
+        content: 'Got it! Let me build her profile…',
+        timestamp: new Date()
+      };
+      setChatMessages([...history, workingMessage]);
+      const character = await generateCharacterFromPrompt(prompt);
+
+      let added = await addCharacter(character);
+      if (!added) {
+        character.name = `${character.name} ${Math.floor(10 + Math.random() * 90)}`;
+        character.id = `char_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        added = await addCharacter(character);
+      }
+
+      if (!added) {
+        const failureMessage: CopilotMessage = {
+          id: `creation-fail-${Date.now()}`,
+          sender: 'copilot',
+          content: "I couldn't add her—looks like there's already someone too similar. Maybe tweak the concept and try again?",
+          timestamp: new Date()
+        };
+        setChatMessages([...history, workingMessage, failureMessage]);
+        setPendingCharacterCreation(null);
+        setIsTyping(false);
+        return;
+      }
+
+      const summaryMessage: CopilotMessage = {
+        id: `creation-summary-${Date.now()}`,
+        sender: 'copilot',
+        content: summarizeCharacter(character),
+        timestamp: new Date()
+      };
+
+      setChatMessages([...history, workingMessage, summaryMessage]);
+    } catch (error) {
+      console.error('Character creation via copilot failed:', error);
+      const errorMessage: CopilotMessage = {
+        id: `creation-error-${Date.now()}`,
+        sender: 'copilot',
+        content: 'Something glitched while building her. Double-check your AI settings and we can try again.',
+        timestamp: new Date()
+      };
+      if (workingMessage) {
+        setChatMessages([...history, workingMessage, errorMessage]);
+      } else {
+        setChatMessages([...history, errorMessage]);
+      }
+    } finally {
+      setPendingCharacterCreation(null);
+      setIsTyping(false);
+    }
+  };
+
   const sendMessage = async () => {
     if (!inputMessage.trim()) return;
 
@@ -262,6 +428,16 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
     setIsTyping(true);
 
     try {
+      if (pendingCharacterCreation) {
+        await completeCharacterCreation(userMessage.content, updatedMessages);
+        return;
+      }
+
+      if (isCharacterCreationCommand(userMessage.content)) {
+        promptForCharacterDetails(userMessage.content, updatedMessages);
+        return;
+      }
+
       // Check for image generation requests first
       const imagePrompt = parseImageGenerationCommand(userMessage.content);
       if (imagePrompt) {
@@ -301,7 +477,7 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
           if (onStartChat) {
             onStartChat(nlCommand.characterId);
           }
-          const character = house.characters?.find(c => c.id === nlCommand.characterId);
+          const character = roster.find(c => c.id === nlCommand.characterId);
           const confirmMessage: CopilotMessage = {
             id: `confirm-${Date.now()}`,
             sender: 'copilot',
@@ -319,36 +495,42 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
         }
       }
 
-      // Generate AI response for general conversation
-  const rawSettings = await fileStorage.readFile('house-settings.json');
-  const settings = (rawSettings as { copilotPrompt?: string; housePrompt?: string }) || {};
-      const copilotPrompt = settings.copilotPrompt || 'You are a helpful assistant for a character simulation game.';
-      const housePrompt = settings.housePrompt || 'A virtual house with multiple characters.';
-      const conversationHistory = safeChatMessages.slice(-10).map(m => 
-        `${m.sender}: ${m.content}`
-      ).join('\n');
+      // Generate AI response for general conversation using the dedicated copilot handler
+      const historyForModel: { role: 'user' | 'assistant'; content: string }[] = [...updatedMessages]
+        .slice(-10)
+        .map((message) => ({
+          role: message.sender === 'user' ? 'user' : 'assistant',
+          content: message.content
+        }));
 
-      const prompt = `${copilotPrompt}
+      let currentConfig = houseConfig;
+      try {
+        const fetchedConfig = await repositoryStorage.get<StoredHouseConfig>('house_config');
+        if (fetchedConfig) {
+          currentConfig = fetchedConfig;
+          setHouseConfig(fetchedConfig);
+        }
+      } catch {
+        // ignore repository load failure and fall back to existing state
+      }
+      setConfigLoaded(true);
 
-House Context: ${housePrompt}
-
-Characters in house: ${house.characters.map(c => c.name).join(', ')}
-
-Conversation history:
-${conversationHistory}
-
-User: ${inputMessage}
-
-Provide a helpful response as the house copilot. You can help with:
-- Creating characters and managing their stats
-- Starting chats or scenes with characters
-- Generating images using natural language
-- Managing house settings and rooms
-- Giving advice about character interactions
-
-Keep responses under 100 words and be helpful and engaging.`;
-      
-      const response = await AIService.generateResponse(prompt);
+      const copilotPrompt = (currentConfig?.copilotPrompt ?? house.copilotPrompt ?? '').trim();
+      const housePrompt = (currentConfig?.worldPrompt ?? house.worldPrompt ?? '').trim();
+      const maxTokensSetting = currentConfig?.copilotMaxTokens ?? house.copilotMaxTokens ?? 512;
+      const includeContextSetting = currentConfig?.copilotUseHouseContext ?? house.copilotUseHouseContext ?? true;
+      const contextDetailSetting = currentConfig?.copilotContextDetail ?? house.copilotContextDetail ?? 'balanced';
+      const maxTokens = Math.max(1, Math.min(Math.floor(maxTokensSetting ?? 512), 4000));
+      const response = await AIService.copilotRespond({
+        threadId: 'copilot-main',
+        messages: historyForModel,
+        characters: roster,
+        copilotPrompt: copilotPrompt || undefined,
+        housePrompt: housePrompt || undefined,
+        maxTokens,
+        includeHouseContext: includeContextSetting,
+        contextDetail: contextDetailSetting,
+      });
       
       const copilotMessage: CopilotMessage = {
         id: `copilot-${Date.now()}`,
@@ -432,9 +614,9 @@ Keep responses under 100 words and be helpful and engaging.`;
       setChatMessages([...safeChatMessages, copilotMessage]);
     } else if (action.label.includes('Status')) {
       // Show house status
-      const statusMessage = `House Status: ${house.characters.length} characters, Average happiness: ${
-        house.characters.length > 0 
-          ? Math.round(house.characters.reduce((sum, c) => sum + (c.stats?.happiness || 0), 0) / house.characters.length)
+      const statusMessage = `House Status: ${roster.length} characters, Average happiness: ${
+        roster.length > 0 
+          ? Math.round(roster.reduce((sum, c) => sum + (c.stats?.happiness || 0), 0) / roster.length)
           : 0
       }%`;
       const copilotMessage: CopilotMessage = {
@@ -450,7 +632,7 @@ Keep responses under 100 words and be helpful and engaging.`;
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col border-l border-zinc-800 bg-[#18181b] text-white">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden border-l border-zinc-800 bg-[#18181b] text-white">
       {/* Header */}
       <div className="p-4 border-b border-zinc-800">
         <div className="flex items-center justify-between">
@@ -477,23 +659,25 @@ Keep responses under 100 words and be helpful and engaging.`;
       </div>
 
       {/* Tabs for Status and Chat */}
-  <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'chat' | 'status')} className="flex flex-1 min-h-0 flex-col overflow-hidden">
-        <TabsList className="mx-4 mt-4 grid w-full grid-cols-2 rounded-lg bg-zinc-900">
-          <TabsTrigger value="chat" className="flex items-center gap-2">
-            <Chat size={16} />
-            Chat
-          </TabsTrigger>
-          <TabsTrigger value="status" className="flex items-center gap-2">
-            <House size={16} />
-            Status
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'chat' | 'status')} className="flex flex-1 min-h-0 flex-col overflow-hidden">
+        <div className="flex-shrink-0 px-4 pt-4">
+          <TabsList className="grid w-full grid-cols-2 rounded-lg bg-zinc-900">
+            <TabsTrigger value="chat" className="flex items-center gap-2">
+              <Chat size={16} />
+              Chat
+            </TabsTrigger>
+            <TabsTrigger value="status" className="flex items-center gap-2">
+              <House size={16} />
+              Status
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="chat" className="mt-4 flex flex-1 min-h-0 flex-col">
+        <TabsContent value="chat" className="flex flex-1 min-h-0 flex-col overflow-hidden px-4 pb-4 pt-4">
           {/* Chat Messages */}
           <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
-            <div className="flex-1 min-h-0 px-4">
-              <div className="h-full overflow-y-auto space-y-4 pb-6" ref={chatScrollRef}>
+            <div ref={chatScrollRef} className="flex-1 min-h-0 overflow-y-auto">
+              <div className="space-y-4 pb-6">
                 {safeChatMessages.map(message => (
                   <div
                     key={message.id}
@@ -546,14 +730,8 @@ Keep responses under 100 words and be helpful and engaging.`;
                     <div className="max-w-[85%] rounded-2xl bg-zinc-800 px-4 py-3">
                       <div className="flex items-center gap-1">
                         <div className="h-2 w-2 animate-bounce rounded-full bg-zinc-400" />
-                        <div
-                          className="h-2 w-2 animate-bounce rounded-full bg-zinc-400"
-                          style={{ animationDelay: '0.1s' }}
-                        />
-                        <div
-                          className="h-2 w-2 animate-bounce rounded-full bg-zinc-400"
-                          style={{ animationDelay: '0.2s' }}
-                        />
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-zinc-400" style={{ animationDelay: '0.1s' }} />
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-zinc-400" style={{ animationDelay: '0.2s' }} />
                       </div>
                     </div>
                   </div>
@@ -565,7 +743,7 @@ Keep responses under 100 words and be helpful and engaging.`;
           </div>
 
           {/* Input Area */}
-          <div className="border-t border-zinc-800 p-4">
+          <div className="border-t border-zinc-800 pb-4 pt-4">
             {safeChatMessages.length > 0 && (
               <div className="mb-3 flex justify-center">
                 <Button
@@ -600,20 +778,20 @@ Keep responses under 100 words and be helpful and engaging.`;
           </div>
         </TabsContent>
 
-  <TabsContent value="status" className="mt-4 flex flex-1 min-h-0 flex-col">
+        <TabsContent value="status" className="flex flex-1 min-h-0 flex-col overflow-hidden px-4 pb-4 pt-4">
           {/* House Overview */}
-          <div className="p-4 space-y-4">
+          <div className="space-y-4">
             <div>
               <h4 className="font-medium mb-3">House Status</h4>
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <div className="text-xl font-bold text-blue-400">{house.characters.length}</div>
+                  <div className="text-xl font-bold text-blue-400">{roster.length}</div>
                   <div className="text-xs text-zinc-400">Characters</div>
                 </div>
                 <div>
                   <div className="text-xl font-bold text-green-400">
-                    {house.characters.length > 0 
-                      ? Math.round(house.characters.reduce((sum, c) => sum + (c.stats?.happiness || 0), 0) / house.characters.length)
+                    {roster.length > 0 
+                      ? Math.round(roster.reduce((sum, c) => sum + (c.stats?.happiness || 0), 0) / roster.length)
                       : 0}%
                   </div>
                   <div className="text-xs text-zinc-400">Happiness</div>
@@ -626,15 +804,15 @@ Keep responses under 100 words and be helpful and engaging.`;
             </div>
           </div>
 
-          <Separator className="bg-zinc-800" />
+          <Separator className="-mx-4 mt-4 bg-zinc-800" />
 
           {/* Recent Updates */}
-          <div className="flex flex-1 min-h-0 flex-col">
-            <div className="p-4 pb-2">
+          <div className="flex flex-1 min-h-0 flex-col pt-4">
+            <div className="pb-2">
               <h4 className="font-medium">Recent Updates</h4>
             </div>
 
-            <div className="flex-1 min-h-0 px-4">
+            <div className="flex-1 min-h-0">
               <div className="h-full overflow-y-auto space-y-2 pb-4">
                 {safeUpdates.length === 0 ? (
                   <Card className="p-4 text-center bg-zinc-900 text-zinc-400 border-zinc-800">
@@ -647,7 +825,7 @@ Keep responses under 100 words and be helpful and engaging.`;
                     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
                     .map(update => {
                       const character = update.characterId
-                        ? house.characters.find(c => c.id === update.characterId)
+                        ? roster.find(c => c.id === update.characterId)
                         : null;
                       
                       return (
@@ -686,10 +864,10 @@ Keep responses under 100 words and be helpful and engaging.`;
             </div>
           </div>
 
-          <Separator className="bg-zinc-800" />
+          <Separator className="-mx-4 mt-4 bg-zinc-800" />
 
           {/* Quick Actions */}
-          <div className="p-4">
+          <div className="pt-4">
             <h4 className="font-medium mb-3">Quick Actions</h4>
             <div className="grid grid-cols-2 gap-2">
               {quickActions.filter(action => action.enabled).slice(0, 6).map(action => (

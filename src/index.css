@@ -67,10 +67,17 @@
   --radius: 0.5rem;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   font-family: 'Inter', system-ui, sans-serif;
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
+  overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

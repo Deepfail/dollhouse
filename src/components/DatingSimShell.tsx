@@ -450,6 +450,7 @@ export function DatingSimShell({
     characters,
     isLoading: isLoadingHouse,
     removeCharacter,
+    updateCharacter,
   } = useHouseFileStorage();
   const { createRandomCharacter } = useAutoCharacterCreator();
   const {
@@ -492,6 +493,11 @@ export function DatingSimShell({
       setIsProfileOpen(true);
     },
     [],
+  );
+
+  const handleSaveCharacterProfile = useCallback(
+    (characterId: string, updates: Partial<Character>) => updateCharacter(characterId, updates),
+    [updateCharacter],
   );
 
   const loadMessages = useCallback(
@@ -640,8 +646,8 @@ export function DatingSimShell({
   }
 
   return (
-    <div className="relative flex h-screen w-full overflow-hidden bg-[#05050d] text-white">
-      <div className="mx-auto flex h-full w-full max-w-[1400px] flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6 lg:px-8">
+    <div className="relative flex h-screen min-h-0 w-full overflow-hidden bg-[#05050d] text-white">
+      <div className="mx-auto flex h-full w-full max-w-[1600px] flex-1 min-h-0 flex-col overflow-hidden px-6 py-4 sm:px-8 lg:px-12">
         <div className="grid flex-1 min-h-0 gap-4 overflow-hidden rounded-3xl border border-white/5 bg-[#090912]/95 shadow-[0_40px_120px_-60px_rgba(255,19,114,0.45)] backdrop-blur-sm grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(260px,340px)] lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)_minmax(300px,380px)]">
           <CharacterRoster
             characters={characters}
@@ -665,12 +671,14 @@ export function DatingSimShell({
             onSwitchSession={handleSwitchSession}
             activeSessionId={activeSessionId}
           />
-          <div className="min-w-0 border-l border-white/5 bg-[#0f0f15]">
-            <GirlManagerSidebar
-              onFocusCharacter={(characterId: string) => setSelectedCharacterId(characterId)}
-              onSessionActivated={handleSidebarSessionActivated}
-              onOpenSettings={() => setIsSettingsOpen(true)}
-            />
+          <div className="flex min-w-0 flex-col overflow-hidden border-l border-white/5 bg-[#0f0f15]">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden">
+              <GirlManagerSidebar
+                onFocusCharacter={(characterId: string) => setSelectedCharacterId(characterId)}
+                onSessionActivated={handleSidebarSessionActivated}
+                onOpenSettings={() => setIsSettingsOpen(true)}
+              />
+            </div>
           </div>
         </div>
 
@@ -685,6 +693,7 @@ export function DatingSimShell({
             compact
             hideTrigger
             open={isProfileOpen}
+            onSaveCharacter={handleSaveCharacterProfile}
             onOpenChange={(open) => {
               setIsProfileOpen(open);
               if (!open) {

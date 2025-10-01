@@ -198,6 +198,7 @@ const DEFAULT_HOUSE: House = {
   worldPrompt: `This is a magical character house where AI companions live and interact. The atmosphere is warm, welcoming, and full of personality. Characters have their own rooms, can socialize together, and form meaningful relationships with their human companion.`,
   copilotPrompt: `You are a helpful and engaging AI assistant. You can discuss any topic, answer questions, provide information, and have natural conversations. You have knowledge about the user's character house and can help with character management if asked, but you're not limited to that - you can talk about anything the user wants. Be friendly, conversational, and genuinely helpful.`,
   copilotMaxTokens: 150,
+    copilotUseHouseContext: true,
   autoCreator: {
     enabled: false,
     interval: 30,

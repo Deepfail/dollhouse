@@ -1,3 +1,3 @@
-export { CharacterCard } from './CharacterCardHybrid';
-export type { CharacterCardProps } from './CharacterCardHybrid';
+export { CharacterCard } from './CharacterCard.v2';
+export type { CharacterCardProps } from './CharacterCard.v2';
 

@@ -353,7 +353,16 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
       try {
         if (typeof AIService.copilotRespond === 'function') {
           const history = [...copilotMessages, userMsg].map(m => ({ role: m.sender === 'user' ? 'user' as const : 'assistant' as const, content: m.content }))
-          assistantText = await AIService.copilotRespond({ threadId: 'local-copilot', messages: history, sessionId: copilotSessionId || undefined, characters: characters })
+          assistantText = await AIService.copilotRespond({
+            threadId: 'local-copilot',
+            messages: history,
+            sessionId: copilotSessionId || undefined,
+            characters,
+            copilotPrompt: house.copilotPrompt,
+            housePrompt: house.worldPrompt,
+            includeHouseContext: house.copilotUseHouseContext ?? true,
+            contextDetail: house.copilotContextDetail ?? 'balanced',
+          })
         }
       } catch (e) {
         logger.warn('copilotRespond not available or failed; falling back', e)
@@ -390,7 +399,28 @@ export function Copilot({ onStartChat, onStartGroupChat, onStartScene }: Copilot
       setIsTyping(false)
       inputRef.current?.focus?.()
     }
-  }, [inputMessage, copilotMessages, copilotSessionId, persist, parseRestartChatCommand, parseImageGenerationCommand, parseCustomSceneCommand, createSession, setActiveSessionId, onStartChat, createCustomSceneChat, sendMessage, getSessionMessages])
+  }, [
+    inputMessage,
+    copilotMessages,
+    copilotSessionId,
+    persist,
+    parseRestartChatCommand,
+    parseImageGenerationCommand,
+    parseCustomSceneCommand,
+    parseInterviewCommand,
+    createSession,
+    createInterviewSession,
+    setActiveSessionId,
+    onStartChat,
+    createCustomSceneChat,
+    sendMessage,
+    getSessionMessages,
+    characters,
+    house.copilotPrompt,
+    house.worldPrompt,
+    house.copilotUseHouseContext,
+    house.copilotContextDetail,
+  ])
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (

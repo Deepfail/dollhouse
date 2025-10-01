@@ -3,10 +3,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 // ...existing code...
 import { AISettings } from '@/components/AISettings';
+import { useFileStorage } from '@/hooks/useFileStorage';
 import { repositoryStorage } from '@/hooks/useRepositoryStorage';
 import { Check, Gear, X } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
@@ -34,6 +36,8 @@ interface HouseConfig {
   worldPrompt?: string;
   copilotPrompt?: string;
   copilotMaxTokens?: number;
+  copilotUseHouseContext?: boolean;
+  copilotContextDetail?: 'lite' | 'balanced' | 'detailed';
   aiSettings: AISettingsConfig;
   autoCreator: {
     enabled: boolean;
@@ -48,6 +52,8 @@ const DEFAULT_CONFIG: HouseConfig = {
   worldPrompt: '',
   copilotPrompt: 'You are a helpful AI assistant monitoring the digital dollhouse. You help manage character relationships, suggest activities, and ensure everyone has a good time.',
   copilotMaxTokens: 1000,
+  copilotUseHouseContext: true,
+  copilotContextDetail: 'balanced',
   aiSettings: {
     textProvider: 'openrouter',
     textModel: 'deepseek/deepseek-chat',
@@ -67,6 +73,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   const [localConfig, setLocalConfig] = useState<HouseConfig>(DEFAULT_CONFIG);
   const [originalConfig, setOriginalConfig] = useState<HouseConfig>(DEFAULT_CONFIG);
   const [hasChanges, setHasChanges] = useState(false);
+  const { setData: setSettingsForceUpdate } = useFileStorage<number>('settings-force-update.json', 0);
 
   // Load settings from repositoryStorage on mount/open
   useEffect(() => {
@@ -75,12 +82,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       try {
         const config = await repositoryStorage.get<HouseConfig>('house_config');
         if (config && Object.keys(config).length > 0) {
+          const configPartial = config as Partial<HouseConfig>;
           // Defensive: ensure aiSettings and autoCreator are always present
           const safeConfig: HouseConfig = {
             ...DEFAULT_CONFIG,
-            ...config,
-            aiSettings: { ...DEFAULT_CONFIG.aiSettings, ...(config as any).aiSettings },
-            autoCreator: { ...DEFAULT_CONFIG.autoCreator, ...(config as any).autoCreator }
+            ...configPartial,
+            aiSettings: { ...DEFAULT_CONFIG.aiSettings, ...(configPartial.aiSettings ?? {}) },
+            autoCreator: { ...DEFAULT_CONFIG.autoCreator, ...(configPartial.autoCreator ?? {}) }
           };
           setLocalConfig(safeConfig);
           setOriginalConfig(safeConfig);
@@ -104,6 +112,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   const handleSave = async () => {
     try {
       await repositoryStorage.set('house_config', localConfig);
+  await setSettingsForceUpdate(Date.now());
       setOriginalConfig(localConfig);
       toast.success('House settings saved!');
       setHasChanges(false);
@@ -210,11 +219,57 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   type="number"
                   value={localConfig.copilotMaxTokens || 1000}
                   onChange={(e) => updateConfig({ copilotMaxTokens: parseInt(e.target.value) || 1000 })}
-                  min={100}
+                  min={1}
                   max={4000}
                 />
                 <p className="text-sm text-muted-foreground">
                   Maximum tokens the copilot can use per response.
+                </p>
+              </div>
+
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <Label>Include House Context</Label>
+                  <p className="text-sm text-muted-foreground">
+                    When enabled, the copilot automatically receives the world prompt and current roster on every reply.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={localConfig.copilotUseHouseContext !== false}
+                    onCheckedChange={(enabled) => updateConfig({ copilotUseHouseContext: enabled })}
+                  />
+                  <span
+                    className={`text-xs font-medium px-2 py-1 rounded border ${
+                      localConfig.copilotUseHouseContext !== false
+                        ? 'border-green-500 text-green-400 bg-green-500/10'
+                        : 'border-zinc-600 text-zinc-300 bg-zinc-700/30'
+                    }`}
+                  >
+                    {localConfig.copilotUseHouseContext !== false ? 'Enabled' : 'Disabled'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Context Detail Level</Label>
+                <Select
+                  value={localConfig.copilotContextDetail || 'balanced'}
+                  onValueChange={(value) =>
+                    updateConfig({ copilotContextDetail: value as 'lite' | 'balanced' | 'detailed' })
+                  }
+                >
+                  <SelectTrigger className="bg-zinc-900 border-zinc-700 text-white">
+                    <SelectValue placeholder="Choose detail level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="lite">Friend Mode (keep it casual)</SelectItem>
+                    <SelectItem value="balanced">Balanced (use detail when asked)</SelectItem>
+                    <SelectItem value="detailed">Analyst (complete breakdowns)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  Friend Mode keeps context light so the copilot stays conversational; switch to Analyst when you want deep stat breakdowns on call.
                 </p>
               </div>
             </TabsContent>

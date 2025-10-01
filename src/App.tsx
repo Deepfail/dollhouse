@@ -44,7 +44,7 @@ export default function App() {
     const bootstrap = async () => {
       setStatus('loading');
       try {
-        logger.log('🔧 Bootstrapping storage for dating sim shell');
+  logger.log('🔧 Bootstrapping storage for dating sim shell');
         await initStorage();
         if (!cancelled) {
           setStatus('ready');
@@ -81,7 +81,7 @@ export default function App() {
 
   return (
     <>
-      <DatingSimShell />
+  <DatingSimShell />
       <Toaster />
     </>
   );
