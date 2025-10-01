@@ -3,7 +3,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   AlertDialog, 
   AlertDialogAction, 
@@ -31,7 +30,7 @@ import {
     User,
     UserCircle,
 } from '@phosphor-icons/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CharacterCard } from './CharacterCard';
 import { GirlManagerSidebar } from './GirlManagerSidebar';
 import { HouseSettings } from './HouseSettings';
@@ -80,7 +79,7 @@ function CharacterRoster({
   });
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#0f0f15] text-white border-r border-white/5">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-r border-white/5 bg-[#0f0f15] text-white">
       <div className="px-4 py-4 border-b border-white/5 flex-shrink-0 xl:px-5 xl:py-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-white tracking-wide uppercase">Characters</h2>
@@ -120,7 +119,7 @@ function CharacterRoster({
           </Button>
         </div>
       </div>
-      <ScrollArea className="flex-1 min-h-0">
+  <ScrollArea className="flex-1 min-h-0">
         <div className="space-y-3 p-3 xl:p-4">
           {filteredCharacters.map((character) => {
             const activeSessions = sessions.filter((session) =>
@@ -277,10 +276,15 @@ function ChatPanel({
   activeSessionId,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setDraft('');
   }, [character?.id, activeSessionId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages]);
 
   const canChat = Boolean(activeSessionId && character);
   const characterSessions = useMemo(() => {
@@ -295,17 +299,17 @@ function ChatPanel({
   }, [character, sessions]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#14141f] text-white">
-      <header className="flex items-center justify-between border-b border-white/5 px-4 py-4 flex-shrink-0 xl:px-8 xl:py-6">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[#14141f] text-white">
+      <header className="flex flex-shrink-0 items-center justify-between border-b border-white/5 px-3 py-2 sm:px-4 lg:px-5 lg:py-3">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.35em] text-white/40">
+          <p className="text-[9px] uppercase tracking-[0.3em] text-white/40">
             Tonight's connection
           </p>
-          <h1 className="mt-2 text-2xl font-semibold text-white">
+          <h1 className="mt-1 text-lg font-semibold text-white">
             {character ? character.name : 'Pick a girl to begin'}
           </h1>
           {character && (
-            <p className="mt-1 text-sm text-white/60">
+            <p className="mt-0.5 text-xs text-white/60">
               {character.description || 'No background set yet.'}
             </p>
           )}
@@ -326,108 +330,111 @@ function ChatPanel({
         )}
       </header>
 
-      <div className="grid h-full min-h-0 grid-rows-[auto_1fr_auto]">
-  <div className="border-b border-white/5 px-4 py-2 flex-shrink-0 xl:px-8 xl:py-3">
-          {characterSessions.length > 0 ? (
-            <div className="flex items-center gap-3 overflow-x-auto pb-2 text-xs text-white/70">
-              <ChatsCircle size={16} className="text-[#ff1372]" />
-              <span className="text-white/50">Sessions</span>
-              {characterSessions.map((session) => (
-                <button
-                  key={session.id}
-                  onClick={() => void onSwitchSession(session.id)}
-                  className={`rounded-full border px-3 py-1 transition-colors ${
-                    activeSessionId === session.id
-                      ? 'border-[#ff1372] bg-[#ff1372]/15 text-white'
-                      : 'border-white/10 text-white/60 hover:border-[#ff1372]/40 hover:text-white'
-                  }`}
-                >
-                  {session.type === 'group' ? 'Group date' : 'Private chat'}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="flex items-center gap-3 text-xs text-white/50">
-              <ChatCircle size={16} />
-              <span>No chats yet. Start something special.</span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex-1 min-h-0">
-          <ScrollArea className="h-full px-4 py-4 xl:px-8 xl:py-6">
-            <div className="space-y-4">
-            {!canChat && !isLoadingMessages && (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-white/70">
-                <p>
-                  Warm up the connection by starting a conversation.
-                  She's waiting for your move.
-                </p>
-                <Button
-                  className="mt-4 bg-[#ff1372] text-white hover:bg-[#ff1372]/90"
-                  onClick={() => void onStartChat()}
-                  disabled={!character}
-                >
-                  Begin chat
-                </Button>
-              </div>
-            )}
-            {isLoadingMessages && (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center text-sm text-white/50">
-                Pulling memories from the archive—hang tight.
-              </div>
-            )}
-            {messages.map((message) => {
-              const isUser = !message.characterId;
-              return (
-                <div
-                  key={message.id}
-                  className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[70%] rounded-2xl border px-4 py-3 text-sm leading-relaxed shadow transition-colors ${
-                      isUser
-                        ? 'border-[#ff1372] bg-[#ff1372]/20 text-white'
-                        : 'border-white/10 bg-white/5 text-white/80'
+      <div className="relative flex-1 min-h-0 overflow-hidden">
+        <div className="absolute inset-0 z-0 flex flex-col">
+          <div className="flex-shrink-0 border-t border-white/5 px-3 py-1 sm:px-4 lg:px-5 lg:py-2">
+            {characterSessions.length > 0 ? (
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 text-[11px] text-white/70">
+                <ChatsCircle size={14} className="text-[#ff1372]" />
+                <span className="text-white/50">Sessions</span>
+                {characterSessions.map((session) => (
+                  <button
+                    key={session.id}
+                    onClick={() => void onSwitchSession(session.id)}
+                    className={`rounded-full border px-3 py-1 transition-colors ${
+                      activeSessionId === session.id
+                        ? 'border-[#ff1372] bg-[#ff1372]/15 text-white'
+                        : 'border-white/10 text-white/60 hover:border-[#ff1372]/40 hover:text-white'
                     }`}
                   >
-                    {message.content}
-                  </div>
-                </div>
-              );
-            })}
+                    {session.type === 'group' ? 'Group date' : 'Private chat'}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 text-xs text-white/50">
+                <ChatCircle size={16} />
+                <span>No chats yet. Start something special.</span>
+              </div>
+            )}
           </div>
-          </ScrollArea>
+
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 pb-40 sm:px-6 lg:px-8 lg:py-6">
+            <div className="space-y-4">
+              {!canChat && !isLoadingMessages && (
+                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-white/70">
+                  <p>
+                    Warm up the connection by starting a conversation.
+                    She's waiting for your move.
+                  </p>
+                  <Button
+                    className="mt-4 bg-[#ff1372] text-white hover:bg-[#ff1372]/90"
+                    onClick={() => void onStartChat()}
+                    disabled={!character}
+                  >
+                    Begin chat
+                  </Button>
+                </div>
+              )}
+              {isLoadingMessages && (
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center text-sm text-white/50">
+                  Pulling memories from the archive—hang tight.
+                </div>
+              )}
+              {messages.map((message) => {
+                const isUser = !message.characterId;
+                return (
+                  <div
+                    key={message.id}
+                    className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[70%] rounded-2xl border px-4 py-3 text-sm leading-relaxed shadow transition-colors ${
+                        isUser
+                          ? 'border-[#ff1372] bg-[#ff1372]/20 text-white'
+                          : 'border-white/10 bg-white/5 text-white/80'
+                      }`}
+                    >
+                      {message.content}
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
         </div>
 
-  <div className="border-t border-white/5 px-4 py-4 flex-shrink-0 xl:px-8 xl:py-6">
-          <form
-            className="flex items-center gap-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!draft.trim() || !canChat) return;
-              void onSend(draft.trim()).then(() => setDraft(''));
-            }}
-          >
-            <Input
-              value={draft}
-              disabled={!canChat}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder={
-                canChat
-                  ? 'Say something unforgettable...' 
-                  : 'Select a girl and start a chat first'
-              }
-              className="rounded-xl border-white/10 bg-white/5 text-sm text-white placeholder:text-white/40"
-            />
-            <Button
-              type="submit"
-              disabled={!canChat || !draft.trim()}
-              className="rounded-xl bg-[#ff1372] text-white hover:bg-[#ff1372]/90"
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 px-3 pb-3 pt-2 sm:px-4 sm:pb-4">
+          <div className="pointer-events-auto rounded-xl border border-white/10 bg-[#14141f]/95 px-3 pb-3 pt-2 shadow-[0_22px_65px_-35px_rgba(255,19,114,0.65)] backdrop-blur-xl sm:px-4 sm:pb-4">
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!draft.trim() || !canChat) return;
+                void onSend(draft.trim()).then(() => setDraft(''));
+              }}
             >
-              Send
-            </Button>
-          </form>
+              <Input
+                value={draft}
+                disabled={!canChat}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder={
+                  canChat
+                    ? 'Say something unforgettable...'
+                    : 'Select a girl and start a chat first'
+                }
+                className="h-9 flex-1 rounded-lg border-white/10 bg-white/[0.08] text-sm text-white placeholder:text-white/40"
+              />
+              <Button
+                type="submit"
+                disabled={!canChat || !draft.trim()}
+                className="h-9 rounded-lg bg-[#ff1372] px-3 text-xs font-semibold uppercase tracking-[0.2em] text-white hover:bg-[#ff1372]/90"
+              >
+                Send
+              </Button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
@@ -444,7 +451,7 @@ export function DatingSimShell({
     isLoading: isLoadingHouse,
     removeCharacter,
   } = useHouseFileStorage();
-  const { createRandomCharacter, isCreating } = useAutoCharacterCreator();
+  const { createRandomCharacter } = useAutoCharacterCreator();
   const {
     sessions,
     getSessionMessages,
@@ -564,7 +571,8 @@ export function DatingSimShell({
   );
 
   const handleCreateCharacter = useCallback(
-    async (gender: 'female' | 'male') => {
+    async (_preferredGender: 'female' | 'male') => {
+      void _preferredGender;
       try {
         // For now, we'll use the random character creator
         // In the future, this could open a character creation dialog
@@ -632,56 +640,62 @@ export function DatingSimShell({
   }
 
   return (
-    <div className="grid h-screen w-full grid-cols-[260px_1fr_280px] overflow-x-hidden bg-[#090912] text-white min-w-[900px] xl:grid-cols-[300px_1fr_320px] 2xl:grid-cols-[320px_1fr_340px]">
-      <CharacterRoster
-        characters={characters}
-        selectedId={selectedCharacterId}
-        onSelect={(characterId: string) => setSelectedCharacterId(characterId)}
-        onStartChat={handleStartChat}
-        onDeleteCharacter={handleDeleteCharacter}
-        onCreateCharacter={handleCreateCharacter}
-        sessions={sessions}
-        onViewProfile={handleViewProfile}
-      />
-      <ChatPanel
-        character={selectedCharacter}
-        messages={messages}
-        onSend={handleSendMessage}
-        onStartChat={() =>
-          selectedCharacter ? handleStartChat(selectedCharacter.id) : Promise.resolve()
-        }
-        isLoadingMessages={isLoadingMessages}
-        sessions={sessions}
-        onSwitchSession={handleSwitchSession}
-        activeSessionId={activeSessionId}
-      />
-  <div className="border-l border-white/5 bg-[#0f0f15]">
-        <GirlManagerSidebar
-          onFocusCharacter={(characterId: string) => setSelectedCharacterId(characterId)}
-          onSessionActivated={handleSidebarSessionActivated}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-        />
-      </div>
-      {profileCharacter && (
-        <CharacterCard
-          character={profileCharacter}
-          onStartChat={(characterId: string) => {
-            void handleStartChat(characterId);
-            setIsProfileOpen(false);
-            setProfileCharacterId(characterId);
-          }}
-          compact
-          hideTrigger
-          open={isProfileOpen}
-          onOpenChange={(open) => {
-            setIsProfileOpen(open);
-            if (!open) {
-              setProfileCharacterId(null);
+    <div className="relative flex h-screen w-full overflow-hidden bg-[#05050d] text-white">
+      <div className="mx-auto flex h-full w-full max-w-[1400px] flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6 lg:px-8">
+        <div className="grid flex-1 min-h-0 gap-4 overflow-hidden rounded-3xl border border-white/5 bg-[#090912]/95 shadow-[0_40px_120px_-60px_rgba(255,19,114,0.45)] backdrop-blur-sm grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(260px,340px)] lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)_minmax(300px,380px)]">
+          <CharacterRoster
+            characters={characters}
+            selectedId={selectedCharacterId}
+            onSelect={(characterId: string) => setSelectedCharacterId(characterId)}
+            onStartChat={handleStartChat}
+            onDeleteCharacter={handleDeleteCharacter}
+            onCreateCharacter={handleCreateCharacter}
+            sessions={sessions}
+            onViewProfile={handleViewProfile}
+          />
+          <ChatPanel
+            character={selectedCharacter}
+            messages={messages}
+            onSend={handleSendMessage}
+            onStartChat={() =>
+              selectedCharacter ? handleStartChat(selectedCharacter.id) : Promise.resolve()
             }
-          }}
-        />
-      )}
-      <HouseSettings open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
+            isLoadingMessages={isLoadingMessages}
+            sessions={sessions}
+            onSwitchSession={handleSwitchSession}
+            activeSessionId={activeSessionId}
+          />
+          <div className="min-w-0 border-l border-white/5 bg-[#0f0f15]">
+            <GirlManagerSidebar
+              onFocusCharacter={(characterId: string) => setSelectedCharacterId(characterId)}
+              onSessionActivated={handleSidebarSessionActivated}
+              onOpenSettings={() => setIsSettingsOpen(true)}
+            />
+          </div>
+        </div>
+
+        {profileCharacter && (
+          <CharacterCard
+            character={profileCharacter}
+            onStartChat={(characterId: string) => {
+              void handleStartChat(characterId);
+              setIsProfileOpen(false);
+              setProfileCharacterId(characterId);
+            }}
+            compact
+            hideTrigger
+            open={isProfileOpen}
+            onOpenChange={(open) => {
+              setIsProfileOpen(open);
+              if (!open) {
+                setProfileCharacterId(null);
+              }
+            }}
+          />
+        )}
+
+        <HouseSettings open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
+      </div>
     </div>
   );
 }

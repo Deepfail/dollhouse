@@ -1,2 +1,2 @@
-export { CharacterCard } from './CharacterCard.v2.tsx';
-export type { CharacterCardProps } from './CharacterCard.v2.tsx';
+export { CharacterCard } from './CharacterCardHybrid';
+export type { CharacterCardProps } from './CharacterCardHybrid';

@@ -2,30 +2,29 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useChat } from '@/hooks/useChat';
 import { useFileStorage } from '@/hooks/useFileStorage';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { useQuickActions } from '@/hooks/useQuickActions';
+import { QuickAction, useQuickActions } from '@/hooks/useQuickActions';
 import { useSceneMode } from '@/hooks/useSceneMode';
 import { AIService } from '@/lib/aiService';
 import { fileStorage } from '@/lib/fileStorage';
 import { CopilotUpdate } from '@/types';
 import {
-    Chat,
-    CheckCircle as Check,
-    House,
-    PaperPlaneRight,
-    Robot,
-    Gear as Settings,
-    Sparkle,
-    Trash,
-    User,
-    XCircle as X
+  Chat,
+  CheckCircle as Check,
+  House,
+  PaperPlaneRight,
+  Robot,
+  Gear as Settings,
+  Sparkle,
+  Trash,
+  User,
+  UsersThree,
+  XCircle as X
 } from '@phosphor-icons/react';
-import { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 interface CopilotMessage {
@@ -45,24 +44,29 @@ interface CopilotProps {
 export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: CopilotProps = {}) {
   const { house, characters } = useHouseFileStorage();
   const { quickActions, executeAction } = useQuickActions();
-  const { createSession, setActiveSessionId } = useChat();
   const { createSceneSession } = useSceneMode();
   const { data: updates, setData: setUpdates } = useFileStorage<CopilotUpdate[]>('copilot-updates.json', []);
   const { data: chatMessages, setData: setChatMessages } = useFileStorage<CopilotMessage[]>('copilot-chat.json', []);
   const { data: forceUpdate } = useFileStorage<number>('settings-force-update.json', 0);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [showQuickActions, setShowQuickActions] = useState(false);
-  const [isOnline, setIsOnline] = useState(true);
-  const [activeTab, setActiveTab] = useState('status');
+  const [isOnline] = useState(true);
+  const [activeTab, setActiveTab] = useState<'chat' | 'status'>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   const safeUpdates = updates || [];
   const safeChatMessages = chatMessages || [];
 
+  useEffect(() => {
+    // Re-render when force update flag changes in storage
+  }, [forceUpdate]);
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [safeChatMessages, isTyping]);
 
@@ -83,8 +87,6 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
 
   // Parse natural language commands for character interaction
   const parseNaturalLanguageCommand = (message: string): { type: 'chat' | 'scene' | null, characterId: string | null, context: string } | null => {
-    const msg = message.toLowerCase();
-
     // Patterns for "send [character] to my room" etc. (should launch chat, not scene)
     const sendPatterns = [
       /send\s+(\w+)\s+(?:to|into)\s+my\s+room/i,
@@ -208,32 +210,18 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
         return;
       }
 
-      let sceneDescription: string;
-      let objectives: any[];
+  let sceneDescription: string;
 
       if (customPrompt) {
         // Use the custom prompt exactly as specified by the user
         sceneDescription = `Custom scenario: ${customPrompt}\n\nYou are ${character.name} with personality: ${character.personality}. Stay in character and respond naturally to this scenario.`;
         
-        objectives = [{
-          characterId: characterId,
-          objective: `Role-play as ${character.name} in this custom scenario: ${customPrompt}. Use her actual personality (${character.personality}) and stay completely in character throughout the interaction.`,
-          secret: false,
-          priority: 'high' as const
-        }];
       } else {
         // Generate an intimate scene
         const timeOfDay = new Date().getHours();
         const timeContext = timeOfDay >= 18 || timeOfDay <= 6 ? 'evening' : 'afternoon';
 
         sceneDescription = `It's ${timeContext} and you're spending intimate time with ${character.name} in your private space. The atmosphere is warm and inviting, perfect for deep connection.`;
-        
-        objectives = [{
-          characterId: characterId,
-          objective: `Engage in an intimate ${timeContext} encounter with the user. Be responsive, engaging, and true to your personality (${character.personality}). Create a memorable and special moment.`,
-          secret: false,
-          priority: 'high' as const
-        }];
       }
 
       // Create a new scene session using the scene mode system
@@ -332,7 +320,8 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
       }
 
       // Generate AI response for general conversation
-      const settings = await fileStorage.readFile('house-settings.json') as any || {};
+  const rawSettings = await fileStorage.readFile('house-settings.json');
+  const settings = (rawSettings as { copilotPrompt?: string; housePrompt?: string }) || {};
       const copilotPrompt = settings.copilotPrompt || 'You are a helpful assistant for a character simulation game.';
       const housePrompt = settings.housePrompt || 'A virtual house with multiple characters.';
       const conversationHistory = safeChatMessages.slice(-10).map(m => 
@@ -390,13 +379,34 @@ Keep responses under 100 words and be helpful and engaging.`;
     }
   };
 
-  const clearAllChats = () => {
-    setChatMessages([]);
+  const clearAllChats = useCallback(async () => {
+    await setChatMessages([]);
+    setInputMessage('');
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = 0;
+    }
     toast.success('Chat history cleared');
-  };
+  }, [setChatMessages]);
 
   const deleteMessage = (messageId: string) => {
     setChatMessages(safeChatMessages.filter(m => m.id !== messageId));
+  };
+
+  const renderUpdateIcon = (type: CopilotUpdate['type']) => {
+    switch (type) {
+      case 'behavior':
+        return <User size={14} className="text-blue-400" />;
+      case 'need':
+        return <House size={14} className="text-green-400" />;
+      case 'alert':
+        return <Settings size={14} className="text-yellow-400" />;
+      case 'suggestion':
+        return <Sparkle size={14} className="text-purple-400" />;
+      case 'scenario':
+        return <Chat size={14} className="text-pink-400" />;
+      default:
+        return null;
+    }
   };
 
   const markUpdateAsHandled = (updateId: string) => {
@@ -409,21 +419,7 @@ Keep responses under 100 words and be helpful and engaging.`;
     return safeUpdates.filter(u => !u.handled).length;
   };
 
-  const generateCharacterStatusMessage = (character: any) => {
-    const messages = [
-      `${character.name} is currently feeling ${character.stats.happiness > 70 ? 'happy' : character.stats.happiness > 40 ? 'content' : 'a bit down'}.`,
-      `Energy level: ${character.stats.energy}%`,
-      `Relationship level: ${character.stats.love}%`
-    ];
-    
-    if (character.stats.wet > 50) {
-      messages.push(`She seems quite excited lately... 💕`);
-    }
-    
-    return messages.join(' ');
-  };
-
-  const handleQuickAction = async (action: any) => {
+  const handleQuickAction = async (action: QuickAction) => {
     if (action.label.includes('Create')) {
       // Trigger character creation
       const message = "I'd like to help you create a new character! What kind of character are you looking for?";
@@ -454,7 +450,7 @@ Keep responses under 100 words and be helpful and engaging.`;
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#18181b] text-white border-l border-zinc-800">
+    <div className="flex h-full min-h-0 flex-col border-l border-zinc-800 bg-[#18181b] text-white">
       {/* Header */}
       <div className="p-4 border-b border-zinc-800">
         <div className="flex items-center justify-between">
@@ -481,19 +477,130 @@ Keep responses under 100 words and be helpful and engaging.`;
       </div>
 
       {/* Tabs for Status and Chat */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <TabsList className="grid w-full grid-cols-2 mx-4 mt-4 bg-zinc-900 rounded-lg">
-          <TabsTrigger value="status" className="flex items-center gap-2">
-            <House size={16} />
-            Status
-          </TabsTrigger>
+  <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'chat' | 'status')} className="flex flex-1 min-h-0 flex-col overflow-hidden">
+        <TabsList className="mx-4 mt-4 grid w-full grid-cols-2 rounded-lg bg-zinc-900">
           <TabsTrigger value="chat" className="flex items-center gap-2">
             <Chat size={16} />
             Chat
           </TabsTrigger>
+          <TabsTrigger value="status" className="flex items-center gap-2">
+            <House size={16} />
+            Status
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="status" className="flex-1 flex flex-col mt-4 min-h-0">
+        <TabsContent value="chat" className="mt-4 flex flex-1 min-h-0 flex-col">
+          {/* Chat Messages */}
+          <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+            <div className="flex-1 min-h-0 px-4">
+              <div className="h-full overflow-y-auto space-y-4 pb-6" ref={chatScrollRef}>
+                {safeChatMessages.map(message => (
+                  <div
+                    key={message.id}
+                    className={`flex group ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`relative max-w-[85%] rounded-2xl px-4 py-3 ${
+                        message.sender === 'user'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-zinc-800 text-zinc-100'
+                      }`}
+                    >
+                      {message.imageData && (
+                        <div className="mb-2">
+                          <img
+                            src={message.imageData}
+                            alt="Generated image"
+                            className="max-w-full rounded-lg"
+                            style={{ maxHeight: '200px' }}
+                          />
+                        </div>
+                      )}
+                      <p className="text-sm leading-relaxed">{message.content}</p>
+                      <p
+                        className={`mt-2 text-xs ${
+                          message.sender === 'user' ? 'text-blue-200' : 'text-zinc-400'
+                        }`}
+                      >
+                        {new Date(message.timestamp).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+
+                      {/* Delete button */}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => deleteMessage(message.id)}
+                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 p-0 text-white opacity-0 transition-opacity hover:bg-red-600 group-hover:opacity-100"
+                      >
+                        <X size={12} />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+                {isTyping && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] rounded-2xl bg-zinc-800 px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-zinc-400" />
+                        <div
+                          className="h-2 w-2 animate-bounce rounded-full bg-zinc-400"
+                          style={{ animationDelay: '0.1s' }}
+                        />
+                        <div
+                          className="h-2 w-2 animate-bounce rounded-full bg-zinc-400"
+                          style={{ animationDelay: '0.2s' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+            </div>
+          </div>
+
+          {/* Input Area */}
+          <div className="border-t border-zinc-800 p-4">
+            {safeChatMessages.length > 0 && (
+              <div className="mb-3 flex justify-center">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void clearAllChats()}
+                  className="bg-zinc-900 text-xs text-white hover:bg-zinc-800"
+                >
+                  <Trash size={12} className="mr-1" />
+                  Clear Chat
+                </Button>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Input
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Ask about your characters, request images, or chat..."
+                disabled={isTyping}
+                className="flex-1 border-zinc-700 bg-zinc-900 text-white placeholder:text-zinc-500"
+              />
+              <Button
+                onClick={sendMessage}
+                disabled={!inputMessage.trim() || isTyping}
+                className="bg-blue-600 px-3 hover:bg-blue-700"
+              >
+                <PaperPlaneRight size={16} />
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
+
+  <TabsContent value="status" className="mt-4 flex flex-1 min-h-0 flex-col">
           {/* House Overview */}
           <div className="p-4 space-y-4">
             <div>
@@ -522,14 +629,13 @@ Keep responses under 100 words and be helpful and engaging.`;
           <Separator className="bg-zinc-800" />
 
           {/* Recent Updates */}
-          <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex flex-1 min-h-0 flex-col">
             <div className="p-4 pb-2">
               <h4 className="font-medium">Recent Updates</h4>
             </div>
 
-            <div className="flex-1 min-h-0">
-              <ScrollArea className="h-full px-4">
-                <div className="space-y-2 pb-4">
+            <div className="flex-1 min-h-0 px-4">
+              <div className="h-full overflow-y-auto space-y-2 pb-4">
                 {safeUpdates.length === 0 ? (
                   <Card className="p-4 text-center bg-zinc-900 text-zinc-400 border-zinc-800">
                     <Robot size={24} className="mx-auto mb-2 opacity-50" />
@@ -551,9 +657,7 @@ Keep responses under 100 words and be helpful and engaging.`;
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
-                                {update.type === 'character_status' && <User size={14} className="text-blue-400" />}
-                                {update.type === 'house_event' && <House size={14} className="text-green-400" />}
-                                {update.type === 'system' && <Settings size={14} className="text-yellow-400" />}
+                                {renderUpdateIcon(update.type)}
                                 <span className="text-sm font-medium">
                                   {character ? character.name : 'House System'}
                                 </span>
@@ -579,7 +683,6 @@ Keep responses under 100 words and be helpful and engaging.`;
                     })
                 )}
               </div>
-              </ScrollArea>
             </div>
           </div>
 
@@ -601,117 +704,23 @@ Keep responses under 100 words and be helpful and engaging.`;
                   {action.label.length > 15 ? action.label.slice(0, 15) + '...' : action.label}
                 </Button>
               ))}
+              {onStartGroupChat && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => onStartGroupChat()}
+                  className="col-span-2 h-8 justify-center bg-blue-600 text-white hover:bg-blue-500"
+                >
+                  <UsersThree size={14} className="mr-2" />
+                  Start Group Chat
+                </Button>
+              )}
             </div>
             {quickActions.filter(action => action.enabled).length > 6 && (
               <p className="text-xs text-zinc-500 text-center mt-2">
                 +{quickActions.filter(action => action.enabled).length - 6} more actions available
               </p>
             )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="chat" className="flex-1 flex flex-col mt-4 min-h-0">
-          {/* Chat Messages */}
-          <div className="flex-1 flex flex-col min-h-0">
-            <div className="flex-1 min-h-0">
-              <ScrollArea className="h-full px-4" ref={chatScrollRef}>
-                <div className="space-y-4 pb-4">
-                {safeChatMessages.map(message => (
-                  <div
-                    key={message.id}
-                    className={`flex group ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-3 relative ${
-                        message.sender === 'user'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-zinc-800 text-zinc-100'
-                      }`}
-                    >
-                      {message.imageData && (
-                        <div className="mb-2">
-                          <img
-                            src={message.imageData}
-                            alt="Generated image"
-                            className="max-w-full h-auto rounded-lg"
-                            style={{ maxHeight: '200px' }}
-                          />
-                        </div>
-                      )}
-                      <p className="text-sm leading-relaxed">{message.content}</p>
-                      <p className={`text-xs mt-2 ${
-                        message.sender === 'user' ? 'text-blue-200' : 'text-zinc-400'
-                      }`}>
-                        {new Date(message.timestamp).toLocaleTimeString([], { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </p>
-                      
-                      {/* Delete button */}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => deleteMessage(message.id)}
-                        className="absolute -top-2 -right-2 w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white rounded-full"
-                      >
-                        <X size={12} />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-
-                {isTyping && (
-                  <div className="flex justify-start">
-                    <div className="bg-zinc-800 rounded-2xl px-4 py-3 max-w-[85%]">
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div ref={messagesEndRef} />
-              </div>
-              </ScrollArea>
-            </div>
-          </div>
-
-          {/* Input Area */}
-          <div className="p-4 border-t border-zinc-800">
-            {safeChatMessages.length > 0 && (
-              <div className="mb-3 flex justify-center">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={clearAllChats}
-                  className="text-xs bg-zinc-900 border-zinc-700 hover:bg-zinc-800"
-                >
-                  <Trash size={12} className="mr-1" />
-                  Clear Chat
-                </Button>
-              </div>
-            )}
-            
-            <div className="flex gap-2">
-              <Input
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Ask about your characters, request images, or chat..."
-                disabled={isTyping}
-                className="flex-1 bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-500"
-              />
-              <Button
-                onClick={sendMessage}
-                disabled={!inputMessage.trim() || isTyping}
-                className="px-3 bg-blue-600 hover:bg-blue-700"
-              >
-                <PaperPlaneRight size={16} />
-              </Button>
-            </div>
           </div>
         </TabsContent>
       </Tabs>

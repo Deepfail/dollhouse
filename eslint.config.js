@@ -1,9 +1,22 @@
 import js from '@eslint/js';
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tsparser from '@typescript-eslint/parser';
+import globals from 'globals';
 
 export default [
   js.configs.recommended,
+  {
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+        JSX: 'readonly',
+        React: 'readonly',
+        ReactDOM: 'readonly',
+        Console: 'readonly',
+      },
+    },
+  },
   {
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
@@ -52,6 +65,7 @@ export default [
       'dist/**',
       'build/**',
       '.git/**',
+      'RECOVER/**',
       '*.config.js',
       '*.config.ts',
     ],

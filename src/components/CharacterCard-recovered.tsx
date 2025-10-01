@@ -30,7 +30,6 @@ import {
     Pencil,
     Plus,
     ShieldCheck,
-    Smiley as Smile,
     Sparkle,
     Star,
     Trash,
@@ -58,7 +57,14 @@ interface GeneratedImage {
   caption?: string; // Add caption field for Instagram-like posts
 }
 
-interface CharacterCardProps {
+interface DMMessage {
+  id: number;
+  content: string;
+  timestamp: string;
+  characterId: string | null;
+}
+
+export interface CharacterCardProps {
   character: Character;
   onStartChat: (characterId: string) => void;
   onGift?: (characterId: string) => void;
@@ -67,6 +73,9 @@ interface CharacterCardProps {
   onDelete?: (characterId: string) => void;
   compact?: boolean;
   source?: string; // NEW: Help identify where this card is rendered from
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
 const getRarityIcon = (rarity?: Character['rarity']) => {
@@ -102,10 +111,14 @@ export function CharacterCard({
   onMove,
   onEdit,
   onDelete,
-  compact = false,
+  compact: _unusedCompact = false,
   source = 'unknown', // NEW: Default source
+  open,
+  onOpenChange,
+  hideTrigger = false,
 }: CharacterCardProps) {
-  const [showDetails, setShowDetails] = useState(false);
+  void _unusedCompact;
+  const [internalOpen, setInternalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [showCreateImage, setShowCreateImage] = useState(false);
   const [newImagePrompt, setNewImagePrompt] = useState('');
@@ -113,13 +126,25 @@ export function CharacterCard({
   const [isGeneratingImagePrompt, setIsGeneratingImagePrompt] = useState(false);
   
   // Integrated chat state for DMs tab
-  const [dmMessages, setDmMessages] = useState<any[]>([]);
+  const [dmMessages, setDmMessages] = useState<DMMessage[]>([]);
   const [dmInput, setDmInput] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   
   const { sessions } = useChat();
   const { updateRelationshipStats } = useRelationshipDynamics();
   const { getRecentStoryContext, analyzeEmotionalJourney } = useStorySystem();
+
+  const isDialogOpen = open ?? internalOpen;
+  const handleOpenChange = (value: boolean) => {
+    if (!value) {
+      setShowCreateImage(false);
+      setSelectedImage(null);
+    }
+    if (open === undefined) {
+      setInternalOpen(value);
+    }
+    onOpenChange?.(value);
+  };
 
   // Image handling
   const { data: images, setData: setImages } = useFileStorage<GeneratedImage[]>('generated-images.json', []);
@@ -210,13 +235,13 @@ export function CharacterCard({
   );
 
   const totalMessages = useMemo(
-    () => characterSessions.reduce((sum, s) => sum + s.messages.filter((m: any) => m.characterId === character.id).length, 0),
+    () =>
+      characterSessions.reduce((sum, s) => {
+        const messages = (s.messages ?? []) as DMMessage[];
+        return sum + messages.filter((m) => m.characterId === character.id).length;
+      }, 0),
     [characterSessions, character.id]
   );
-
-  const lastInteraction = character.lastInteraction
-    ? new Date(character.lastInteraction).toLocaleDateString()
-    : 'Never';
 
   const relationshipStatus = progression.relationshipStatus || 'stranger';
   const achievedMilestones = (progression.sexualMilestones || []).filter(m => m.achieved).length;
@@ -320,7 +345,7 @@ export function CharacterCard({
           createdAt: new Date(),
           characterId: character.id,
           tags: ['character', 'portrait', character.role || 'character'].filter(Boolean),
-          caption: generateImageCaption(character, newImagePrompt.trim())
+          caption: generateImageCaption()
         };
 
         // Save using proper file storage system
@@ -338,7 +363,7 @@ export function CharacterCard({
     }
   };
 
-  const generateImageCaption = (character: Character, prompt: string): string => {
+  const generateImageCaption = (): string => {
     // Generate AI-style caption from character perspective
     const motivations = [
       "just felt like sharing this moment",
@@ -364,17 +389,6 @@ export function CharacterCard({
   const handleGenerateImagePrompt = async () => {
     setIsGeneratingImagePrompt(true);
     try {
-      // Build comprehensive character context for prompt generation
-      const characterContext = {
-        name: character.name,
-        role: character.role,
-        personalities: character.personalities,
-        features: character.features,
-        appearance: character.appearance,
-        description: character.description,
-        physicalStats: character.physicalStats
-      };
-
       const promptInstructions = `Generate a detailed image prompt for AI image generation based on this character's attributes. Focus ONLY on physical features, style, and visual characteristics. Do not include age references, personality traits, or story elements.
 
 Character Details:
@@ -420,15 +434,15 @@ Return only the image prompt, nothing else.`;
   };
 
   // Compact card variant for sidebar
-  if (compact) {
-    return (
+  const content = (
       <>
-        <Card 
-          className="p-3 hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-primary/20 hover:border-l-primary"
-          onClick={() => setShowDetails(true)}
-          data-character-id={character.id}
-          data-character-source={source}
-        >
+        {!hideTrigger && (
+          <Card 
+            className="p-3 hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-primary/20 hover:border-l-primary"
+            onClick={() => handleOpenChange(true)}
+            data-character-id={character.id}
+            data-character-source={source}
+          >
           <div className="flex items-center gap-3">
             <Avatar className="w-12 h-12 border-2 border-primary/20">
               <AvatarImage src={character.avatar} alt={character.name} />
@@ -534,9 +548,10 @@ Return only the image prompt, nothing else.`;
               )}
             </div>
           </div>
-        </Card>
+          </Card>
+        )}
 
-        <Dialog open={showDetails} onOpenChange={setShowDetails}>
+        <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
           <DialogContent className="w-full h-full md:w-[90vw] md:max-w-[1200px] md:max-h-[85vh] md:rounded-3xl overflow-hidden p-0 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 md:border-4 border-gray-300 dark:border-gray-600 shadow-2xl">
             <DialogHeader className="sr-only">
               <DialogTitle>{character.name} - Character Interface</DialogTitle>
@@ -1641,32 +1656,6 @@ Return only the image prompt, nothing else.`;
                   </Card>
                 </TabsContent>
 
-                {/* Close all other TabsContent areas */}
-                <TabsContent value="stats" className="mt-0">
-                  {/* Stats content would go here - keeping existing functionality */}
-                  <div className="p-4">Stats view not implemented in this update</div>
-                </TabsContent>
-
-                <TabsContent value="feed" className="mt-0">
-                  {/* Feed content would go here - keeping existing functionality */}
-                  <div className="p-4">Feed view not implemented in this update</div>
-                </TabsContent>
-
-                <TabsContent value="dms" className="mt-0">
-                  {/* DMs content would go here - keeping existing functionality */}
-                  <div className="p-4">DMs view not implemented in this update</div>
-                </TabsContent>
-
-                <TabsContent value="memories" className="mt-0">
-                  {/* Memories content would go here - keeping existing functionality */}
-                  <div className="p-4">Stories view not implemented in this update</div>
-                </TabsContent>
-
-                <TabsContent value="settings" className="mt-0">
-                  {/* Settings content would go here - keeping existing functionality */}
-                  <div className="p-4">Settings view not implemented in this update</div>
-                </TabsContent>
-
                       </div>
                     </ScrollArea>
                   </div>
@@ -1678,7 +1667,14 @@ Return only the image prompt, nothing else.`;
 
         {/* Image Detail Modal */}
         {selectedImage && (
-          <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+          <Dialog
+            open={!!selectedImage}
+            onOpenChange={(value) => {
+              if (!value) {
+                setSelectedImage(null);
+              }
+            }}
+          >
             <DialogContent className="max-w-4xl">
             <DialogHeader>
               <DialogTitle>Image Details</DialogTitle>
@@ -1718,126 +1714,9 @@ Return only the image prompt, nothing else.`;
         </Dialog>
       )}
 
-      <Card className="p-4 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setShowDetails(true)}>
-        <div className="flex items-start gap-3 mb-4">
-          <Avatar className="w-12 h-12">
-            <AvatarImage src={character.avatar} alt={character.name} />
-            <AvatarFallback className="bg-primary text-primary-foreground">
-              {character.name.slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <h4 className="font-medium">{character.name}</h4>
-              {getRarityIcon(character.rarity)}
-              {character.role && (
-                <Badge variant="outline" className="text-xs">
-                  {character.role}
-                </Badge>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground line-clamp-2">
-              {character.description}
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-2 mb-4">
-          <div className="flex items-center gap-2 text-xs">
-            <Heart size={12} className="text-red-500" />
-            <Progress value={stats.love} className="h-1 flex-1" />
-            <span className="text-muted-foreground w-8">{stats.love}%</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            <Smile size={12} className="text-yellow-500" />
-            <Progress value={stats.happiness} className="h-1 flex-1" />
-            <span className="text-muted-foreground w-8">{stats.happiness}%</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            <Drop size={12} className="text-pink-500" />
-            <Progress value={stats.wet} className="h-1 flex-1" />
-            <span className="text-muted-foreground w-8">{stats.wet}%</span>
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            className="flex-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              onStartChat(character.id);
-            }}
-          >
-            <MessageCircle size={14} className="mr-1" />
-            Chat
-          </Button>
-          {onEdit && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit(character);
-              }}
-            >
-              <Pencil size={14} />
-            </Button>
-          )}
-          {onDelete && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Trash size={14} />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Character</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to delete {character.name}? This action cannot be undone and will permanently remove the character from your house, including all their conversations and progress.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction 
-                    onClick={() => onDelete(character.id)}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  >
-                    Delete Character
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => {
-              e.stopPropagation();
-              onGift?.(character.id);
-            }}
-          >
-            <Gift size={14} />
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => {
-              e.stopPropagation();
-              onMove?.(character.id);
-            }}
-          >
-            <House size={14} />
-          </Button>
-        </div>
-      </Card>
+      
       </>
     );
-  }
+
+  return content;
 }

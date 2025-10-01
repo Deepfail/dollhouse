@@ -16,6 +16,9 @@
 			"Qwen",
 			"sdxl"
 		],
-		"vitest.rootConfig": "./vite.config.ts"
+		"vitest.rootConfig": "./vite.config.ts",
+		"editor.experimentalGpuAcceleration": "on",
+		"terminal.integrated.gpuAcceleration": "on",
+		"terminal.integrated.enableImages": true
 	}
 }

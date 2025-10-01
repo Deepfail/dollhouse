@@ -70,7 +70,9 @@ export function ImageSettingsPanel({
         if (saved && typeof saved === 'object') {
           setSettings({ ...DEFAULTS, ...(saved as any), ...(value || {}) });
         }
-      } catch {}
+      } catch (error) {
+        console.error('Failed to load image settings defaults', error);
+      }
     })();
   }, []);
 

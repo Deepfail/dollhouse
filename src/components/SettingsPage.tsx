@@ -9,8 +9,9 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { legacyStorage } from '@/lib/legacyStorage';
+import { logger } from '@/lib/logger';
 import {
-    AlertCircle,
+    ArrowClockwise,
     CheckCircle,
     Database,
     Download,
@@ -18,7 +19,6 @@ import {
     Info,
     Key,
     Palette,
-    RefreshCw,
     FloppyDisk as Save,
     Gear as Settings,
     Shield,
@@ -85,18 +85,18 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const loadSettings = async () => {
     try {
       setIsLoading(true);
-  // Load from legacy storage abstraction or repository
-  const savedApiSettings = legacyStorage.getItem('api-settings');
-  const savedImageSettings = legacyStorage.getItem('image-settings');
-  const savedUiSettings = legacyStorage.getItem('ui-settings');
-  const savedStorageSettings = legacyStorage.getItem('storage-settings');
+      // Load from legacy storage abstraction or repository
+      const savedApiSettings = legacyStorage.getItem('api-settings');
+      const savedImageSettings = legacyStorage.getItem('image-settings');
+      const savedUiSettings = legacyStorage.getItem('ui-settings');
+      const savedStorageSettings = legacyStorage.getItem('storage-settings');
 
       if (savedApiSettings) setApiSettings(JSON.parse(savedApiSettings));
       if (savedImageSettings) setImageSettings(JSON.parse(savedImageSettings));
       if (savedUiSettings) setUiSettings(JSON.parse(savedUiSettings));
       if (savedStorageSettings) setStorageSettings(JSON.parse(savedStorageSettings));
     } catch (error) {
-  logger.error('Error loading settings:', error);
+      logger.error('Error loading settings:', error);
       toast.error('Failed to load settings');
     } finally {
       setIsLoading(false);
@@ -106,12 +106,11 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const saveSettings = async () => {
     try {
       setSaveStatus('saving');
-
-  // Save to legacy storage abstraction
-  legacyStorage.setItem('api-settings', JSON.stringify(apiSettings));
-  legacyStorage.setItem('image-settings', JSON.stringify(imageSettings));
-  legacyStorage.setItem('ui-settings', JSON.stringify(uiSettings));
-  legacyStorage.setItem('storage-settings', JSON.stringify(storageSettings));
+      // Save to legacy storage abstraction
+      legacyStorage.setItem('api-settings', JSON.stringify(apiSettings));
+      legacyStorage.setItem('image-settings', JSON.stringify(imageSettings));
+      legacyStorage.setItem('ui-settings', JSON.stringify(uiSettings));
+      legacyStorage.setItem('storage-settings', JSON.stringify(storageSettings));
 
       // Save to repository storage if available
       try {
@@ -121,7 +120,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         await repositoryStorage.set('ui-settings', uiSettings);
         await repositoryStorage.set('storage-settings', storageSettings);
       } catch (error) {
-  logger.warn('Repository storage not available:', error);
+        logger.warn('Repository storage not available:', error);
       }
 
       setSaveStatus('saved');
@@ -130,7 +129,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       // Reset status after 3 seconds
       setTimeout(() => setSaveStatus('idle'), 3000);
     } catch (error) {
-  logger.error('Error saving settings:', error);
+      logger.error('Error saving settings:', error);
       setSaveStatus('error');
       toast.error('Failed to save settings');
     }
@@ -181,15 +180,15 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         clearCache: false
       });
 
-  // Clear via legacy storage abstraction
-  legacyStorage.removeItem('api-settings');
-  legacyStorage.removeItem('image-settings');
-  legacyStorage.removeItem('ui-settings');
-  legacyStorage.removeItem('storage-settings');
+      // Clear via legacy storage abstraction
+      legacyStorage.removeItem('api-settings');
+      legacyStorage.removeItem('image-settings');
+      legacyStorage.removeItem('ui-settings');
+      legacyStorage.removeItem('storage-settings');
 
       toast.success('Settings reset to defaults');
     } catch (error) {
-  logger.error('Error resetting settings:', error);
+      logger.error('Error resetting settings:', error);
       toast.error('Failed to reset settings');
     } finally {
       setIsLoading(false);
@@ -220,7 +219,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
       toast.success('Settings exported successfully');
     } catch (error) {
-  logger.error('Error exporting settings:', error);
+      logger.error('Error exporting settings:', error);
       toast.error('Failed to export settings');
     }
   };
@@ -241,7 +240,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
         toast.success('Settings imported successfully');
       } catch (error) {
-  logger.error('Error importing settings:', error);
+        logger.error('Error importing settings:', error);
         toast.error('Failed to import settings - invalid file format');
       }
     };
@@ -253,9 +252,10 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     if (!confirmed) return;
 
     try {
+      setIsLoading(true);
       // Clear various caches
-  legacyStorage.clear();
-  legacyStorage.sessionClear();
+      legacyStorage.clear();
+      legacyStorage.sessionClear();
 
       // Clear service worker caches if available
       if ('caches' in window) {
@@ -265,8 +265,10 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
       toast.success('Cache cleared successfully');
     } catch (error) {
-  logger.error('Error clearing cache:', error);
+      logger.error('Error clearing cache:', error);
       toast.error('Failed to clear cache');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -316,10 +318,11 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
             variant="outline"
             size="sm"
             onClick={resetToDefaults}
+            disabled={isLoading}
             className="flex items-center gap-2 text-destructive hover:text-destructive"
           >
-            <RefreshCw size={16} />
-            Reset
+            <ArrowClockwise size={16} className={isLoading ? 'animate-spin' : undefined} />
+            {isLoading ? 'Working...' : 'Reset'}
           </Button>
 
           <Button
@@ -328,7 +331,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
             className="flex items-center gap-2"
           >
             {saveStatus === 'saving' ? (
-              <RefreshCw size={16} className="animate-spin" />
+              <ArrowClockwise size={16} className="animate-spin" />
             ) : saveStatus === 'saved' ? (
               <CheckCircle size={16} className="text-green-500" />
             ) : (
@@ -778,10 +781,15 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                         variant="outline"
                         size="sm"
                         onClick={clearCache}
+                        disabled={isLoading}
                         className="text-destructive hover:text-destructive"
                       >
-                        <Trash size={16} className="mr-2" />
-                        Clear Cache
+                        {isLoading ? (
+                          <ArrowClockwise size={16} className="mr-2 animate-spin" />
+                        ) : (
+                          <Trash size={16} className="mr-2" />
+                        )}
+                        {isLoading ? 'Working...' : 'Clear Cache'}
                       </Button>
                     </div>
                   </div>
@@ -800,7 +808,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <Alert>
-                    <AlertCircle size={16} />
+                    <Info size={16} />
                     <AlertDescription>
                       These settings are for advanced users. Changing them may affect application stability.
                     </AlertDescription>
@@ -818,7 +826,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
-                        <RefreshCw size={16} className="mr-2" />
+                        <ArrowClockwise size={16} className="mr-2" />
                         Reload App
                       </Button>
 

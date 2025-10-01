@@ -17,7 +17,7 @@ interface HouseSettingsProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-interface AISettings {
+interface AISettingsConfig {
   textProvider: 'openrouter' | 'venice' | 'anthropic' | 'openai';
   textApiKey?: string;
   textModel: string;
@@ -34,7 +34,7 @@ interface HouseConfig {
   worldPrompt?: string;
   copilotPrompt?: string;
   copilotMaxTokens?: number;
-  aiSettings: AISettings;
+  aiSettings: AISettingsConfig;
   autoCreator: {
     enabled: boolean;
     interval: number;
@@ -88,7 +88,8 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
           setLocalConfig(DEFAULT_CONFIG);
           setOriginalConfig(DEFAULT_CONFIG);
         }
-      } catch (err) {
+      } catch (error) {
+        console.error('Failed to load house settings', error);
         setLocalConfig(DEFAULT_CONFIG);
         setOriginalConfig(DEFAULT_CONFIG);
       }
@@ -106,7 +107,8 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
       setOriginalConfig(localConfig);
       toast.success('House settings saved!');
       setHasChanges(false);
-    } catch (err) {
+    } catch (error) {
+      console.error('Failed to save house settings', error);
       toast.error('Failed to save settings');
     }
   };
@@ -118,13 +120,6 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
 
   const updateConfig = (updates: Partial<HouseConfig>) => {
     setLocalConfig(prev => ({ ...prev, ...updates }));
-  };
-
-  const updateAISettings = (updates: Partial<AISettings>) => {
-    setLocalConfig(prev => ({
-      ...prev,
-      aiSettings: { ...prev.aiSettings, ...updates }
-    }));
   };
 
   const updateAutoCreator = (updates: Partial<HouseConfig['autoCreator']>) => {

@@ -1,8 +1,19 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   AlertDialog, 
   AlertDialogAction, 
@@ -17,28 +28,22 @@ import {
 import { useAutoCharacterCreator } from '@/hooks/useAutoCharacterCreator';
 import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { useQuickActions } from '@/hooks/useQuickActions';
+import { QuickAction, useQuickActions } from '@/hooks/useQuickActions';
 import { AIService } from '@/lib/aiService';
 import { logger } from '@/lib/logger';
-import type { Character, ChatMessage } from '@/types';
+import type { Character, ChatMessage, House } from '@/types';
 import {
-    ChartLineUp,
-    Gear,
-    Lightning,
-    MagicWand,
-    PaperPlaneRight,
-    UsersThree,
-    Trash,
-    ChatCircle,
-    Robot,
+  ChartLineUp,
+  Gear,
+  PaperPlaneRight,
+  Plus,
+  UsersThree,
+  Trash,
+  ChatCircle,
+  Robot,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-
-const QUICK_PROMPTS = [
-  'Draft a scene where she tests new limits tonight.',
-  'Build me a flirty text opener she cannot ignore.',
-  'What mood boosts her affection fastest right now?',
-];
+import { toast } from 'sonner';
 
 const FALLBACK_RESPONSE =
   "I'm here to tune her heart. Try asking for a new scenario, a growth plan, or tell me which girl needs attention.";
@@ -50,26 +55,107 @@ interface ManagerMessage {
   timestamp: Date;
 }
 
+interface ScenarioIdea {
+  id: string;
+  title: string;
+  description: string;
+  characterId?: string;
+}
+
+interface ManagerSuggestion {
+  id: string;
+  title: string;
+  detail: string;
+}
+
 interface GirlManagerSidebarProps {
   onFocusCharacter?: (characterId: string) => void;
   onSessionActivated?: (sessionId: string, characterId?: string) => void;
   onOpenSettings?: () => void;
 }
 
-function selectScenarioIdeas(characters: Character[]): string[] {
+function selectScenarioIdeas(characters: Character[]): ScenarioIdea[] {
   if (!characters.length) {
     return [
-      'No girls yet? Tap “Generate New Girl” and I’ll craft someone special.',
-      'Import an existing character sheet and I’ll weave her into the house.',
-      'Ask me for a house story arc and I’ll map out the beats.',
+      {
+        id: 'teaser-empty-1',
+        title: 'No roster yet',
+        description: 'Spin up your first girl from the left sidebar so I can start staging tonight’s drama.'
+      },
+      {
+        id: 'teaser-empty-2',
+        title: 'Import a legend',
+        description: 'Drop in an existing character JSON and I’ll map her into the house schedule.'
+      },
+      {
+        id: 'teaser-empty-3',
+        title: 'Blueprint the house arc',
+        description: 'Ask me for a season outline and I’ll script the milestones for your first saga.'
+      }
     ];
   }
 
-  return characters.slice(0, 3).map((character) => {
-    const vibe = character.personality.split(',')[0] || character.personality;
-    const room = character.preferredRoomType || 'the common room';
-    return `Plan a ${vibe.trim()} moment with ${character.name} in ${room}. Focus on affection and trust.`;
+  const sceneLabels = ['In Trouble', 'After Hours', 'On Display', 'Heat Check'];
+
+  return characters.slice(0, 4).map((character, index) => {
+    const label = sceneLabels[index % sceneLabels.length];
+    const title = `${character.name?.toUpperCase() || 'HER'} ${label}`;
+    const room = character.preferredRoomType || 'the private suite';
+    const tension = (character.stats?.love ?? 50) > 70
+      ? `${character.name} can barely keep it together while the guests push for more.`
+      : `${character.name} is begging for backup before the guests strip away her last line of defense.`;
+
+    return {
+      id: `teaser-${character.id}`,
+      characterId: character.id,
+      title,
+      description: `${tension} Slide into ${room} and take control of where this goes.`
+    } satisfies ScenarioIdea;
   });
+}
+
+function buildSuggestions(house: Partial<House> | undefined, characters: Character[]): ManagerSuggestion[] {
+  const pool: ManagerSuggestion[] = [];
+  const rosterSize = characters.length;
+  const worldFocus = [house?.worldPrompt, house?.copilotPrompt].filter(Boolean).join(' ').toLowerCase();
+
+  pool.push({
+    id: 'suggestion-tracker',
+    title: 'Track every encounter',
+    detail: "Let’s build a heat-map of each girl’s sexual activity. I can log positions, locations, and partners so you always know who’s overdue for attention."
+  });
+
+  if (rosterSize > 3) {
+    pool.push({
+      id: 'suggestion-social',
+      title: 'Cross-over story arcs',
+      detail: 'We could ship a social calendar that auto-mixes girls into duos and trios. Think rotating events, jealousy triggers, and weekly house scandals.'
+    });
+  }
+
+  if (!rosterSize) {
+    pool.push({
+      id: 'suggestion-hiring',
+      title: 'Recruitment drive',
+      detail: 'Spin up a casting pipeline that scrapes your favorite tags and auto-populates candidates ready for your approval.'
+    });
+  }
+
+  if (worldFocus.includes('school') || worldFocus.includes('academy')) {
+    pool.push({
+      id: 'suggestion-campus',
+      title: 'Campus life simulator',
+      detail: 'Let’s prototype class schedules, dorm rivalries, and grade pressure that spill directly into their nightly scenes.'
+    });
+  }
+
+  pool.push({
+    id: 'suggestion-market',
+    title: 'Scene marketplace',
+    detail: 'Imagine a workshop where the community drops in new scene presets, house events, and toys. Curate the best and inject them straight into your timeline.'
+  });
+
+  return pool.slice(0, 5);
 }
 
 function mapMessages(raw: ChatMessage[]): ManagerMessage[] {
@@ -86,12 +172,9 @@ export function GirlManagerSidebar({
   onSessionActivated,
   onOpenSettings,
 }: GirlManagerSidebarProps) {
-  const { characters } = useHouseFileStorage();
-  const { quickActions, executeAction } = useQuickActions();
-  const {
-    createRandomCharacter,
-    isCreating: isSpawning,
-  } = useAutoCharacterCreator();
+  const { characters, house } = useHouseFileStorage();
+  const { quickActions, executeAction, addQuickAction } = useQuickActions();
+  const { createRandomCharacter } = useAutoCharacterCreator();
   const {
     sessions,
     sessionsLoaded,
@@ -102,14 +185,24 @@ export function GirlManagerSidebar({
     getSessionMessages,
     sendMessage,
     setActiveSessionId,
+    deleteSession,
   } = useChat();
 
   const [managerSessionId, setManagerSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ManagerMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [isResponding, setIsResponding] = useState(false);
+  const [isCreateActionOpen, setIsCreateActionOpen] = useState(false);
+  const [newActionLabel, setNewActionLabel] = useState('');
+  const [newActionDetail, setNewActionDetail] = useState('');
+  const [activeTab, setActiveTab] = useState<'manager' | 'chat'>('chat');
 
   const scenarioIdeas = useMemo(() => selectScenarioIdeas(characters), [characters]);
+  const suggestions = useMemo(() => buildSuggestions(house, characters), [house, characters]);
+  const enabledActions = useMemo(
+    () => quickActions.filter((action) => action.enabled),
+    [quickActions]
+  );
   const totalAffection = useMemo(
     () =>
       characters.reduce((sum, character) => sum + (character.progression?.affection ?? 0), 0),
@@ -181,6 +274,40 @@ export function GirlManagerSidebar({
     [onFocusCharacter],
   );
 
+  const handleQuickActionPress = useCallback(
+    (action: QuickAction) => {
+      if (action.description) {
+        setDraft(action.description);
+      }
+      void executeAction(action.id);
+    },
+    [executeAction],
+  );
+
+  const handleCreateQuickAction = useCallback(() => {
+    const label = newActionLabel.trim();
+    const detail = newActionDetail.trim();
+    if (!label) {
+      toast.error('Name your action first.');
+      return;
+    }
+
+    addQuickAction({
+      label,
+      icon: 'Sparkle',
+      action: 'customCommand',
+      enabled: true,
+      customizable: true,
+      description: detail || undefined,
+      isCustom: true
+    });
+
+    toast.success(`Created action “${label}”.`);
+    setIsCreateActionOpen(false);
+    setNewActionLabel('');
+    setNewActionDetail('');
+  }, [addQuickAction, newActionDetail, newActionLabel]);
+
   const activateSession = useCallback(
     async (sessionId: string, characterId?: string) => {
       setActiveSessionId(sessionId);
@@ -191,16 +318,22 @@ export function GirlManagerSidebar({
     [focusCharacter, onSessionActivated, refreshMessages, setActiveSessionId],
   );
 
-  const handleCreateRandomCharacter = useCallback(async () => {
-    try {
-      const result = await createRandomCharacter();
-      if (result) {
-        focusCharacter(result.id);
+  const handleSceneTeaser = useCallback(
+    async (idea: ScenarioIdea) => {
+      if (idea.characterId) {
+        try {
+          const sessionId = await createGroupSession([idea.characterId]);
+          await activateSession(sessionId, idea.characterId);
+          toast.success('Scene staged—jump in.');
+        } catch (error) {
+          logger.warn('Failed to launch scene teaser', error);
+          toast.error('Could not open that scene.');
+        }
       }
-    } catch (error) {
-      logger.warn('Auto creator failed', error);
-    }
-  }, [createRandomCharacter, focusCharacter, onSessionActivated]);
+      setDraft(idea.description);
+    },
+    [activateSession, createGroupSession],
+  );
 
   const findCharacterByName = useCallback(
     (nameFragment: string): Character | undefined => {
@@ -276,6 +409,7 @@ export function GirlManagerSidebar({
     const trimmed = draft.trim();
     if (!trimmed) return;
 
+    setActiveTab('chat');
     const sessionId = await ensureManagerSession();
     setDraft('');
     setIsResponding(true);
@@ -323,6 +457,7 @@ export function GirlManagerSidebar({
     refreshMessages,
     sendMessage,
     characters,
+    setActiveTab,
   ]);
 
   // State for managing chat history deletion
@@ -330,189 +465,97 @@ export function GirlManagerSidebar({
 
   const handleDeleteChatHistory = useCallback(async () => {
     if (!managerSessionId) return;
-    
+
     try {
-      // Delete all messages in the manager session
-      await sendMessage(managerSessionId, 'Chat history cleared', 'system', { copilot: true });
+      await deleteSession(managerSessionId);
+      setManagerSessionId(null);
       setMessages([]);
+
+      const freshSessionId = await createSession('assistant', [], { assistantOnly: true });
+      setManagerSessionId(freshSessionId);
+
+      await sendMessage(
+        freshSessionId,
+        "I'm dialed in. Tell me who to optimise or what fantasy to stage tonight.",
+        'copilot',
+        { copilot: true },
+      );
+
+      await refreshMessages(freshSessionId);
       setShowDeleteChatDialog(false);
+      toast.success('Manager chat cleared');
       logger.log('🗑️ Manager chat history cleared');
     } catch (error) {
       logger.error('Failed to clear chat history:', error);
+      toast.error('Could not clear manager chat');
     }
-  }, [managerSessionId, sendMessage]);
+  }, [managerSessionId, deleteSession, createSession, sendMessage, refreshMessages]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#0c0c12] text-white">
-      <header className="border-b border-white/5 px-4 pb-3 pt-4 flex-shrink-0 xl:px-6 xl:pb-4 xl:pt-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.35em] text-white/40">Girl Manager</p>
-            <h2 className="mt-2 text-xl font-semibold">Copilot Control Deck</h2>
-            <p className="mt-1 text-xs text-white/60">
-              I keep the house balanced. Ask for scenarios, stat boosts, or new blood.
-            </p>
-          </div>
-          <div className="flex flex-col items-end gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="rounded-lg border border-white/10 bg-white/5 text-xs text-white/70 hover:border-[#ff1372]/40 hover:text-white"
-              onClick={() => onOpenSettings?.()}
-            >
-              <Gear size={14} className="mr-2" />
-              House Settings
-            </Button>
-            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
-              <div className="flex items-center gap-2">
-                <UsersThree size={14} />
-                <span>{characters.length} girls</span>
-              </div>
-              <div className="mt-1 flex items-center gap-2 text-white/60">
-                <ChartLineUp size={14} />
-                <span>{medianAffection}% median affection</span>
-              </div>
-            </div>
-          </div>
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[#0c0c12] text-white">
+      <header className="flex-shrink-0 border-b border-white/5 px-3 py-2 xl:px-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.3em]">Godmode</h2>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 rounded-lg border border-white/10 bg-white/5 text-white/70 hover:border-[#ff1372]/50 hover:text-white"
+            onClick={() => onOpenSettings?.()}
+            aria-label="Open settings"
+          >
+            <Gear size={14} />
+          </Button>
         </div>
       </header>
 
-      <Tabs defaultValue="manager" className="flex-1 flex flex-col min-h-0">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as 'chat' | 'manager')}
+        className="flex min-h-0 flex-1 flex-col"
+      >
         <TabsList className="grid w-full grid-cols-2 rounded-none border-b border-white/5 bg-transparent p-0">
-          <TabsTrigger 
-            value="manager" 
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#ff1372] data-[state=active]:bg-transparent data-[state=active]:text-white"
-          >
-            <Robot size={14} className="mr-2" />
-            Manager
-          </TabsTrigger>
-          <TabsTrigger 
-            value="chat" 
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#ff1372] data-[state=active]:bg-transparent data-[state=active]:text-white"
+          <TabsTrigger
+            value="chat"
+            className="rounded-none border-b-2 border-transparent text-xs uppercase tracking-[0.25em] data-[state=active]:border-[#ff1372] data-[state=active]:bg-transparent data-[state=active]:text-white"
           >
             <ChatCircle size={14} className="mr-2" />
             Chat
           </TabsTrigger>
+          <TabsTrigger
+            value="manager"
+            className="rounded-none border-b-2 border-transparent text-xs uppercase tracking-[0.25em] data-[state=active]:border-[#ff1372] data-[state=active]:bg-transparent data-[state=active]:text-white"
+          >
+            <Robot size={14} className="mr-2" />
+            Manager
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="manager" className="flex-1 flex flex-col min-h-0 mt-0">
-          <ScrollArea className="flex-1 min-h-0 px-4 py-4 xl:px-6 xl:py-5">
-            <div className="space-y-6">
-              <section>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
-                      Girl lab
-                    </h3>
-                    <p className="mt-1 text-xs text-white/60">
-                      Tune personalities or drop in someone brand new.
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={isSpawning}
-                    onClick={() => void handleCreateRandomCharacter()}
-                    className="rounded-lg border-[#ff1372]/50 text-[#ff1372] hover:bg-[#ff1372]/10"
-                  >
-                    <MagicWand size={14} className="mr-2" />
-                    {isSpawning ? 'Summoning…' : 'Generate New Girl'}
-                  </Button>
-                </div>
-                <div className="mt-4 grid gap-3">
-                  {scenarioIdeas.map((idea) => (
-                    <button
-                      key={idea}
-                      onClick={() => setDraft(idea)}
-                      className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left text-xs text-white/70 transition hover:border-[#ff1372]/40 hover:text-white xl:px-4 xl:py-3"
-                    >
-                      {idea}
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              <Separator className="bg-white/5" />
-
-              <section>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
-                      Quick actions
-                    </h3>
-                    <p className="mt-1 text-xs text-white/60">
-                      Rapid adjustments across the entire roster.
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-2">
-                  {quickActions.slice(0, 4).map((action) => (
-                    <Button
-                      key={action.id}
-                      variant="secondary"
-                      className="justify-start rounded-lg bg-white/5 text-xs text-white/70 hover:bg-[#ff1372]/15 hover:text-white"
-                      onClick={() => void executeAction(action.id)}
-                    >
-                      <Lightning size={14} className="mr-2 text-[#ff1372]" />
-                      <div>
-                        <div className="font-semibold text-white">{action.label}</div>
-                        {action.description && (
-                          <p className="text-[10px] text-white/50">{action.description}</p>
-                        )}
-                      </div>
-                    </Button>
-                  ))}
-                </div>
-              </section>
-
-              <Separator className="bg-white/5" />
-
-              <section>
-                <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
-                  Suggested prompts
-                </h3>
-                <div className="mt-3 grid gap-2">
-                  {QUICK_PROMPTS.map((prompt) => (
-                    <button
-                      key={prompt}
-                      onClick={() => setDraft(prompt)}
-                      className="rounded-lg border border-white/10 bg-transparent px-3 py-2 text-left text-xs text-white/60 transition hover:border-[#ff1372]/30 hover:text-white"
-                    >
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            </div>
-          </ScrollArea>
-        </TabsContent>
-
-        <TabsContent value="chat" className="flex-1 flex flex-col min-h-0 mt-0">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-            <h3 className="text-sm font-semibold text-white">Copilot Chat</h3>
-            <div className="flex gap-2">
+        <TabsContent value="chat" className="relative mt-0 flex flex-1 min-h-0 flex-col">
+          <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+            <div className="flex items-center justify-between border-b border-white/5 px-4 py-3 text-xs uppercase tracking-[0.25em] text-white/50 xl:px-6">
+              <span>Copilot Chat</span>
               <AlertDialog open={showDeleteChatDialog} onOpenChange={setShowDeleteChatDialog}>
                 <AlertDialogTrigger asChild>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-xs text-white/60 hover:text-red-400"
+                    className="h-8 rounded-lg border border-white/10 bg-white/5 px-3 text-[10px] uppercase tracking-[0.25em] text-white/60 hover:border-red-400/60 hover:bg-red-500/10 hover:text-white"
                   >
                     <Trash size={12} className="mr-1" />
-                    Clear History
+                    Clear
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Clear Chat History</AlertDialogTitle>
+                    <AlertDialogTitle>Reset the feed?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will permanently delete all chat history with the copilot. This action cannot be undone.
+                      This will wipe every message in the copilot chat. You can’t undo it.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
-                      onClick={handleDeleteChatHistory}
+                      onClick={() => void handleDeleteChatHistory()}
                       className="bg-red-500 hover:bg-red-600"
                     >
                       Clear History
@@ -521,76 +564,257 @@ export function GirlManagerSidebar({
                 </AlertDialogContent>
               </AlertDialog>
             </div>
-          </div>
 
-          <ScrollArea className="flex-1 min-h-0 px-4 py-4">
-            <div className="space-y-3">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
+            <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 pb-44 xl:px-4 xl:py-4">
+              <div className="mb-3 text-center text-[10px] uppercase tracking-[0.35em] text-white/35">
+                Copilot Chat
+              </div>
+              <div className="space-y-2 pb-2">
+                {messages.map((message) => (
                   <div
-                    className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
-                      message.sender === 'user'
-                        ? 'bg-[#ff1372] text-white'
-                        : 'border border-white/10 bg-[#0f0f15] text-white/70'
-                    }`}
+                    key={message.id}
+                    className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    {message.content}
-                  </div>
-                </div>
-              ))}
-              {messages.length === 0 && (
-                <div className="rounded-lg border border-dashed border-white/10 bg-transparent p-6 text-center text-xs text-white/50">
-                  <ChatCircle size={24} className="mx-auto mb-2 opacity-50" />
-                  <p>Start a conversation with your copilot.</p>
-                  <p className="mt-1 text-[10px] text-white/40">Ask for scenarios, character management, or house advice.</p>
-                </div>
-              )}
-              {isResponding && (
-                <div className="flex justify-start">
-                  <div className="border border-white/10 bg-[#0f0f15] text-white/70 rounded-xl px-3 py-2 text-xs">
-                    <div className="flex items-center gap-2">
-                      <div className="flex space-x-1">
-                        <div className="w-1 h-1 bg-white/60 rounded-full animate-bounce"></div>
-                        <div className="w-1 h-1 bg-white/60 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                        <div className="w-1 h-1 bg-white/60 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                      </div>
-                      <span>Thinking...</span>
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-relaxed ${
+                        message.sender === 'user'
+                          ? 'bg-[#ff1372] text-white shadow-[0_25px_40px_-35px_rgba(255,19,114,0.7)]'
+                          : 'border border-white/10 bg-white/5 text-white/70'
+                      }`}
+                    >
+                      {message.content}
                     </div>
                   </div>
-                </div>
-              )}
+                ))}
+                {messages.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-white/15 bg-transparent p-6 text-center text-xs text-white/50">
+                    <ChatCircle size={24} className="mx-auto mb-2 opacity-50" />
+                    <p>Talk to me about growth plans, drama ideas, or who needs a stat boost.</p>
+                  </div>
+                )}
+                {isResponding && (
+                  <div className="flex justify-start">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
+                      <div className="flex items-center gap-2">
+                        <div className="flex space-x-1">
+                          <div className="h-1 w-1 animate-bounce rounded-full bg-white/60" />
+                          <div className="h-1 w-1 animate-bounce rounded-full bg-white/60" style={{ animationDelay: '0.1s' }} />
+                          <div className="h-1 w-1 animate-bounce rounded-full bg-white/60" style={{ animationDelay: '0.2s' }} />
+                        </div>
+                        <span>Calibrating...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </ScrollArea>
+          </div>
+
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 px-3 pb-3 pt-2 xl:px-4 xl:pb-4">
+            <div className="pointer-events-auto rounded-xl border border-white/10 bg-[#14141f]/95 px-3 pb-3 pt-2 shadow-[0_22px_65px_-35px_rgba(255,19,114,0.65)] backdrop-blur-xl sm:px-4 sm:pb-4">
+              <form
+                className="flex items-center gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void handleSend();
+                }}
+              >
+                <Input
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder="Copilot chat — tell her what to stage next…"
+                  className="h-9 flex-1 rounded-lg border-white/10 bg-white/[0.08] text-sm text-white placeholder:text-white/40"
+                />
+                <Button
+                  type="submit"
+                  disabled={!draft.trim() || isResponding}
+                  className="h-9 rounded-lg bg-[#ff1372] px-3 text-xs font-semibold uppercase tracking-[0.2em] text-white hover:bg-[#ff1372]/90"
+                >
+                  <PaperPlaneRight size={12} className="mr-1" />
+                  Send
+                </Button>
+              </form>
+            </div>
+          </div>
         </TabsContent>
 
-        <footer className="border-t border-white/5 px-4 py-4 flex-shrink-0 xl:px-6">
-          <form
-            className="flex items-center gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void handleSend();
-            }}
-          >
-            <Input
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="Ask the manager for a scene, stat boost, or new girl…"
-              className="rounded-xl border-white/10 bg-white/5 text-xs text-white placeholder:text-white/40"
-              autoFocus
-            />
-            <Button
-              type="submit"
-              disabled={!draft.trim() || isResponding}
-              className="rounded-xl bg-[#ff1372] text-white hover:bg-[#ff1372]/90"
-            >
-              <PaperPlaneRight size={16} className="mr-1" />
-              Send
-            </Button>
-          </form>
-        </footer>
+        <TabsContent value="manager" className="relative mt-0 flex flex-1 min-h-0 flex-col overflow-hidden">
+          <div className="absolute inset-0 z-0 flex flex-col">
+            <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 pb-40 xl:px-4 xl:py-3">
+              <div className="space-y-4">
+                <section>
+                  <div className="grid grid-cols-2 gap-3 rounded-2xl border border-white/5 bg-white/5 p-3 text-[11px] text-white/70">
+                    <div className="flex items-center gap-2">
+                      <UsersThree size={14} />
+                      <span>{characters.length} girls online</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <ChartLineUp size={14} />
+                      <span>{medianAffection}% median affection</span>
+                    </div>
+                  </div>
+                </section>
+
+                <section>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
+                      Girl Feed
+                    </h3>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {scenarioIdeas.slice(0, 2).map((idea) => (
+                      <div
+                        key={idea.id}
+                        className="group cursor-pointer rounded-xl border border-white/10 bg-white/5 p-3 transition hover:border-[#ff1372]/40 hover:bg-white/10"
+                        onClick={() => handleSceneTeaser(idea)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 pr-2">
+                            <p className="text-xs font-semibold text-[#ff1372] leading-tight">
+                              {idea.title}
+                            </p>
+                            <p className="mt-0.5 line-clamp-1 text-[11px] leading-tight text-white/60">
+                              {idea.description.split('.')[0]}.
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="h-6 px-2 text-[10px] font-semibold uppercase tracking-[0.15em] bg-[#ff1372] text-white opacity-0 transition-opacity hover:bg-[#ff1372]/85 group-hover:opacity-100"
+                          >
+                            Go
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    {scenarioIdeas.length > 2 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-full text-[10px] text-white/50 hover:text-white/70"
+                        onClick={() => {
+                          /* TODO: Show more scenarios */
+                        }}
+                      >
+                        +{scenarioIdeas.length - 2} more scenarios
+                      </Button>
+                    )}
+                  </div>
+                </section>
+
+                <Separator className="bg-white/5" />
+
+                <section>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
+                      Quick Actions
+                    </h3>
+                    <Dialog open={isCreateActionOpen} onOpenChange={setIsCreateActionOpen}>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 rounded-lg border-white/20 px-3 text-xs uppercase tracking-[0.2em] text-white/70 hover:border-[#ff1372]/50 hover:text-white"
+                        >
+                          <Plus size={12} className="mr-1" />
+                          Create Action
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>New quick action</DialogTitle>
+                          <DialogDescription>
+                            Give it a title and optional tooltip. I’ll surface it in the manager feed.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium uppercase tracking-[0.2em] text-white/50">
+                              Title
+                            </label>
+                            <Input
+                              value={newActionLabel}
+                              onChange={(event) => setNewActionLabel(event.target.value)}
+                              placeholder="Ex: Warm up the lounge"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium uppercase tracking-[0.2em] text-white/50">
+                              Tooltip (optional)
+                            </label>
+                            <Textarea
+                              value={newActionDetail}
+                              onChange={(event) => setNewActionDetail(event.target.value)}
+                              placeholder="Describe what you expect me to do when this fires."
+                              rows={3}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="ghost" onClick={() => setIsCreateActionOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={handleCreateQuickAction}
+                            className="bg-[#ff1372] text-white hover:bg-[#ff1372]/85"
+                          >
+                            Save Action
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    {enabledActions.map((action) => {
+                      const trigger = (
+                        <Button
+                          key={action.id}
+                          variant="secondary"
+                          className="h-10 w-full justify-center rounded-lg bg-white/5 text-xs font-semibold uppercase tracking-[0.2em] text-white hover:bg-[#ff1372]/15 hover:text-white"
+                          onClick={() => handleQuickActionPress(action)}
+                        >
+                          {action.label}
+                        </Button>
+                      );
+
+                      return action.description ? (
+                        <Tooltip key={action.id}>
+                          <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+                          <TooltipContent className="max-w-xs text-xs text-white/80">
+                            {action.description}
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        trigger
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <Separator className="bg-white/5" />
+
+                <section>
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
+                    Suggestions
+                  </h3>
+                  <div className="mt-3 space-y-3 pb-6">
+                    {suggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.id}
+                        onClick={() => setDraft(suggestion.detail)}
+                        className="w-full rounded-2xl border border-white/10 bg-transparent px-4 py-3 text-left text-xs text-white/70 transition hover:border-[#ff1372]/40 hover:text-white"
+                      >
+                        <div className="text-sm font-semibold text-white">{suggestion.title}</div>
+                        <p className="mt-1 text-xs text-white/60">{suggestion.detail}</p>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+
+        
       </Tabs>
     </div>
   );

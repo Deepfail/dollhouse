@@ -37,7 +37,9 @@ export function SceneInterface({ sessionId, onClose }: SceneInterfaceProps) {
               if (parsed?.chatSessionId) {
                 setChatSessionId(parsed.chatSessionId);
               }
-            } catch {}
+            } catch (error) {
+              console.error('Failed to parse scene chat link', error);
+            }
           }
         }
         // Hidden goals hydration (no-op if already present)
@@ -47,10 +49,16 @@ export function SceneInterface({ sessionId, onClose }: SceneInterfaceProps) {
           db.exec({ sql: 'SELECT value FROM settings WHERE key = ?', bind: [key], rowMode: 'object', callback: (r: any) => rows.push(r) });
           if (rows.length > 0) {
             // Parsed goals are available if needed for future sync.
-            try { JSON.parse(rows[0].value || '{}'); } catch {}
+            try {
+              JSON.parse(rows[0].value || '{}');
+            } catch (error) {
+              console.error('Failed to parse scene goals', error);
+            }
           }
         }
-      } catch {}
+      } catch (error) {
+        console.error('Failed to hydrate scene session info', error);
+      }
     })();
   }, [session, sessionId, chatSessionId]);
 
