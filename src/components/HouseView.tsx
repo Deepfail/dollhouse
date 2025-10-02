@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import type { Character, Room } from '@/types';
 import {
     Camera,
     Monitor as Desktop,
@@ -33,39 +34,38 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
     house,
     characters,
     isLoading,
-    addCharacter,
-  removeCharacter,
-  updateCharacter,
+    removeCharacter,
+    updateCharacter,
     addRoom,
-    removeRoom,
-    assignCharacterToRoom,
-    getAvailableRooms
+    removeRoom
   } = useHouseFileStorage();
   const [viewMode, setViewMode] = useState<'map' | 'list' | 'desktop'>('map');
-  const [selectedCharacter, setSelectedCharacter] = useState<any>(null);
+  const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
   const [showCharacterDetails, setShowCharacterDetails] = useState(false);
   const [showCharacterCreator, setShowCharacterCreator] = useState(false);
   const [showRoomCreator, setShowRoomCreator] = useState(false);
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomType, setNewRoomType] = useState<'shared' | 'private'>('shared');
 
+  const safeStartChat = onStartChat ?? ((id: string) => {
+    console.warn('Start chat handler not provided for character', id);
+  });
+
   // UI-level dedupe guard
-  const visibleCharacters = useMemo(() => {
+  const visibleCharacters = useMemo<Character[]>(() => {
     const byId = new Set<string>();
     const byName = new Set<string>();
-    const out: any[] = [];
-    for (const c of characters || []) {
+    const output: Character[] = [];
+    for (const c of characters ?? []) {
       const idKey = c.id;
       const nameKey = (c.name || '').trim().toLowerCase();
       if (byId.has(idKey) || (nameKey && byName.has(nameKey))) continue;
       byId.add(idKey);
       if (nameKey) byName.add(nameKey);
-      out.push(c);
+      output.push(c);
     }
-    return out;
+    return output;
   }, [characters]);
-
-
 
   const handleDeleteCharacter = async (characterId: string) => {
     await removeCharacter(characterId);
@@ -89,10 +89,8 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
     setShowRoomCreator(false);
   };
 
-  const handleCharacterClick = (character: any) => {
-    setSelectedCharacter(character);
-    setShowCharacterDetails(true);
-  };
+  const rooms: Room[] = house?.rooms ?? [];
+  const allCharacters: Character[] = characters ?? [];
 
   return (
     <div className="h-full flex flex-col">
@@ -101,7 +99,7 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
         <div className="flex items-center gap-4">
           <h1 className="text-2xl font-bold">My Character House</h1>
           <Badge variant="outline">
-            {characters?.length || 0} Characters
+            {(characters?.length ?? 0)} Characters
           </Badge>
         </div>
 
@@ -169,9 +167,9 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {house.rooms.map((room) => {
-                      const charactersInRoom = characters.filter((c: any) =>
-                        room.residents.includes(c.id)
+                    {rooms.map((room) => {
+                      const charactersInRoom = allCharacters.filter((character) =>
+                        room.residents.includes(character.id)
                       );
                       return (
                         <Card key={room.id} className="hover:shadow-lg transition-shadow">
@@ -193,11 +191,11 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
                             </div>
                             {charactersInRoom.length > 0 && (
                               <div className="flex -space-x-2 mb-3">
-                                {charactersInRoom.slice(0, 4).map((character: any) => (
+                                {charactersInRoom.slice(0, 4).map((character) => (
                                   <Avatar key={character.id} className="w-8 h-8 border-2 border-[rgba(255,255,255,0.06)]">
                                     <AvatarImage src={character.avatar} alt={character.name} />
                                     <AvatarFallback className="text-xs">
-                                      {character.name.slice(0, 2)}
+                                      {character.name?.slice(0, 2) || '??'}
                                     </AvatarFallback>
                                   </Avatar>
                                 ))}
@@ -267,13 +265,17 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {visibleCharacters?.map((character: any) => (
+                      {visibleCharacters.map((character) => (
                         <CharacterCard
                           key={`houseview-${character.id}`}
                           character={character}
-                          onStartChat={onStartChat ?? (() => {})}
+                          onStartChat={safeStartChat}
                           onDelete={handleDeleteCharacter}
                           onSaveCharacter={(characterId, updates) => updateCharacter(characterId, updates)}
+                          onEdit={(editableCharacter) => {
+                            setSelectedCharacter(editableCharacter);
+                            setShowCharacterDetails(true);
+                          }}
                           compact
                           source="houseview"
                         />
@@ -390,7 +392,14 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
               <X size={16} className="mr-2" />
               Close
             </Button>
-            <Button onClick={() => onStartChat?.(selectedCharacter?.id)}>
+            <Button
+              onClick={() => {
+                if (selectedCharacter?.id) {
+                  safeStartChat(selectedCharacter.id);
+                }
+              }}
+              disabled={!selectedCharacter}
+            >
               <MessageCircle size={16} className="mr-2" />
               Start Chat
             </Button>

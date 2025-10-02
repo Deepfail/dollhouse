@@ -19,6 +19,13 @@
 		"vitest.rootConfig": "./vite.config.ts",
 		"editor.experimentalGpuAcceleration": "on",
 		"terminal.integrated.gpuAcceleration": "on",
-		"terminal.integrated.enableImages": true
+		"terminal.integrated.enableImages": true,
+		"cSpell.enabledFileTypes": {
+			"typescript": false,
+			"typescriptreact": false
+		},
+		"cSpell.enabledSchemes": {
+			"file": false
+		}
 	}
 }

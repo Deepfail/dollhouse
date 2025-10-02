@@ -22,7 +22,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import {
   BookOpen,
+  Code,
   Crown,
+  CurrencyDollar,
   Download,
   Drop,
   Gift,
@@ -38,8 +40,6 @@ import {
   TrendUp,
   Trophy,
   User,
-  CurrencyDollar,
-  Code,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -123,6 +123,9 @@ const dots = (items: string[] | undefined, empty: string) => {
   return items.join(', ');
 };
 
+const PROMPT_FIELDS = ['system', 'personality', 'background', 'responseStyle', 'scenarioContext'] as const;
+type PromptField = (typeof PROMPT_FIELDS)[number];
+
 export function CharacterCard({
   character,
   onStartChat,
@@ -152,10 +155,108 @@ export function CharacterCard({
   );
   const [profileDraft, setProfileDraft] = useState(profileDefaults);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const promptDefaults = useMemo(() => {
+    const storedPrompts = character.prompts ?? { system: '', personality: '', background: '' };
+    const rawSettings = (character.preferences?.promptSettings ?? {}) as {
+      responseStyle?: string;
+      scenarioContext?: string;
+    };
+
+    return {
+      system: storedPrompts.system ?? '',
+      personality: storedPrompts.personality ?? '',
+      background: storedPrompts.background ?? '',
+      responseStyle: typeof rawSettings.responseStyle === 'string' ? rawSettings.responseStyle : '',
+      scenarioContext: typeof rawSettings.scenarioContext === 'string' ? rawSettings.scenarioContext : '',
+    };
+  }, [character.preferences, character.prompts]);
+  const [promptDraft, setPromptDraft] = useState(promptDefaults);
+  const [isSavingPrompts, setIsSavingPrompts] = useState(false);
 
   useEffect(() => {
     setProfileDraft(profileDefaults);
   }, [profileDefaults]);
+
+  useEffect(() => {
+    setPromptDraft(promptDefaults);
+  }, [promptDefaults]);
+
+  const isPromptDirty = useMemo(
+    () => PROMPT_FIELDS.some((field) => promptDefaults[field] !== promptDraft[field]),
+    [promptDefaults, promptDraft],
+  );
+
+  const handlePromptChange = useCallback((field: PromptField, value: string) => {
+    setPromptDraft((prev) => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleResetPrompts = useCallback(() => {
+    setPromptDraft(promptDefaults);
+  }, [promptDefaults]);
+
+  const handleSavePrompts = useCallback(async () => {
+    if (!isPromptDirty || isSavingPrompts) {
+      return;
+    }
+
+    const trimmedPrompts = {
+      system: promptDraft.system.trim(),
+      personality: promptDraft.personality.trim(),
+      background: promptDraft.background.trim(),
+    } as const;
+
+    const trimmedSettings = {
+      responseStyle: promptDraft.responseStyle.trim(),
+      scenarioContext: promptDraft.scenarioContext.trim(),
+    };
+
+    const updates: Partial<Character> = {
+      prompts: {
+        ...(character.prompts ?? { system: '', personality: '', background: '' }),
+        ...trimmedPrompts,
+      },
+    };
+
+  const existingPreferences: Record<string, unknown> = { ...(character.preferences ?? {}) };
+    const hasPromptSettings = Boolean(trimmedSettings.responseStyle || trimmedSettings.scenarioContext);
+
+    if (hasPromptSettings) {
+      updates.preferences = {
+        ...existingPreferences,
+        promptSettings: trimmedSettings,
+      };
+    } else if (existingPreferences.promptSettings) {
+  const restPreferences: Record<string, unknown> = { ...existingPreferences };
+      delete restPreferences.promptSettings; // Drop stale prompt settings when both fields are cleared
+      updates.preferences = restPreferences;
+    }
+
+    setIsSavingPrompts(true);
+    try {
+      if (typeof onSaveCharacter === 'function') {
+        const result = await onSaveCharacter(character.id, updates);
+        if (result === false) {
+          throw new Error('save callback returned false');
+        }
+      } else {
+        toast.error('Saving prompts is not available in this view yet.');
+        return;
+      }
+
+      setPromptDraft((prev) => ({
+        ...prev,
+        ...trimmedPrompts,
+        responseStyle: trimmedSettings.responseStyle,
+        scenarioContext: trimmedSettings.scenarioContext,
+      }));
+      toast.success('Character prompts updated');
+    } catch (error) {
+      console.error('Failed to save character prompts', error);
+      toast.error('Failed to update character prompts');
+    } finally {
+      setIsSavingPrompts(false);
+    }
+  }, [character.id, character.prompts, character.preferences, isPromptDirty, isSavingPrompts, onSaveCharacter, promptDraft]);
 
   const isProfileDirty = useMemo(
     () =>
@@ -1126,52 +1227,81 @@ export function CharacterCard({
               <div className="space-y-4 text-sm text-white/70">
                 <div>
                   <label className="block text-white/80 font-medium mb-2">System Prompt</label>
-                  <textarea 
-                    className="w-full h-24 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm resize-none"
-                    defaultValue={character.prompts?.system || `You are ${character.name}, a character with the following personality: ${character.personality}. Stay in character and respond naturally.`}
+                  <Textarea
+                    value={promptDraft.system}
+                    onChange={(event) => handlePromptChange('system', event.target.value)}
+                    placeholder={`You are ${character.name}, a character with the following personality: ${character.personality}. Stay in character and respond naturally.`}
+                    className="h-24 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm"
                   />
                 </div>
                 
                 <div>
                   <label className="block text-white/80 font-medium mb-2">Personality Prompt</label>
-                  <textarea 
-                    className="w-full h-20 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm resize-none"
-                    defaultValue={character.personality || 'Friendly, engaging, and thoughtful'}
+                  <Textarea
+                    value={promptDraft.personality}
+                    onChange={(event) => handlePromptChange('personality', event.target.value)}
+                    placeholder={character.personality || 'Friendly, engaging, and thoughtful'}
+                    className="h-20 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm"
                   />
                 </div>
 
                 <div>
                   <label className="block text-white/80 font-medium mb-2">Background Context</label>
-                  <textarea 
-                    className="w-full h-20 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm resize-none"
-                    defaultValue={character.description || character.prompts?.background || 'Add background details here...'}
+                  <Textarea
+                    value={promptDraft.background}
+                    onChange={(event) => handlePromptChange('background', event.target.value)}
+                    placeholder={character.description || 'Add background details here...'}
+                    className="h-20 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm"
                   />
                 </div>
 
                 <div>
                   <label className="block text-white/80 font-medium mb-2">Response Style</label>
-                  <textarea 
-                    className="w-full h-16 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm resize-none"
-                    defaultValue="Respond in character with natural, engaging dialogue. Keep responses conversational and true to personality."
+                  <Textarea
+                    value={promptDraft.responseStyle}
+                    onChange={(event) => handlePromptChange('responseStyle', event.target.value)}
+                    placeholder="Respond in character with natural, engaging dialogue. Keep responses conversational and true to personality."
+                    className="h-16 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm"
                   />
                 </div>
 
                 <div>
                   <label className="block text-white/80 font-medium mb-2">Scenario Context</label>
-                  <textarea 
-                    className="w-full h-16 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm resize-none"
-                    defaultValue="You are in a comfortable, private setting where you can speak freely and openly."
+                  <Textarea
+                    value={promptDraft.scenarioContext}
+                    onChange={(event) => handlePromptChange('scenarioContext', event.target.value)}
+                    placeholder="You are in a comfortable, private setting where you can speak freely and openly."
+                    className="h-16 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm"
                   />
                 </div>
 
                 <div className="flex gap-3 pt-4">
-                  <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white">
-                    Save Prompts
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    disabled={!isPromptDirty || isSavingPrompts || typeof onSaveCharacter !== 'function'}
+                    onClick={() => void handleSavePrompts()}
+                  >
+                    {isSavingPrompts ? 'Saving…' : 'Save Prompts'}
                   </Button>
-                  <Button size="sm" variant="outline" className="border-white/20">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-white/20"
+                    disabled={!isPromptDirty || isSavingPrompts}
+                    onClick={handleResetPrompts}
+                  >
                     Reset to Default
                   </Button>
-                  <Button size="sm" variant="outline" className="border-white/20">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-white/20"
+                    onClick={() => toast.info('Prompt testing coming soon.')}
+                  >
                     Test Prompts
                   </Button>
                 </div>

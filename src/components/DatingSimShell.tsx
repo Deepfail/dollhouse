@@ -1,13 +1,13 @@
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -20,15 +20,15 @@ import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { logger } from '@/lib/logger';
 import type { Character, ChatMessage, ChatSession } from '@/types';
 import {
-  ArrowRight,
-  ChatCircle,
-  ChatsCircle,
-  Plus,
-  Star,
-  Trash,
-  User,
-  UserCircle,
-  Users,
+    ArrowRight,
+    ChatCircle,
+    ChatsCircle,
+    Plus,
+    Star,
+    Trash,
+    User,
+    UserCircle,
+    Users,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';

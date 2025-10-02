@@ -5,6 +5,50 @@ import { AutoCharacterConfig, AVAILABLE_PERSONALITIES, AVAILABLE_ROLES, Characte
 import { useEffect, useRef, useState } from 'react';
 import { useFileStorage } from './useFileStorage';
 
+const generateUniqueId = (): string => `char_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+const ensureUniqueCharacter = (incoming: Character, existing: Character[]): Character => {
+  const ids = new Set(existing.map((character) => character.id));
+  const names = new Set(existing.map((character) => character.name.trim().toLowerCase()).filter(Boolean));
+
+  const result: Character = { ...incoming };
+
+  if (!result.id || ids.has(result.id)) {
+    let candidateId = generateUniqueId();
+    while (ids.has(candidateId)) {
+      candidateId = generateUniqueId();
+    }
+    result.id = candidateId;
+  }
+
+  if (result.name) {
+    let baseName = result.name.trim();
+    if (!baseName) {
+      baseName = 'New Companion';
+    }
+    let candidateName = baseName;
+    let suffix = 2;
+    while (names.has(candidateName.toLowerCase())) {
+      candidateName = `${baseName} ${suffix}`;
+      suffix += 1;
+    }
+    result.name = candidateName;
+  } else {
+    let suffix = 2;
+    let candidateName = 'New Companion';
+    while (names.has(candidateName.toLowerCase())) {
+      candidateName = `New Companion ${suffix}`;
+      suffix += 1;
+    }
+    result.name = candidateName;
+  }
+
+  result.createdAt = result.createdAt ? new Date(result.createdAt) : new Date();
+  result.updatedAt = new Date();
+
+  return result;
+};
+
 export const useAutoCharacterCreator = () => {
   const { house, updateHouse, addCharacter } = useHouseFileStorage();
   const { data: config, setData: setConfig } = useFileStorage<AutoCharacterConfig>('auto-character-config.json', {
@@ -19,38 +63,44 @@ export const useAutoCharacterCreator = () => {
   });
   const [isCreating, setIsCreating] = useState(false);
   const [nextCreationTime, setNextCreationTime] = useState<Date | null>(null);
-  const timeoutRef = useRef<any>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isCreatingRef = useRef(false);
 
   const createRandomCharacter = async (): Promise<Character> => {
     if (isCreating || isCreatingRef.current) {
-      return Promise.reject('Already creating character');
+      throw new Error('the auto-creator is already busy finishing another request');
     }
-    const recentCharacters = house.characters?.filter(char => {
-      const createdAt = new Date(char.createdAt);
-      const timeDiff = Date.now() - createdAt.getTime();
-      return timeDiff < 2000;
-    }) || [];
+
+    const roster = house.characters || [];
+    const maxCharacters = house.autoCreator?.maxCharacters ?? 20;
+    if (roster.length >= maxCharacters) {
+      throw new Error(`the house is already at its ${maxCharacters} character limit`);
+    }
+
+    const recentCharacters = roster.filter((char) => {
+      const createdAt = char.createdAt ? new Date(char.createdAt) : null;
+      if (!createdAt) return false;
+      return Date.now() - createdAt.getTime() < 2000;
+    });
     if (recentCharacters.length > 0) {
-      return Promise.reject('Recent character creation detected');
+      throw new Error('a character was just created—give me a moment before spinning up another');
     }
+
     setIsCreating(true);
     isCreatingRef.current = true;
     try {
-      const character = await generateRandomCharacter(config, house);
-      const currentCharacters = house.characters || [];
-      const nameExists = currentCharacters.some(c => c.name === character.name);
-      const idExists = currentCharacters.some(c => c.id === character.id);
-      if (nameExists) {
-        return Promise.reject('Character name already exists');
+      const generated = await generateRandomCharacter(config, house);
+      const uniqueCharacter = ensureUniqueCharacter(generated, roster);
+      const added = await addCharacter(uniqueCharacter);
+      if (!added) {
+        throw new Error('I could not save her to the roster');
       }
-      if (idExists) {
-        return Promise.reject('Character ID already exists');
-      }
-      addCharacter(character);
-      return character;
+      return uniqueCharacter;
     } catch (error) {
-      throw error;
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Unexpected error while generating a character');
     } finally {
       setTimeout(() => {
         setIsCreating(false);

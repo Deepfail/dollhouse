@@ -10,10 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { repositoryStorage } from '@/hooks/useRepositoryStorage';
+import { populateCharacterProfile } from '@/lib/characterProfileBuilder';
 import { generateCharacterDraft } from '@/lib/llm';
 import { logger } from '@/lib/logger';
 import { Character } from '@/types';
-import { populateCharacterProfile } from '@/lib/characterProfileBuilder';
 import { FloppyDisk, Plus, Sparkle, X } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -83,21 +83,17 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
     'Hazel',
     'Green',
     'Blue',
-    'Gray',
     'Amber',
     'Violet',
-    'Heterochromia',
   ];
 
   const SKIN_TONE_OPTIONS = [
-    'Very Fair',
     'Fair',
     'Light',
     'Medium',
-    'Olive',
     'Tan',
     'Brown',
-    'Dark',
+    'Half-Black',
   ];
 
   // Normalize free-text traits to allowed options for selects
@@ -227,10 +223,11 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
         let list = Array.isArray(existing) ? (existing as string[]) : [];
         if (!list.length) {
           list = [
-            'tattoos', 'piercings', 'freckles', 'glasses', 'athletic', 'curvy', 'petite',
-            'slim', 'toned', 'muscled', 'hourglass', 'pear-shaped', 'busty', 'tall', 'short',
-            'long hair', 'short hair', 'wavy hair', 'straight hair', 'braids', 'ponytail',
-            'bangs', 'dimples', 'beauty mark'
+'Short hair', 'Long Straight hair', 'Messy bun', 'Pigtails', 'Braids', 'Ponytail', 'High Ponytail', 'Dyed hair', 'Bangs', 'Twintails',
+'Blue eyes', 'Brown eyes', 'Green eyes', 'Hazel eyes', 'Bright eyes', 'Big eyes', 'Almond eyes',
+'Petite', 'Curvy', 'Skinny', 'Toned', 'Flexible', 'Delicate frame', 'Tiny', 'Bubble Butt', 'Big Tits', 'Child Body', 'Flat Chest', 'Big Ass',
+'Glasses', 'Freckles', 'Dimples', 'Rosy cheeks', 'Tan skin', 'Big Pretty Lips', 'Long Tongue', 'No Gag Reflex',
+'Beautiful smile', 'Expressive eyes', 'Puppy Dog Eyes', 'Adorable', 'Cute', 'Sexy', 'Natural beauty', 'Youthful glow', 'Playful grin', 'Cute Face Paintings', 'Naughty Smile'
           ];
           await repositoryStorage.set('appearance_tags', list);
         }

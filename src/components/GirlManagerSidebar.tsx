@@ -2,24 +2,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -33,14 +33,14 @@ import { AIService } from '@/lib/aiService';
 import { logger } from '@/lib/logger';
 import type { Character, ChatMessage, House } from '@/types';
 import {
-  ChartLineUp,
-  ChatCircle,
-  Gear,
-  PaperPlaneRight,
-  Plus,
-  Robot,
-  Trash,
-  UsersThree,
+    ChartLineUp,
+    ChatCircle,
+    Gear,
+    PaperPlaneRight,
+    Plus,
+    Robot,
+    Trash,
+    UsersThree,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -367,6 +367,10 @@ export function GirlManagerSidebar({
           }
         } catch (error) {
           logger.warn('Command create girl failed', error);
+          const details = error instanceof Error ? error.message : null;
+          if (details) {
+            return `I tried to craft someone, but ${details}. Check your settings.`;
+          }
         }
         return 'I tried to craft someone, but your auto-creator hit a snag. Check your settings.';
       }

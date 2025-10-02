@@ -1,9 +1,9 @@
-import { ReactNode, useState } from 'react';
-import { GirlsView } from '@/components/GirlsView';
 import { CopilotNew } from '@/components/CopilotNew';
+import { GirlsView } from '@/components/GirlsView';
 import { Button } from '@/components/ui/button';
-import { Sparkle, UsersThree, Buildings, SlidersHorizontal, Robot } from '@phosphor-icons/react';
 import { Separator } from '@/components/ui/separator';
+import { Buildings, Robot, SlidersHorizontal, Sparkle, UsersThree } from '@phosphor-icons/react';
+import { ReactNode, useState } from 'react';
 
 const NAV_TABS: Array<{ id: 'girls' | 'rooms' | 'settings'; label: string; caption: string; icon: ReactNode }> = [
   {

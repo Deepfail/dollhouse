@@ -1,8 +1,8 @@
 import { AutoCharacterConfig, Character } from '@/types';
 import { AIService } from './aiService';
 import { aliProfileService } from './aliProfile';
-import { logger } from './logger';
 import { populateCharacterProfile } from './characterProfileBuilder';
+import { logger } from './logger';
 
 // Clean, minimal character generator that the app can use during runtime.
 // Purposefully small to avoid large prompt blobs and to be resilient when AI fails.
@@ -230,6 +230,8 @@ Generate a detailed character profile for a female character the user would desi
 - Personality traits
 - Background story
 - Key traits/behaviors
+- Personality Prompt
+- Appearance Prompt
 
 Format as JSON:
 {

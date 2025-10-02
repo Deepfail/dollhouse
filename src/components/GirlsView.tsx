@@ -1,30 +1,30 @@
 import { CharacterCard } from '@/components/CharacterCard';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { toast } from 'sonner';
-import type { Character, ChatMessage, ChatSession } from '@/types';
-import { ArrowRight, ChatCircle, ChatsCircle, Heart, Plus, Trash, User, UserCircle, Users, Warning } from '@phosphor-icons/react';
 import { useAutoCharacterCreator } from '@/hooks/useAutoCharacterCreator';
-import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { useChat } from '@/hooks/useChat';
+import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Character, ChatMessage, ChatSession } from '@/types';
+import { ArrowRight, ChatCircle, ChatsCircle, Heart, Plus, Trash, User, UserCircle, Users, Warning } from '@phosphor-icons/react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 interface CharacterRosterProps {
   characters: Character[];

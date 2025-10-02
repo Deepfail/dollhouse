@@ -7,8 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFileStorage } from '@/hooks/useFileStorage';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { QuickAction, useQuickActions } from '@/hooks/useQuickActions';
-import { useSceneMode } from '@/hooks/useSceneMode';
 import { repositoryStorage } from '@/hooks/useRepositoryStorage';
+import { useSceneMode } from '@/hooks/useSceneMode';
 import { AIService } from '@/lib/aiService';
 import { generateCharacterFromPrompt } from '@/lib/characterGenerator';
 import { Character, CopilotUpdate } from '@/types';
@@ -42,6 +42,8 @@ type StoredHouseConfig = {
   copilotMaxTokens?: number;
   copilotUseHouseContext?: boolean;
   copilotContextDetail?: 'lite' | 'balanced' | 'detailed';
+  /** New: lets user choose how assertive/able the copilot is. */
+  copilotMode?: 'normal' | 'godmode';
 };
 
 interface CopilotProps {
@@ -71,7 +73,23 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
   const safeUpdates = updates || [];
   const safeChatMessages = chatMessages || [];
 
-  const effectiveCopilotPrompt = (houseConfig?.copilotPrompt ?? house.copilotPrompt ?? '').trim();
+  // ==== Personality / Godmode helpers ====
+  const getEffectiveCopilotPrompt = (cfg: StoredHouseConfig | null): string => {
+    const userPrompt = (cfg?.copilotPrompt ?? house.copilotPrompt ?? '').trim();
+    const mode = cfg?.copilotMode ?? 'normal';
+    if (userPrompt) return userPrompt; // user owns the personality
+    if (mode === 'godmode') {
+      return [
+        'You are Copilot — a witty, emotionally intelligent friend and assistant.',
+        'Be a person first: speak naturally, ask clarifying questions sparingly, keep replies concise unless asked for depth.',
+        'You have broad capabilities ("godmode"), but only take actions when the user explicitly asks. Never hijack the conversation.',
+        'Default tone: warm, playful, helpful. Prioritize conversational responses over offering features.',
+      ].join(' ');
+    }
+    return 'You are Copilot, a friendly assistant for the user\'s house. Keep things conversational and human.';
+  };
+
+  const effectiveCopilotPrompt = getEffectiveCopilotPrompt(houseConfig);
 
   useEffect(() => {
     let active = true;
@@ -82,13 +100,9 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
           setHouseConfig(cfg ?? null);
         }
       } catch {
-        if (active) {
-          setHouseConfig(null);
-        }
+        if (active) setHouseConfig(null);
       }
-      if (active) {
-        setConfigLoaded(true);
-      }
+      if (active) setConfigLoaded(true);
     })();
     return () => {
       active = false;
@@ -111,188 +125,59 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
         id: `welcome-${Date.now()}`,
         sender: 'copilot',
         content: effectiveCopilotPrompt
-          ? effectiveCopilotPrompt
-          : "Oh...hey boss! Umm hold on one sec... *fapp fapp fapp fapp fapp* *moans loudly* Oh man...so freaking adorable.. HEY sry boss how can i help boss?! *wipes his hands*",
+          ? `Hey — I'm Copilot. ${effectiveCopilotPrompt}`
+          : 'Hey — I\'m Copilot. How can I help right now?',
         timestamp: new Date()
       };
       setChatMessages([welcomeMessage]);
     }
   }, [configLoaded, safeChatMessages.length, effectiveCopilotPrompt, setChatMessages]);
 
-  // Parse natural language commands for character interaction
-  const parseNaturalLanguageCommand = (message: string): { type: 'chat' | 'scene' | null, characterId: string | null, context: string } | null => {
-    // Patterns for "send [character] to my room" etc. (should launch chat, not scene)
-    const sendPatterns = [
-      /send\s+([\w\s]+?)\s+(?:to|into)\s+my\s+room/i,
-      /bring\s+([\w\s]+?)\s+(?:to|into)\s+my\s+room/i,
-      /invite\s+([\w\s]+?)\s+(?:to|into)\s+my\s+room/i,
-      /call\s+([\w\s]+?)\s+(?:to|into)\s+my\s+room/i,
-      /summon\s+([\w\s]+?)\s+(?:to|into)\s+my\s+room/i,
-      /take\s+([\w\s]+?)\s+(?:to|into)\s+my\s+room/i,
-      /lead\s+([\w\s]+?)\s+(?:to|into)\s+my\s+room/i,
-      /get\s+([\w\s]+?)\s+to\s+come\s+(?:to|into)\s+my\s+room/i,
-      /have\s+([\w\s]+?)\s+come\s+(?:to|into)\s+my\s+room/i,
-      /(?:tell|ask)\s+([\w\s]+?)\s+to\s+come\s+(?:to|into)\s+my\s+room/i
-    ];
+  // ====== Commands: explicit-only (slash) ======
+  type ParsedCommand =
+    | { kind: 'image'; prompt: string }
+    | { kind: 'scene'; description: string; characterId?: string }
+    | { kind: 'create-character'; seed: string }
+    | { kind: 'chat-with'; characterId: string };
 
-    // Check for send/bring to room patterns first (chat commands)
-    for (const pattern of sendPatterns) {
-      const match = message.match(pattern);
-      if (match) {
-        const characterName = match[1].trim();
-        const character = roster.find(c =>
-          c.name.toLowerCase() === characterName.toLowerCase()
-        );
-        if (character) {
-          return {
-            type: 'chat',
-            characterId: character.id,
-            context: `User wants ${character.name} to come to their room via: ${message}`
-          };
-        }
+  const parseSlashCommand = (message: string): ParsedCommand | null => {
+    const m = message.trim();
+
+    // /img or /image <prompt>
+    let match = m.match(/^\/(?:img|image)\s+(.+)/i);
+    if (match) return { kind: 'image', prompt: match[1].trim() };
+
+    // /scene <description> [with <name>]
+    match = m.match(/^\/scene\s+(.+)/i);
+    if (match) {
+      const description = match[1].trim();
+      // try to capture a character name if the user adds "with <name>"
+      const withMatch = description.match(/with\s+([\w\s]+)$/i);
+      let characterId: string | undefined;
+      if (withMatch) {
+        const name = withMatch[1].trim().toLowerCase();
+        const found = roster.find(c => c.name.toLowerCase() === name);
+        if (found) characterId = found.id;
       }
+      return { kind: 'scene', description, characterId };
     }
 
-    // Patterns for custom scene creation
-    const scenePatterns = [
-  /copilot\s+i\s+want\s+you\s+to\s+(.+)/i,
-  /create\s+a\s+scene\s+where\s+(.+)/i,
-  /set\s+up\s+a\s+scenario\s+where\s+(.+)/i,
-  /i\s+want\s+to\s+roleplay\s+(.+)/i,
-  /let's\s+have\s+a\s+scene\s+where\s+(.+)/i
-    ];
+    // /newchar or /createchar <seed>
+    match = m.match(/^\/(?:newchar|createchar)\s+(.+)/i);
+    if (match) return { kind: 'create-character', seed: match[1].trim() };
 
-    // Check for scene creation patterns
-    for (const pattern of scenePatterns) {
-      const match = message.match(pattern);
-      if (match) {
-        const customPrompt = match[1];
-        
-        // Try to find a character mentioned in the prompt
-        let characterId: string | null = null;
-        const characterPatterns = [
-          /with\s+([\w\s]+)/i,
-          /([\w\s]+)\s+(?:should|will|can)/i,
-          /have\s+([\w\s]+?)\s+/i,
-          /make\s+([\w\s]+?)\s+/
-        ];
-
-        for (const pattern of characterPatterns) {
-          const charMatch = customPrompt.match(pattern);
-          if (charMatch) {
-            const characterName = charMatch[1].trim();
-            const character = roster.find(c =>
-              c.name.toLowerCase() === characterName.toLowerCase()
-            );
-            if (character) {
-              characterId = character.id;
-              break;
-            }
-          }
-        }
-        
-        // If no specific character found, use the first available character
-        if (!characterId && roster.length > 0) {
-          characterId = roster[0].id;
-        }
-        
-        if (characterId) {
-          return {
-            type: 'scene',
-            characterId,
-            context: `User wants a custom scene: ${customPrompt}`
-          };
-        }
-      }
+    // /chat <character name>
+    match = m.match(/^\/chat\s+(.+)/i);
+    if (match) {
+      const name = match[1].trim().toLowerCase();
+      const found = roster.find(c => c.name.toLowerCase() === name);
+      if (found) return { kind: 'chat-with', characterId: found.id };
     }
-    
+
     return null;
   };
 
-  // Parse image generation commands
-  const parseImageGenerationCommand = (message: string): string | null => {
-    const imagePatterns = [
-      /send\s+me\s+(?:a\s+)?pic(?:ture)?(?:\s+of\s+)?(.+)/i,
-      /generate\s+(?:a\s+|an\s+)?(?:pic(?:ture)?|image)(?:\s+of\s+)?(.+)/i,
-      /show\s+me\s+(?:a\s+|an\s+)?(?:pic(?:ture)?|image)(?:\s+of\s+)?(.+)/i,
-      /create\s+(?:a\s+|an\s+)?(?:pic(?:ture)?|image)(?:\s+of\s+)?(.+)/i,
-      /draw\s+(?:a\s+|an\s+)?(?:pic(?:ture)?|image)(?:\s+of\s+)?(.+)/i,
-      /make\s+(?:a\s+|an\s+)?(?:pic(?:ture)?|image)(?:\s+of\s+)?(.+)/i,
-      /visualize\s+(.+)/i,
-      /imagine\s+(.+)/i,
-      /picture\s+of\s+(.+)/i,
-      /image\s+of\s+(.+)/i,
-      /pic\s+of\s+(.+)/i,
-      /(?:give\s+me|want)\s+(?:a\s+|an\s+)?(?:pic(?:ture)?|image)(?:\s+of\s+)?(.+)/i
-    ];
-
-    for (const pattern of imagePatterns) {
-      const match = message.match(pattern);
-      if (match && match[1] && match[1].trim()) {
-        return match[1].trim();
-      }
-    }
-    return null;
-  };
-
-  // Create a custom scene chat session
-  const createCustomSceneChat = async (characterId: string, context: string, customPrompt?: string) => {
-    try {
-      const character = roster.find(c => c.id === characterId);
-      if (!character) {
-        toast.error('Character not found');
-        return;
-      }
-
-  let sceneDescription: string;
-
-      if (customPrompt) {
-        // Use the custom prompt exactly as specified by the user
-        sceneDescription = `Custom scenario: ${customPrompt}\n\nYou are ${character.name} with personality: ${character.personality}. Stay in character and respond naturally to this scenario.`;
-        
-      } else {
-        // Generate an intimate scene
-        const timeOfDay = new Date().getHours();
-        const timeContext = timeOfDay >= 18 || timeOfDay <= 6 ? 'evening' : 'afternoon';
-
-        sceneDescription = `It's ${timeContext} and you're spending intimate time with ${character.name} in your private space. The atmosphere is warm and inviting, perfect for deep connection.`;
-      }
-
-      // Create a new scene session using the scene mode system
-      const sessionId = await createSceneSession([characterId], {
-        name: customPrompt ? `Custom scene with ${character.name}` : `Intimate scene with ${character.name}`,
-        description: sceneDescription
-      });
-
-      if (sessionId) {
-        toast.success(customPrompt ? `Created custom scene with ${character.name}` : `Created intimate scene with ${character.name}`);
-
-        // Navigate to the scene view
-        if (onStartScene) {
-          onStartScene(sessionId);
-        }
-      } else {
-        toast.error('Failed to create scene chat');
-      }
-    } catch (error) {
-      console.error('Error creating custom scene:', error);
-      toast.error('Failed to create custom scene');
-    }
-  };
-
-  const isCharacterCreationCommand = (message: string): boolean => {
-    const lowered = message.toLowerCase();
-    const patterns = [
-      /create\s+(?:a\s+)?(?:new\s+)?(?:girl|character)/,
-      /generate\s+(?:a\s+)?(?:girl|character)/,
-      /make\s+(?:me\s+)?(?:a\s+)?(?:girl|character)/,
-      /design\s+(?:a\s+)?(?:girl|character)/,
-      /build\s+(?:a\s+)?(?:girl|character)/,
-      /(add|spawn)\s+(?:a\s+)?(?:girl|character)/
-    ];
-    return patterns.some((pattern) => pattern.test(lowered));
-  };
-
+  // ========== Character creation flow ==========
   const promptForCharacterDetails = (seed: string, history: CopilotMessage[]) => {
     const examples = [
       '"Give me a shy art student who secretly models goth fashion on the side."',
@@ -304,10 +189,9 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
       id: `creation-intro-${Date.now()}`,
       sender: 'copilot',
       content: [
-        "Let's craft someone new together!",
+        "Let's make you a little slut that gets you hard just seeing her walk in the door!",
         'Tell me the vibe you want: personality, looks, boundaries to respect, favorite outfits—anything important.',
-        `Examples you can riff on:
-${examples.map((example) => `• ${example}`).join('\n')}`,
+        `Examples you can riff on:\n${examples.map((example) => `• ${example}`).join('\n')}`,
         'If you change your mind, just say "cancel".'
       ].join('\n\n'),
       timestamp: new Date()
@@ -327,7 +211,7 @@ ${examples.map((example) => `• ${example}`).join('\n')}`,
     if (personality) summaryParts.push(`Personality: ${personality}`);
     if (description) summaryParts.push(description);
     if (likes) summaryParts.push(`She lights up for: ${likes}.`);
-    summaryParts.push(`Say "Call ${character.name} into my room" when you want her over.`);
+    summaryParts.push(`Say "+ /chat ${character.name}" to talk now, or "/scene ... with ${character.name}" to jump into a scene.`);
     return summaryParts.join('\n');
   };
 
@@ -412,6 +296,7 @@ ${examples.map((example) => `• ${example}`).join('\n')}`,
     }
   };
 
+  // ====== Message send ======
   const sendMessage = async () => {
     if (!inputMessage.trim()) return;
 
@@ -428,74 +313,87 @@ ${examples.map((example) => `• ${example}`).join('\n')}`,
     setIsTyping(true);
 
     try {
+      // 0) If we are in the middle of creation flow, finish that first.
       if (pendingCharacterCreation) {
         await completeCharacterCreation(userMessage.content, updatedMessages);
         return;
       }
 
-      if (isCharacterCreationCommand(userMessage.content)) {
-        promptForCharacterDetails(userMessage.content, updatedMessages);
-        return;
-      }
-
-      // Check for image generation requests first
-      const imagePrompt = parseImageGenerationCommand(userMessage.content);
-      if (imagePrompt) {
-        try {
-          const imageResult = await AIService.generateImage(imagePrompt);
-          if (imageResult) {
-            const imageMessage: CopilotMessage = {
-              id: `img-${Date.now()}`,
+      // 1) Handle explicit slash commands BEFORE anything else
+      const cmd = parseSlashCommand(userMessage.content);
+      if (cmd) {
+        if (cmd.kind === 'image') {
+          try {
+            const imageResult = await AIService.generateImage(cmd.prompt);
+            if (imageResult) {
+              const imageMessage: CopilotMessage = {
+                id: `img-${Date.now()}`,
+                sender: 'copilot',
+                content: `Here you go.`,
+                timestamp: new Date(),
+                imageData: imageResult
+              };
+              setChatMessages([...updatedMessages, imageMessage]);
+            } else {
+              setChatMessages([...updatedMessages, {
+                id: `error-${Date.now()}`,
+                sender: 'copilot',
+                content: `I couldn't generate that image. Please check your AI settings.`,
+                timestamp: new Date()
+              }]);
+            }
+          } catch (err) {
+            console.error('Image generation failed:', err);
+            setChatMessages([...updatedMessages, {
+              id: `error-${Date.now()}`,
               sender: 'copilot',
-              content: `Here's the image you requested: ${imagePrompt}`,
-              timestamp: new Date(),
-              imageData: imageResult
-            };
-            setChatMessages([...updatedMessages, imageMessage]);
+              content: `Sorry, image generation failed.`,
+              timestamp: new Date()
+            }]);
+          } finally {
+            setIsTyping(false);
+          }
+          return;
+        }
+
+        if (cmd.kind === 'chat-with') {
+          if (onStartChat) onStartChat(cmd.characterId);
+          const who = roster.find(c => c.id === cmd.characterId)?.name || 'character';
+          setChatMessages([...updatedMessages, {
+            id: `confirm-${Date.now()}`,
+            sender: 'copilot',
+            content: `Opening chat with ${who}.`,
+            timestamp: new Date()
+          }]);
+          setIsTyping(false);
+          return;
+        }
+
+        if (cmd.kind === 'scene') {
+          // default to first character if none was specified
+          const charId = cmd.characterId || (roster[0]?.id);
+          if (!charId) {
+            setChatMessages([...updatedMessages, {
+              id: `error-${Date.now()}`,
+              sender: 'copilot',
+              content: 'No characters available to start a scene.',
+              timestamp: new Date()
+            }]);
             setIsTyping(false);
             return;
           }
-        } catch (error) {
-          console.error('Image generation failed:', error);
-          const errorMessage: CopilotMessage = {
-            id: `error-${Date.now()}`,
-            sender: 'copilot',
-            content: `Sorry, I couldn't generate that image. ${error instanceof Error ? error.message : 'Please check your AI settings.'}`,
-            timestamp: new Date()
-          };
-          setChatMessages([...updatedMessages, errorMessage]);
+          await createCustomSceneChat(charId, `User wants a custom scene: ${cmd.description}`, cmd.description);
           setIsTyping(false);
+          return;
+        }
+
+        if (cmd.kind === 'create-character') {
+          promptForCharacterDetails(cmd.seed, updatedMessages);
           return;
         }
       }
 
-      // Check for natural language commands
-      const nlCommand = parseNaturalLanguageCommand(userMessage.content);
-      if (nlCommand) {
-        if (nlCommand.type === 'chat' && nlCommand.characterId) {
-          // Start a chat with the character
-          if (onStartChat) {
-            onStartChat(nlCommand.characterId);
-          }
-          const character = roster.find(c => c.id === nlCommand.characterId);
-          const confirmMessage: CopilotMessage = {
-            id: `confirm-${Date.now()}`,
-            sender: 'copilot',
-            content: `Starting chat with ${character?.name || 'character'}!`,
-            timestamp: new Date()
-          };
-          setChatMessages([...updatedMessages, confirmMessage]);
-          setIsTyping(false);
-          return;
-        } else if (nlCommand.type === 'scene' && nlCommand.characterId) {
-          // Create a custom scene
-          await createCustomSceneChat(nlCommand.characterId, nlCommand.context);
-          setIsTyping(false);
-          return;
-        }
-      }
-
-      // Generate AI response for general conversation using the dedicated copilot handler
+      // 2) Person-first chat: talk by default (no auto-features)
       const historyForModel: { role: 'user' | 'assistant'; content: string }[] = [...updatedMessages]
         .slice(-10)
         .map((message) => ({
@@ -503,6 +401,7 @@ ${examples.map((example) => `• ${example}`).join('\n')}`,
           content: message.content
         }));
 
+      // Refresh config on send to catch recent changes from settings
       let currentConfig = houseConfig;
       try {
         const fetchedConfig = await repositoryStorage.get<StoredHouseConfig>('house_config');
@@ -511,16 +410,17 @@ ${examples.map((example) => `• ${example}`).join('\n')}`,
           setHouseConfig(fetchedConfig);
         }
       } catch {
-        // ignore repository load failure and fall back to existing state
+        // ignore
       }
       setConfigLoaded(true);
 
-      const copilotPrompt = (currentConfig?.copilotPrompt ?? house.copilotPrompt ?? '').trim();
+      const copilotPrompt = getEffectiveCopilotPrompt(currentConfig);
       const housePrompt = (currentConfig?.worldPrompt ?? house.worldPrompt ?? '').trim();
       const maxTokensSetting = currentConfig?.copilotMaxTokens ?? house.copilotMaxTokens ?? 512;
       const includeContextSetting = currentConfig?.copilotUseHouseContext ?? house.copilotUseHouseContext ?? true;
       const contextDetailSetting = currentConfig?.copilotContextDetail ?? house.copilotContextDetail ?? 'balanced';
       const maxTokens = Math.max(1, Math.min(Math.floor(maxTokensSetting ?? 512), 4000));
+
       const response = await AIService.copilotRespond({
         threadId: 'copilot-main',
         messages: historyForModel,
@@ -531,7 +431,7 @@ ${examples.map((example) => `• ${example}`).join('\n')}`,
         includeHouseContext: includeContextSetting,
         contextDetail: contextDetailSetting,
       });
-      
+
       const copilotMessage: CopilotMessage = {
         id: `copilot-${Date.now()}`,
         sender: 'copilot',
@@ -603,8 +503,8 @@ ${examples.map((example) => `• ${example}`).join('\n')}`,
 
   const handleQuickAction = async (action: QuickAction) => {
     if (action.label.includes('Create')) {
-      // Trigger character creation
-      const message = "I'd like to help you create a new character! What kind of character are you looking for?";
+      // Trigger character creation (prompt-led)
+      const message = "I'd like to help you create a new character! Use /newchar <seed> or just tell me what you want.";
       const copilotMessage: CopilotMessage = {
         id: `action-${Date.now()}`,
         sender: 'copilot',
@@ -627,8 +527,51 @@ ${examples.map((example) => `• ${example}`).join('\n')}`,
       };
       setChatMessages([...safeChatMessages, copilotMessage]);
     }
-    
     await executeAction(action.id);
+  };
+
+  // ====== Scene creation helper (reused) ======
+  const createCustomSceneChat = async (characterId: string, context: string, customPrompt?: string) => {
+    try {
+      const character = roster.find(c => c.id === characterId);
+      if (!character) {
+        toast.error('Character not found');
+        return;
+      }
+
+      let sceneDescription: string;
+
+      if (customPrompt) {
+        // Use the custom prompt exactly as specified by the user
+        sceneDescription = `Custom scenario: ${customPrompt}\n\nYou are ${character.name} with personality: ${character.personality}. Stay in character and respond naturally to this scenario.`;
+      } else {
+        // Generate an intimate scene
+        const timeOfDay = new Date().getHours();
+        const timeContext = timeOfDay >= 18 || timeOfDay <= 6 ? 'evening' : 'afternoon';
+
+        sceneDescription = `It's ${timeContext} and you're spending intimate time with ${character.name} in your private space. The atmosphere is warm and inviting, perfect for deep connection.`;
+      }
+
+      // Create a new scene session using the scene mode system
+      const sessionId = await createSceneSession([characterId], {
+        name: customPrompt ? `Custom scene with ${character.name}` : `Intimate scene with ${character.name}`,
+        description: sceneDescription
+      });
+
+      if (sessionId) {
+        toast.success(customPrompt ? `Created custom scene with ${character.name}` : `Created intimate scene with ${character.name}`);
+
+        // Navigate to the scene view
+        if (onStartScene) {
+          onStartScene(sessionId);
+        }
+      } else {
+        toast.error('Failed to create scene chat');
+      }
+    } catch (error) {
+      console.error('Error creating custom scene:', error);
+      toast.error('Failed to create custom scene');
+    }
   };
 
   return (
@@ -700,7 +643,7 @@ ${examples.map((example) => `• ${example}`).join('\n')}`,
                           />
                         </div>
                       )}
-                      <p className="text-sm leading-relaxed">{message.content}</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
                       <p
                         className={`mt-2 text-xs ${
                           message.sender === 'user' ? 'text-blue-200' : 'text-zinc-400'
@@ -758,12 +701,16 @@ ${examples.map((example) => `• ${example}`).join('\n')}`,
               </div>
             )}
 
+            <div className="mb-2 text-[11px] text-zinc-400">
+              <span className="opacity-80">Tips:</span> Chat normally. Use <code className="px-1 py-0.5 rounded bg-zinc-800">/image</code> to generate an image, <code className="px-1 py-0.5 rounded bg-zinc-800">/scene</code> to start a scene, <code className="px-1 py-0.5 rounded bg-zinc-800">/chat &lt;name&gt;</code> to DM a character, or <code className="px-1 py-0.5 rounded bg-zinc-800">/newchar</code> to create one.
+            </div>
+
             <div className="flex gap-2">
               <Input
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Ask about your characters, request images, or chat..."
+                placeholder="Talk to Copilot… (type / for commands)"
                 disabled={isTyping}
                 className="flex-1 border-zinc-700 bg-zinc-900 text-white placeholder:text-zinc-500"
               />

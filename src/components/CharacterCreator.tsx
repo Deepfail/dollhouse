@@ -12,16 +12,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { AIService } from '@/lib/aiService';
+import { populateCharacterProfile } from '@/lib/characterProfileBuilder';
 import { logger } from '@/lib/logger';
 import { Character } from '@/types';
-import { populateCharacterProfile } from '@/lib/characterProfileBuilder';
 import {
-    Image as ImageIcon,
-    Plus,
-    FloppyDisk as Save,
-    Sparkle,
-    User,
-    X
+  Image as ImageIcon,
+  Plus,
+  FloppyDisk as Save,
+  Sparkle,
+  User,
+  X
 } from '@phosphor-icons/react';
 import React, { useState } from 'react';
 import { toast } from 'sonner';
@@ -33,20 +33,21 @@ interface CharacterCreatorProps {
 }
 
 const PERSONALITY_OPTIONS = [
-  'Shy', 'Confident', 'Playful', 'Serious', 'Kind', 'Mysterious', 'Energetic', 'Calm',
-  'Flirty', 'Innocent', 'Dominant', 'Submissive', 'Caring', 'Independent', 'Loyal', 'Rebellious',
-  'Intelligent', 'Creative', 'Adventurous', 'Romantic', 'Sarcastic', 'Gentle', 'Ambitious', 'Protective'
+  'Adventurous', 'Affectionate', 'Agreeable', 'Aloof', 'Ambitious', 'Analytical', 'Artistic', 'Assertive', 'Athletic', 'Authentic', 'Balanced', 'Bashful', 'Bold', 'Bookish', 'Bouncy', 'Brave', 'Bubbly', 'Calm', 'Candid', 'Caring', 'Charismatic', 'Charming', 'Cheeky', 'Chill', 'Clever', 'Compassionate', 'Competitive', 'Confident', 'Considerate', 'Cooperative', 'Courteous', 'Coy', 'Curious', 'Cute', 'Daring', 'Decisive', 'Dependable', 'Devoted', 'Diligent', 'Direct', 'Discreet', 'Dominant', 'Dreamy', 'Driven', 'Dry-Humored', 'Dutiful', 'Easygoing', 'Eccentric', 'Elegant', 'Eloquent', 'Empathetic', 'Energetic', 'Enthusiastic', 'Ethereal', 'Excitable', 'Expressive', 'Extroverted', 'Feisty', 'Feminine', 'Fierce', 'Flirtatious', 'Focused', 'Forgiving', 'Forthright', 'Fresh', 'Friendly', 'Funny', 'Gentle', 'Genuine', 'Giving', 'Goofy', 'Graceful', 'Gritty', 'Grounded', 'Happy-Go-Lucky', 'Hardworking', 'Helpful', 'Honest', 'Hopeful', 'Humble', 'Humorous', 'Hyper', 'Idealistic', 'Imaginative', 'Indecisive', 'Independent', 'Individualistic', 'Innocent', 'Intellectual', 'Intense', 'Introverted', 'Intuitive', 'Inventive', 'Irreverent', 'Jovial', 'Joyful', 'Kind', 'Laid-Back', 'Lively', 'Logical', 'Loyal', 'Magnetic', 'Mature', 'Mellow', 'Methodical', 'Modest', 'Mysterious', 'Mystical', 'Naive', 'Nerdy', 'Nurturing', 'Observant', 'Open-Minded', 'Optimistic', 'Organized', 'Outdoorsy', 'Outgoing', 'Passionate', 'Patient', 'Perceptive', 'Perky', 'Persistent', 'Personable', 'Playful', 'Plucky', 'Poised', 'Polished', 'Polite', 'Practical', 'Precise', 'Protective', 'Proud', 'Pure', 'Quick-Witted', 'Quiet', 'Quirky', 'Rational', 'Reassuring', 'Rebellious', 'Reflective', 'Reliable', 'Reserved', 'Resourceful', 'Respectful', 'Romantic', 'Sassy', 'Savvy', 'Seductive', 'Sensible', 'Sensitive', 'Serene', 'Serious', 'Shy', 'Sincere', 'Sly', 'Snarky', 'Social', 'Sophisticated', 'Spiritual', 'Spontaneous', 'Sporty', 'Steadfast', 'Stoic', 'Strong-Willed', 'Stubborn', 'Submissive', 'Supportive', 'Sweet', 'Talkative', 'Teasing', 'Tenacious', 'Thoughtful', 'Timid', 'Tolerant', 'Touchy', 'Trusting', 'Trustworthy', 'Unconfident', 'Understanding', 'Untouched', 'Upbeat', 'Versatile', 'Vibrant', 'Virginal', 'Visionary', 'Vulnerable', 'Warm', 'Whimsical', 'Willing', 'Witty', 'Worldly', 'Youthful', 'Zany', 'Zen'
+
 ];
 
 const FEATURE_OPTIONS = [
-  'Long hair', 'Short hair', 'Curly hair', 'Straight hair', 'Blue eyes', 'Brown eyes', 'Green eyes',
-  'Tall', 'Petite', 'Athletic', 'Curvy', 'Slim', 'Glasses', 'Freckles', 'Dimples', 'Tattoos',
-  'Piercings', 'Beautiful smile', 'Expressive eyes', 'Elegant', 'Cute', 'Sexy', 'Natural beauty'
+'Short hair', 'Long Straight hair', 'Messy bun', 'Pigtails', 'Braids', 'Ponytail', 'High Ponytail', 'Dyed hair', 'Bangs', 'Twintails',
+'Blue eyes', 'Brown eyes', 'Green eyes', 'Hazel eyes', 'Bright eyes', 'Big eyes', 'Almond eyes',
+'Petite', 'Curvy', 'Skinny', 'Toned', 'Flexible', 'Delicate frame', 'Tiny', 'Bubble Butt', 'Big Tits', 'Child Body', 'Flat Chest', 'Big Ass',
+'Glasses', 'Freckles', 'Dimples', 'Rosy cheeks', 'Tan skin', 'Big Pretty Lips', 'Long Tongue', 'No Gag Reflex',
+'Beautiful smile', 'Expressive eyes', 'Puppy Dog Eyes', 'Adorable', 'Cute', 'Sexy', 'Natural beauty', 'Youthful glow', 'Playful grin', 'Cute Face Paintings', 'Naughty Smile'
+
 ];
 
 const ROLE_OPTIONS = [
-  'Student', 'Teacher', 'Artist', 'Musician', 'Athlete', 'Scientist', 'Writer', 'Nurse',
-  'Secretary', 'Model', 'Chef', 'Dancer', 'Librarian', 'Photographer', 'Designer', 'Engineer'
+  'In Training', 'Good Girl', 'Bad Girl', 'Kinky Girl', 'Abused Girl', 'Dont touch Me Girl', 'Stuck Up Girl', 'Daddys Girl'
 ];
 
 export function CharacterCreator({ open = false, onOpenChange, character }: CharacterCreatorProps) {
@@ -126,7 +127,7 @@ export function CharacterCreator({ open = false, onOpenChange, character }: Char
       // Create image prompt from character data
       const prompt = `Portrait of ${name}, ${role || 'person'}, ${
         features.slice(0, 3).join(', ') || 'attractive features'
-      }, ${personalities.slice(0, 2).join(' and ') || 'friendly personality'}, high quality, detailed, anime style`;
+      }, ${personalities.slice(0, 2).join(' and ') || 'friendly personality'}, high quality, detailed`;
       
   const imageUrl = await AIService.generateImage(prompt, { hide_watermark: true });
       

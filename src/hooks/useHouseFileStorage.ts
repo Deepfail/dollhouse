@@ -8,7 +8,10 @@
 import { legacyStorage } from '@/lib/legacyStorage';
 import { logger } from '@/lib/logger';
 import { storage } from '@/storage';
-import { Character, House } from '@/types';
+import {
+  Character,
+  House
+} from '@/types';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -31,9 +34,9 @@ const DEFAULT_HOUSE: Partial<House> = {
     }
   ],
   currency: 1000,
-  worldPrompt: 'Welcome to your Character Creator House!',
-  copilotPrompt: 'You are a helpful House Manager AI.',
-  copilotMaxTokens: 75,
+  worldPrompt: 'The Dollhouse is a house filled with girls, who all must obey the user.',
+  copilotPrompt: 'You love your job of helping me get girls to do things.',
+  copilotMaxTokens: 50,
   copilotUseHouseContext: true,
   copilotContextDetail: 'balanced',
   autoCreator: {
@@ -54,6 +57,380 @@ const DEFAULT_HOUSE: Partial<House> = {
   },
   createdAt: new Date(),
   updatedAt: new Date()
+};
+
+type LegacyCharacterRow = {
+  id: string;
+  profile_json?: string | null;
+  name?: string | null;
+  created_at?: string | number | null;
+  updated_at?: string | number | null;
+};
+
+type SqliteBackupCharacter = {
+  id: string;
+  name?: string | null;
+  avatar_path?: string | null;
+  bio?: string | null;
+  traits_json?: string | null;
+  tags_json?: string | null;
+  system_prompt?: string | null;
+  created_at?: string | number | null;
+  updated_at?: string | number | null;
+};
+
+type SettingsRow = {
+  id: string;
+  key: string;
+  value: string;
+};
+
+type LegacyProfile = Partial<Character> & {
+  prompts?: Partial<Character['prompts']>;
+  stats?: Partial<Character['stats']>;
+  skills?: Partial<Character['skills']>;
+  progression?: Partial<Character['progression']>;
+  preferences?: Record<string, unknown>;
+  relationships?: Record<string, unknown>;
+  bio?: string;
+};
+
+type StorageUpdateDetail = {
+  key?: string;
+};
+
+const RELATIONSHIP_STATUS_SET: ReadonlySet<Character['progression']['relationshipStatus']> = new Set([
+  'stranger',
+  'acquaintance',
+  'friend',
+  'close_friend',
+  'romantic_interest',
+  'lover',
+  'devoted'
+]);
+
+const RARITY_SET: ReadonlySet<Character['rarity']> = new Set([
+  'common',
+  'rare',
+  'legendary',
+  'epic'
+]);
+
+const GENDER_SET = new Set<Character['gender']>([
+  'female',
+  'male',
+  'other'
+]);
+
+const createDefaultPhysicalStats = (): NonNullable<Character['physicalStats']> => ({
+  hairColor: '',
+  eyeColor: '',
+  height: '',
+  weight: '',
+  skinTone: ''
+});
+
+const createDefaultProgression = (): Character['progression'] => ({
+  level: 1,
+  nextLevelExp: 100,
+  unlockedFeatures: [],
+  achievements: [],
+  relationshipStatus: 'stranger',
+  affection: 0,
+  trust: 0,
+  intimacy: 0,
+  dominance: 50,
+  jealousy: 0,
+  possessiveness: 0,
+  sexualExperience: 0,
+  kinks: [],
+  limits: [],
+  fantasies: [],
+  unlockedPositions: [],
+  unlockedOutfits: [],
+  unlockedToys: [],
+  unlockedScenarios: [],
+  relationshipMilestones: [],
+  sexualMilestones: [],
+  significantEvents: [],
+  storyChronicle: [],
+  currentStoryArc: undefined,
+  memorableEvents: [],
+  bonds: {},
+  sexualCompatibility: { overall: 0, kinkAlignment: 0, stylePreference: 0 },
+  userPreferences: { likes: [], dislikes: [], turnOns: [], turnOffs: [] }
+});
+
+const ensureString = (value: unknown, fallback = ''): string => (typeof value === 'string' ? value : fallback);
+
+const ensureOptionalString = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
+
+const ensureNumber = (value: unknown, fallback = 0): number => (typeof value === 'number' ? value : fallback);
+
+const ensureBoolean = (value: unknown): boolean | undefined => (typeof value === 'boolean' ? value : undefined);
+
+const ensureDate = (value: unknown, fallback: Date): Date => {
+  if (value instanceof Date) return value;
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  return fallback;
+};
+
+const ensureOptionalDate = (value: unknown): Date | undefined => {
+  if (value === undefined || value === null) return undefined;
+  if (value instanceof Date) return value;
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  return undefined;
+};
+
+const ensureStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string');
+};
+
+const ensurePreferences = (value: unknown): Character['preferences'] => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Character['preferences'];
+  }
+  return {};
+};
+
+const ensureRelationships = (value: unknown): Record<string, number> => {
+  if (!value || typeof value !== 'object') return {};
+  const entries = Object.entries(value as Record<string, unknown>);
+  return entries.reduce<Record<string, number>>((acc, [key, val]) => {
+    if (typeof val === 'number') {
+      acc[key] = val;
+    }
+    return acc;
+  }, {});
+};
+
+const ensureStats = (stats?: Partial<Character['stats']>): Character['stats'] => ({
+  love: stats?.love ?? 0,
+  happiness: stats?.happiness ?? 0,
+  wet: stats?.wet ?? 0,
+  willing: stats?.willing ?? 0,
+  selfEsteem: stats?.selfEsteem ?? 0,
+  loyalty: stats?.loyalty ?? 0,
+  fight: stats?.fight ?? 0,
+  stamina: stats?.stamina ?? 0,
+  pain: stats?.pain ?? 0,
+  experience: stats?.experience ?? 0,
+  level: stats?.level ?? 1
+});
+
+const ensureSkills = (skills?: Partial<Character['skills']>): Character['skills'] => ({
+  hands: skills?.hands ?? 0,
+  mouth: skills?.mouth ?? 0,
+  missionary: skills?.missionary ?? 0,
+  doggy: skills?.doggy ?? 0,
+  cowgirl: skills?.cowgirl ?? 0
+});
+
+const ensurePhysicalStats = (physical?: Character['physicalStats']): Character['physicalStats'] => ({
+  hairColor: ensureString(physical?.hairColor),
+  eyeColor: ensureString(physical?.eyeColor),
+  height: ensureString(physical?.height),
+  weight: ensureString(physical?.weight),
+  skinTone: ensureString(physical?.skinTone)
+});
+
+const ensurePrompts = (prompts?: Partial<Character['prompts']>): Character['prompts'] => ({
+  system: prompts?.system ?? '',
+  personality: prompts?.personality ?? '',
+  background: prompts?.background ?? ''
+});
+
+const ensureProgression = (progression?: Partial<Character['progression']>): Character['progression'] => {
+  const base = createDefaultProgression();
+  if (!progression) return base;
+  return {
+    ...base,
+    level: progression.level ?? base.level,
+    nextLevelExp: progression.nextLevelExp ?? base.nextLevelExp,
+    relationshipStatus: progression.relationshipStatus && RELATIONSHIP_STATUS_SET.has(progression.relationshipStatus)
+      ? progression.relationshipStatus
+      : base.relationshipStatus,
+    affection: progression.affection ?? base.affection,
+    trust: progression.trust ?? base.trust,
+    intimacy: progression.intimacy ?? base.intimacy,
+    dominance: progression.dominance ?? base.dominance,
+    jealousy: progression.jealousy ?? base.jealousy,
+    possessiveness: progression.possessiveness ?? base.possessiveness,
+    sexualExperience: progression.sexualExperience ?? base.sexualExperience,
+    kinks: ensureStringArray(progression.kinks) || base.kinks,
+    limits: ensureStringArray(progression.limits) || base.limits,
+    fantasies: ensureStringArray(progression.fantasies) || base.fantasies,
+    unlockedPositions: ensureStringArray(progression.unlockedPositions) || base.unlockedPositions,
+    unlockedOutfits: ensureStringArray(progression.unlockedOutfits) || base.unlockedOutfits,
+    unlockedToys: ensureStringArray(progression.unlockedToys) || base.unlockedToys,
+    unlockedScenarios: ensureStringArray(progression.unlockedScenarios) || base.unlockedScenarios,
+    relationshipMilestones: Array.isArray(progression.relationshipMilestones) ? progression.relationshipMilestones : base.relationshipMilestones,
+    sexualMilestones: Array.isArray(progression.sexualMilestones) ? progression.sexualMilestones : base.sexualMilestones,
+    significantEvents: Array.isArray(progression.significantEvents) ? progression.significantEvents : base.significantEvents,
+    storyChronicle: Array.isArray(progression.storyChronicle) ? progression.storyChronicle : base.storyChronicle,
+    currentStoryArc: ensureOptionalString(progression.currentStoryArc),
+    memorableEvents: Array.isArray(progression.memorableEvents) ? progression.memorableEvents : base.memorableEvents,
+    bonds: progression.bonds && typeof progression.bonds === 'object' && !Array.isArray(progression.bonds)
+      ? (progression.bonds as Character['progression']['bonds'])
+      : base.bonds,
+    sexualCompatibility: progression.sexualCompatibility && typeof progression.sexualCompatibility === 'object'
+      ? {
+          overall: ensureNumber((progression.sexualCompatibility as Record<string, unknown>).overall, base.sexualCompatibility.overall),
+          kinkAlignment: ensureNumber((progression.sexualCompatibility as Record<string, unknown>).kinkAlignment, base.sexualCompatibility.kinkAlignment),
+          stylePreference: ensureNumber((progression.sexualCompatibility as Record<string, unknown>).stylePreference, base.sexualCompatibility.stylePreference)
+        }
+      : base.sexualCompatibility,
+    userPreferences: progression.userPreferences && typeof progression.userPreferences === 'object'
+      ? {
+          likes: ensureStringArray((progression.userPreferences as Record<string, unknown>).likes),
+          dislikes: ensureStringArray((progression.userPreferences as Record<string, unknown>).dislikes),
+          turnOns: ensureStringArray((progression.userPreferences as Record<string, unknown>).turnOns),
+          turnOffs: ensureStringArray((progression.userPreferences as Record<string, unknown>).turnOffs)
+        }
+      : base.userPreferences
+  };
+};
+
+const parseLegacyProfile = (json?: string | null): LegacyProfile => {
+  if (!json) return {};
+  try {
+    const parsed = JSON.parse(json);
+    if (parsed && typeof parsed === 'object') {
+      return parsed as LegacyProfile;
+    }
+  } catch (error) {
+    logger.warn('[useHouseFileStorage] Failed parsing legacy profile JSON', error);
+  }
+  return {};
+};
+
+const safeParseRecord = (value: string | null | undefined): Record<string, unknown> | null => {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+  } catch (error) {
+    logger.warn('[useHouseFileStorage] Failed to parse legacy record JSON', error);
+    return null;
+  }
+};
+
+const ensureGender = (gender: unknown): Character['gender'] | undefined => {
+  if (typeof gender === 'string') {
+    const candidate = gender as Character['gender'];
+    if (GENDER_SET.has(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
+};
+
+const ensureRarity = (rarity: unknown): Character['rarity'] => {
+  if (typeof rarity === 'string' && RARITY_SET.has(rarity as Character['rarity'])) {
+    return rarity as Character['rarity'];
+  }
+  return 'common';
+};
+
+const buildCharacterFromLegacy = (row: LegacyCharacterRow, profile: LegacyProfile): Character => {
+  const prompts = ensurePrompts(profile.prompts);
+  const now = new Date();
+  const rowCreatedAt = ensureDate(row.created_at, now);
+  const rowUpdatedAt = ensureDate(row.updated_at, now);
+  const createdAt = ensureDate(profile.createdAt, rowCreatedAt);
+  const updatedAt = ensureDate(profile.updatedAt, rowUpdatedAt);
+
+  return {
+    id: row.id,
+    name: ensureString(profile.name ?? row.name, 'Unnamed'),
+    description: ensureString(profile.description ?? profile.bio, ''),
+    personality: ensureString(profile.personality ?? prompts.personality, ''),
+    appearance: ensureString(profile.appearance ?? profile.imageDescription, ''),
+    avatar: ensureOptionalString(profile.avatar),
+    gender: ensureGender(profile.gender),
+    age: typeof profile.age === 'number' ? profile.age : undefined,
+    roomId: ensureOptionalString(profile.roomId),
+    stats: ensureStats(profile.stats),
+    skills: ensureSkills(profile.skills),
+    role: ensureString(profile.role, 'character'),
+    job: ensureOptionalString(profile.job),
+    personalities: ensureStringArray(profile.personalities),
+    features: ensureStringArray(profile.features),
+    classes: ensureStringArray(profile.classes),
+    unlocks: ensureStringArray(profile.unlocks),
+    rarity: ensureRarity(profile.rarity),
+    specialAbility: ensureOptionalString(profile.specialAbility),
+    preferredRoomType: ensureOptionalString(profile.preferredRoomType),
+    imageDescription: ensureOptionalString(profile.imageDescription),
+    prompts,
+    physicalStats: profile.physicalStats ? ensurePhysicalStats(profile.physicalStats) : createDefaultPhysicalStats(),
+    conversationHistory: Array.isArray(profile.conversationHistory) ? (profile.conversationHistory as Character['conversationHistory']) : [],
+    memories: Array.isArray(profile.memories) ? (profile.memories as Character['memories']) : [],
+  preferences: ensurePreferences(profile.preferences),
+    relationships: ensureRelationships(profile.relationships),
+    progression: ensureProgression(profile.progression),
+    lastInteraction: ensureOptionalDate(profile.lastInteraction),
+    createdAt,
+    updatedAt,
+    autoGenerated: ensureBoolean(profile.autoGenerated)
+  };
+};
+
+const buildCharacterFromSqliteBackup = (row: SqliteBackupCharacter): Character => {
+  const traitsRecord = safeParseRecord(row.traits_json) ?? {};
+  const promptsRecord = traitsRecord.prompts && typeof traitsRecord.prompts === 'object' && !Array.isArray(traitsRecord.prompts)
+    ? (traitsRecord.prompts as Partial<Character['prompts']>)
+    : undefined;
+
+  const profile: LegacyProfile = {
+    name: ensureOptionalString(row.name) ?? undefined,
+    description: ensureString(traitsRecord.description ?? row.bio, ''),
+    personality: ensureString(traitsRecord.personality, ''),
+    appearance: ensureString(traitsRecord.appearance, ''),
+    avatar: ensureOptionalString(row.avatar_path ?? (traitsRecord.avatar as string | undefined)),
+    gender: ensureGender(traitsRecord.gender),
+    age: typeof traitsRecord.age === 'number' ? traitsRecord.age : undefined,
+    roomId: ensureOptionalString(traitsRecord.roomId),
+    role: ensureOptionalString(traitsRecord.role) ?? undefined,
+    personalities: ensureStringArray(traitsRecord.personalities),
+    features: ensureStringArray(traitsRecord.features),
+    classes: ensureStringArray(traitsRecord.classes),
+    unlocks: ensureStringArray(traitsRecord.unlocks),
+    rarity: ensureRarity(traitsRecord.rarity),
+    specialAbility: ensureOptionalString(traitsRecord.specialAbility),
+    preferredRoomType: ensureOptionalString(traitsRecord.preferredRoomType),
+    imageDescription: ensureOptionalString(traitsRecord.imageDescription),
+    physicalStats: traitsRecord.physicalStats && typeof traitsRecord.physicalStats === 'object'
+      ? (traitsRecord.physicalStats as Character['physicalStats'])
+      : undefined,
+    prompts: {
+      system: ensureString(promptsRecord?.system ?? row.system_prompt, ''),
+      personality: ensureString(promptsRecord?.personality, ''),
+      background: ensureString(promptsRecord?.background, '')
+    },
+    autoGenerated: ensureBoolean(traitsRecord.autoGenerated)
+  };
+
+  return buildCharacterFromLegacy(
+    {
+      id: row.id,
+      name: row.name,
+      created_at: row.created_at,
+      updated_at: row.updated_at
+    },
+    profile
+  );
 };
 
 export function useHouseFileStorage() {
@@ -100,148 +477,60 @@ export function useHouseFileStorage() {
         }
 
         // Load house data from settings table
-        const savedHouse = await storage.get('settings', 'house');
-        if (savedHouse && (savedHouse as { value?: string }).value) {
+        const savedHouse = await storage.get<SettingsRow>('settings', 'house');
+        if (savedHouse?.value) {
           try {
-            const houseData = JSON.parse((savedHouse as { value: string }).value);
+            const houseData = JSON.parse(savedHouse.value) as Partial<House>;
             if (!cancelled) setHouseDataState(houseData);
-          } catch {
-            logger.warn('[useHouseFileStorage] Failed parsing saved house JSON');
+          } catch (error) {
+            logger.warn('[useHouseFileStorage] Failed parsing saved house JSON', error);
           }
         }
 
         // Load characters from settings table
-        let loadedCharacters: unknown[] | null = null;
-        const savedCharacters = await storage.get('settings', 'characters');
-        if (savedCharacters && (savedCharacters as { value?: string }).value) {
+        let loadedCharacters: Character[] | null = null;
+        const savedCharacters = await storage.get<SettingsRow>('settings', 'characters');
+        if (savedCharacters?.value) {
           try {
-            const charactersData = JSON.parse((savedCharacters as { value: string }).value);
+            const charactersData = JSON.parse(savedCharacters.value) as unknown;
             if (Array.isArray(charactersData)) {
-              loadedCharacters = charactersData;
+              loadedCharacters = charactersData as Character[];
             }
-          } catch {
-            logger.warn('[useHouseFileStorage] Failed parsing saved characters JSON');
+          } catch (error) {
+            logger.warn('[useHouseFileStorage] Failed parsing saved characters JSON', error);
           }
         }
 
         // Migration fallback: if no characters in settings, look for legacy 'characters' table rows (IndexedDB / other engine)
         if (!loadedCharacters || loadedCharacters.length === 0) {
           try {
-            const legacyRows = await storage.query<{ id: string; profile_json?: string; name?: string; created_at?: string; updated_at?: string } | any>({ table: 'characters' });
+            const legacyRows = await storage.query<LegacyCharacterRow>({ table: 'characters' });
             if (Array.isArray(legacyRows) && legacyRows.length) {
               logger.log('[useHouseFileStorage] Migrating legacy character rows -> settings key');
-              // Each legacy row has profile_json with original character shape (maybe partial)
-              const migrated: Character[] = legacyRows.map(r => {
-                let profile: Record<string, unknown> = {};
-                try { profile = r.profile_json ? JSON.parse(r.profile_json) : {}; } catch {
-                  // ignore parse errors per legacy tolerance
-                }
-                return {
-                  // Core identity
-                  id: r.id,
-                  name: r.name || profile.name || 'Unnamed',
-                  // Basic required fields with fallbacks
-                  description: profile.description || profile.bio || '',
-                  personality: profile.personality || profile.prompts?.personality || '',
-                  appearance: profile.appearance || profile.imageDescription || '',
-                  avatar: profile.avatar,
-                  gender: profile.gender,
-                  age: profile.age,
-                  roomId: profile.roomId,
-                  // Stats (ensure structure)
-                  stats: profile.stats || { love:0,happiness:0,wet:0,willing:0,selfEsteem:0,loyalty:0,fight:0,stamina:0,pain:0,experience:0,level:1 },
-                  skills: profile.skills || { hands:0,mouth:0,missionary:0,doggy:0,cowgirl:0 },
-                  role: profile.role || 'character',
-                  personalities: profile.personalities || [],
-                  features: profile.features || [],
-                  classes: profile.classes || [],
-                  unlocks: profile.unlocks || [],
-                  rarity: profile.rarity || 'common',
-                  specialAbility: profile.specialAbility,
-                  preferredRoomType: profile.preferredRoomType,
-                  imageDescription: profile.imageDescription,
-                  physicalStats: profile.physicalStats,
-                  prompts: profile.prompts || { system: profile.prompts?.system || '', personality: profile.prompts?.personality || '', background: profile.prompts?.background || '' },
-                  lastInteraction: profile.lastInteraction ? new Date(profile.lastInteraction) : undefined,
-                  conversationHistory: profile.conversationHistory || [],
-                  memories: profile.memories || [],
-                  preferences: profile.preferences || {},
-                  relationships: profile.relationships || {},
-                  progression: profile.progression || {
-                    level: 1, nextLevelExp: 100, unlockedFeatures: [], achievements: [],
-                    relationshipStatus: 'stranger', affection:0, trust:0, intimacy:0, dominance:50, jealousy:0, possessiveness:0,
-                    sexualExperience:0, kinks:[], limits:[], fantasies:[], unlockedPositions:[], unlockedOutfits:[], unlockedToys:[], unlockedScenarios:[],
-                    relationshipMilestones:[], sexualMilestones:[], significantEvents:[], storyChronicle:[], memorableEvents:[], bonds:{}, sexualCompatibility:{ overall:0,kinkAlignment:0,stylePreference:0 },
-                    userPreferences:{ likes:[], dislikes:[], turnOns:[], turnOffs:[] }
-                  },
-                  createdAt: profile.createdAt ? new Date(profile.createdAt) : new Date(r.created_at || Date.now()),
-                  updatedAt: profile.updatedAt ? new Date(profile.updatedAt) : new Date(r.updated_at || Date.now()),
-                  autoGenerated: profile.autoGenerated
-                } as Character;
+              const migrated = legacyRows.map(row => {
+                const profile = parseLegacyProfile(row.profile_json);
+                return buildCharacterFromLegacy(row, profile);
               });
               loadedCharacters = migrated;
-              // Persist migrated list
               await saveToStorage('characters', migrated);
               logger.log(`[useHouseFileStorage] Migrated ${migrated.length} character(s) from legacy table.`);
             }
-          } catch (e) {
-              logger.warn('[useHouseFileStorage] Legacy character migration attempt failed:', e);
+          } catch (error) {
+            logger.warn('[useHouseFileStorage] Legacy character migration attempt failed:', error);
           }
         }
 
-  // Secondary recovery: attempt to read from sqlite-wasm backup (if our unified db previously persisted characters in messages/participants schema)
+        // Secondary recovery: attempt to read from sqlite-wasm backup
         if ((!loadedCharacters || !loadedCharacters.length) && typeof window !== 'undefined') {
           try {
-              const lsBackup = legacyStorage.getItem('dollhouse-db-backup');
+            const lsBackup = legacyStorage.getItem('dollhouse-db-backup');
             if (lsBackup) {
-              const parsed = JSON.parse(lsBackup);
+              const parsed = JSON.parse(lsBackup) as { characters?: unknown };
               if (parsed && Array.isArray(parsed.characters) && parsed.characters.length) {
                 logger.log('[useHouseFileStorage] Recovering characters from sqlite backup storage');
-                // sqlite row structure: id, name, avatar_path, bio, traits_json, tags_json, system_prompt
-                const migrated = parsed.characters.map((r: any) => {
-                  let traits: any = {}; let tags: any = {};
-                  try { traits = r.traits_json ? JSON.parse(r.traits_json) : {}; } catch {}
-                  try { tags = r.tags_json ? JSON.parse(r.tags_json) : {}; } catch {}
-                  return {
-                    id: r.id,
-                    name: r.name || 'Unnamed',
-                    description: r.bio || '',
-                    personality: traits.personality || '',
-                    appearance: traits.appearance || '',
-                    avatar: r.avatar_path || traits.avatar,
-                    gender: traits.gender,
-                    age: traits.age,
-                    roomId: traits.roomId,
-                    stats: traits.stats || { love:0,happiness:0,wet:0,willing:0,selfEsteem:0,loyalty:0,fight:0,stamina:0,pain:0,experience:0,level:1 },
-                    skills: traits.skills || { hands:0,mouth:0,missionary:0,doggy:0,cowgirl:0 },
-                    role: traits.role || 'character',
-                    personalities: traits.personalities || [],
-                    features: traits.features || [],
-                    classes: traits.classes || [],
-                    unlocks: traits.unlocks || [],
-                    rarity: traits.rarity || 'common',
-                    specialAbility: traits.specialAbility,
-                    preferredRoomType: traits.preferredRoomType,
-                    imageDescription: traits.imageDescription,
-                    physicalStats: traits.physicalStats,
-                    prompts: traits.prompts || { system: r.system_prompt || '', personality: traits.prompts?.personality || '', background: traits.prompts?.background || '' },
-                    lastInteraction: traits.lastInteraction ? new Date(traits.lastInteraction) : undefined,
-                    conversationHistory: traits.conversationHistory || [],
-                    memories: traits.memories || [],
-                    preferences: traits.preferences || {},
-                    relationships: traits.relationships || {},
-                    progression: traits.progression || {
-                      level: 1, nextLevelExp: 100, unlockedFeatures: [], achievements: [],
-                      relationshipStatus: 'stranger', affection:0, trust:0, intimacy:0, dominance:50, jealousy:0, possessiveness:0,
-                      sexualExperience:0, kinks:[], limits:[], fantasies:[], unlockedPositions:[], unlockedOutfits:[], unlockedToys:[], unlockedScenarios:[],
-                      relationshipMilestones:[], sexualMilestones:[], significantEvents:[], storyChronicle:[], memorableEvents:[], bonds:{}, sexualCompatibility:{ overall:0,kinkAlignment:0,stylePreference:0 },
-                      userPreferences:{ likes:[], dislikes:[], turnOns:[], turnOffs:[] }
-                    },
-                    createdAt: r.created_at ? new Date(r.created_at) : new Date(),
-                    updatedAt: r.updated_at ? new Date(r.updated_at) : new Date(),
-                    autoGenerated: traits.autoGenerated
-                  } as Character;
-                });
+                const migrated = parsed.characters
+                  .filter((entry): entry is SqliteBackupCharacter => typeof entry === 'object' && entry !== null && 'id' in (entry as Record<string, unknown>))
+                  .map(entry => buildCharacterFromSqliteBackup(entry));
                 if (migrated.length) {
                   loadedCharacters = migrated;
                   await saveToStorage('characters', migrated);
@@ -249,8 +538,8 @@ export function useHouseFileStorage() {
                 }
               }
             }
-          } catch (e) {
-            logger.warn('[useHouseFileStorage] sqlite backup recovery failed:', e);
+          } catch (error) {
+            logger.warn('[useHouseFileStorage] sqlite backup recovery failed:', error);
           }
         }
 
@@ -262,8 +551,8 @@ export function useHouseFileStorage() {
               const parsedLegacy = JSON.parse(legacyRaw);
               if (Array.isArray(parsedLegacy) && parsedLegacy.length) {
                 logger.log('[useHouseFileStorage] Recovering characters from legacy backup key');
-                loadedCharacters = parsedLegacy;
-                await saveToStorage('characters', parsedLegacy);
+                loadedCharacters = parsedLegacy as Character[];
+                await saveToStorage('characters', loadedCharacters);
               }
             }
           } catch (e) {
@@ -271,8 +560,8 @@ export function useHouseFileStorage() {
           }
         }
 
-                if (loadedCharacters && Array.isArray(loadedCharacters) && loadedCharacters.length) {
-          const deduped = dedupeCharacters(loadedCharacters as Character[]);
+        if (loadedCharacters && loadedCharacters.length) {
+          const deduped = dedupeCharacters(loadedCharacters);
           if (!cancelled) setCharactersState(deduped);
           if (deduped.length !== loadedCharacters.length) {
             await saveToStorage('characters', deduped);
@@ -317,17 +606,19 @@ export function useHouseFileStorage() {
   }, []);
 
   // Save data to storage helper
-  const saveToStorage = useCallback(async (key: string, data: any) => {
+  const saveToStorage = useCallback(async (key: string, data: unknown) => {
     try {
       if (!storage) {
                 logger.error('Storage not initialized');
         return false;
       }
       // Use settings table for key-value storage
-      await storage.put('settings', { id: key, key: key, value: JSON.stringify(data) });
+      const payload: SettingsRow = { id: key, key, value: JSON.stringify(data) };
+      await storage.put<SettingsRow>('settings', payload);
       // Broadcast change so all hook instances can refresh
       try {
-        window.dispatchEvent(new CustomEvent(STORAGE_EVENT, { detail: { key } } as any));
+        const event = new CustomEvent<StorageUpdateDetail>(STORAGE_EVENT, { detail: { key } });
+        window.dispatchEvent(event);
       } catch {
         // ignore if not in browser
       }
@@ -364,25 +655,25 @@ export function useHouseFileStorage() {
 
   // Listen for external updates to keep all instances in sync
   useEffect(() => {
-    const onStorageUpdate = async (ev: Event) => {
-      const detail = (ev as CustomEvent).detail || {};
-      const key = detail.key as string | undefined;
+    const onStorageUpdate = async (event: Event) => {
+      const customEvent = event as CustomEvent<StorageUpdateDetail>;
+      const key = customEvent.detail?.key;
 
       try {
         if (!storage) return;
         if (!key || key === 'house') {
-          const savedHouse = await storage.get('settings', 'house');
-          if (savedHouse && (savedHouse as any).value) {
-            const parsed = JSON.parse((savedHouse as any).value);
+          const savedHouseRow = await storage.get<SettingsRow>('settings', 'house');
+          if (savedHouseRow?.value) {
+            const parsed = JSON.parse(savedHouseRow.value) as Partial<House>;
             setHouseDataState(parsed);
           }
         }
         if (!key || key === 'characters') {
-          const savedCharacters = await storage.get('settings', 'characters');
-          if (savedCharacters && (savedCharacters as any).value) {
-            const parsed = JSON.parse((savedCharacters as any).value);
+          const savedCharactersRow = await storage.get<SettingsRow>('settings', 'characters');
+          if (savedCharactersRow?.value) {
+            const parsed = JSON.parse(savedCharactersRow.value) as unknown;
             if (Array.isArray(parsed)) {
-              setCharactersState(parsed);
+              setCharactersState(parsed as Character[]);
             }
           }
         }
@@ -393,17 +684,21 @@ export function useHouseFileStorage() {
       }
     };
 
+    const handleStorageUpdate = (event: Event) => {
+      void onStorageUpdate(event);
+    };
+
     try {
-      if (typeof (globalThis as any).addEventListener === 'function') {
-        (globalThis as any).addEventListener(STORAGE_EVENT, onStorageUpdate as any);
+      if (typeof globalThis.addEventListener === 'function') {
+        globalThis.addEventListener(STORAGE_EVENT, handleStorageUpdate);
       }
     } catch (e) {
       logger.debug('Ignored event listener registration error', e);
     }
     return () => {
       try {
-        if (typeof (globalThis as any).removeEventListener === 'function') {
-          (globalThis as any).removeEventListener(STORAGE_EVENT, onStorageUpdate as any);
+        if (typeof globalThis.removeEventListener === 'function') {
+          globalThis.removeEventListener(STORAGE_EVENT, handleStorageUpdate);
         }
       } catch (e) {
         logger.debug('Ignored event listener removal error', e);

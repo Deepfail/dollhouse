@@ -2,8 +2,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 // ...existing code...
@@ -48,10 +48,11 @@ interface HouseConfig {
 }
 
 const DEFAULT_CONFIG: HouseConfig = {
-  name: 'Digital Dollhouse',
+  name: 'The Dollhouse',
   worldPrompt: '',
-  copilotPrompt: 'You are a helpful AI assistant monitoring the digital dollhouse. You help manage character relationships, suggest activities, and ensure everyone has a good time.',
-  copilotMaxTokens: 1000,
+  copilotPrompt: '',
+
+  copilotMaxTokens: 500,
   copilotUseHouseContext: true,
   copilotContextDetail: 'balanced',
   aiSettings: {
@@ -65,7 +66,7 @@ const DEFAULT_CONFIG: HouseConfig = {
     enabled: false,
     interval: 60,
     maxCharacters: 10,
-    themes: ['fantasy', 'modern', 'sci-fi']
+    themes: ['college', 'ad girls', 'men']
   }
 };
 
