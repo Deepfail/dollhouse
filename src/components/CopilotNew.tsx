@@ -13,17 +13,17 @@ import { AIService } from '@/lib/aiService';
 import { generateCharacterFromPrompt } from '@/lib/characterGenerator';
 import { Character, CopilotUpdate } from '@/types';
 import {
-  Chat,
-  CheckCircle as Check,
-  House,
-  PaperPlaneRight,
-  Robot,
-  Gear as Settings,
-  Sparkle,
-  Trash,
-  User,
-  UsersThree,
-  XCircle as X
+    Chat,
+    CheckCircle as Check,
+    House,
+    PaperPlaneRight,
+    Robot,
+    Gear as Settings,
+    Sparkle,
+    Trash,
+    User,
+    UsersThree,
+    XCircle as X
 } from '@phosphor-icons/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
