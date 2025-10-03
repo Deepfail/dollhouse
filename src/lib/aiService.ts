@@ -85,17 +85,115 @@ export class AIService {
   }
 
   static async generateImage(prompt: string, _options?: Record<string, unknown>): Promise<string> {
-    // Keep parameters referenced to satisfy linters
-    void prompt;
-    void _options;
-    const cfg = await AIService.getApiConfig();
-    if (!cfg.apiKey) {
-      logger.warn('AIService.generateImage called but API key is not configured');
+    void _options; // Keep parameter referenced
+    logger.log('AIService.generateImage called with prompt:', prompt.slice(0, 50) + '...');
+
+    try {
+      // Get house settings from repository storage
+      const cfg = (await repositoryStorage.get<Record<string, unknown>>('house_config')) as Record<string, unknown> | null;
+      
+      let imageProvider = 'none';
+      let imageApiKey = '';
+      let imageApiUrl = '';
+      let imageModel = 'venice-sd35';
+
+      if (cfg && typeof cfg === 'object' && 'aiSettings' in cfg) {
+        const s = (cfg as any).aiSettings;
+        imageProvider = s.imageProvider || 'none';
+        imageApiKey = s.imageApiKey || '';
+        imageApiUrl = s.imageApiUrl || '';
+        imageModel = s.imageModel || 'venice-sd35';
+      }
+
+      if (!imageProvider || imageProvider === 'none') {
+        logger.warn('Image generation disabled in settings');
+        return '';
+      }
+
+      if (!imageApiKey || imageApiKey.trim().length === 0) {
+        logger.warn('Image API key not configured');
+        return '';
+      }
+
+      // Currently only Venice AI is supported for image generation
+      if (imageProvider === 'venice') {
+        return AIService.generateVeniceImage(imageApiKey.trim(), prompt, imageModel, imageApiUrl);
+      } else if (imageProvider === 'openrouter') {
+        // OpenRouter doesn't support image generation directly, log and return empty
+        logger.warn('OpenRouter does not support image generation');
+        return '';
+      }
+
+      logger.warn('Unsupported image provider:', imageProvider);
+      return '';
+    } catch (err) {
+      logger.error('AIService.generateImage failed', err);
       return '';
     }
+  }
 
-    logger.log('AIService.generateImage: image generation not implemented in this build');
-    return '';
+  private static async generateVeniceImage(
+    apiKey: string,
+    prompt: string,
+    model: string,
+    apiUrl?: string
+  ): Promise<string> {
+    const base = apiUrl || 'https://api.venice.ai/api/v1';
+    const url = `${base}/image/generate`;
+
+    const requestBody = {
+      model: model || 'venice-sd35',
+      prompt: prompt,
+      height: 1024,
+      width: 1024,
+      steps: 8,
+      cfg_scale: 7.5,
+      seed: Math.floor(Math.random() * 1000000),
+      safe_mode: false,
+      return_binary: false,
+      format: 'webp'
+    };
+
+    logger.log('Making Venice AI image request to:', url);
+
+    const res = await safeFetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      logger.error('Venice AI image error:', res.status, txt);
+      throw new Error(`Venice AI image error: ${res.status} ${txt}`);
+    }
+
+    const data = await res.json();
+    
+    if (!data.images || !Array.isArray(data.images) || data.images.length === 0) {
+      throw new Error('No images returned from Venice AI');
+    }
+
+    const imageData = data.images[0];
+    let imageUrl: string;
+
+    if (typeof imageData === 'string' && imageData.startsWith('data:')) {
+      imageUrl = imageData;
+    } else if (typeof imageData === 'string' && imageData.includes('base64')) {
+      imageUrl = `data:image/webp;base64,${imageData}`;
+    } else if (typeof imageData === 'string') {
+      imageUrl = `data:image/webp;base64,${imageData}`;
+    } else if (imageData.url) {
+      imageUrl = imageData.url;
+    } else {
+      throw new Error('Unexpected image data format from Venice AI');
+    }
+
+    logger.log('Image generated successfully, URL length:', imageUrl.length);
+    return imageUrl;
   }
 
   private static async callOpenRouter(

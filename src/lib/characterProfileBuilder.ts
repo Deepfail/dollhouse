@@ -105,13 +105,13 @@ const buildPrompt = (spec: CharacterProfileSpec): string => {
   "personalityTraits": ["trait", ...],
   "appearance": "Rich physical description",
   "features": ["feature", ...],
-  "backstory": "Three to four sentence backstory",
+  "backstory": "Three to four sentence backstory describing her past, upbringing, pivotal life events, and how she came to be who she is today. NOT current activities or behavior.",
   "imagePrompt": "Stable diffusion style prompt",
   "prompts": {
     "system": "System instructions for roleplaying this character",
     "description": "Succinct description prompt highlighting her hook in two sentences",
     "personality": "Bullet-style personality prompt that begins with the character's explicit personality traits",
-    "background": "Narrative background prompt rooted in her history and motivations",
+    "background": "Narrative background prompt about her PAST and HISTORY - where she grew up, family background, formative experiences, education, what led her to her current situation. This should be about PAST EVENTS, not current behavior.",
     "appearance": "Sensory description of how she looks, dresses, and carries herself",
     "responseStyle": "Unique description of how she replies in chat (tone, pacing, signature moves)",
     "originScenario": "Two to three sentence prompt describing how the user first met her and how she willingly returned to the Dollhouse"
@@ -122,7 +122,7 @@ const buildPrompt = (spec: CharacterProfileSpec): string => {
   "turnOffs": ["turn off", ...]
 }`);
   parts.push('Keep values short but expressive. All strings must be under 400 characters.');
-  parts.push('Ensure the backstory is an actual history (upbringing, pivotal events, motivations) and that every prompt aligns with these canon facts.');
+  parts.push('CRITICAL: The "backstory" and "background" prompt MUST describe PAST EVENTS and HISTORY. Examples: where she grew up, family life, education, pivotal moments that shaped her, how she got into her current situation. DO NOT describe current habits or daily activities. Wrong: "Alex analyzes flirtation patterns at her library job". Correct: "Alex grew up in a strict household, discovered romance novels in high school, and studied literature in college before taking a library job to pay off student loans."');
   parts.push('Origin scenarios should be sensual yet consensual, grounded in her backstory, and never reference minors.');
   return parts.join('\n');
 };
