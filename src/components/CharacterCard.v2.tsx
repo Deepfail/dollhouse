@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -147,6 +148,19 @@ export function CharacterCard({
   const [newImagePrompt, setNewImagePrompt] = useState('');
   const [isCreatingImage, setIsCreatingImage] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isPhysicalEditMode, setIsPhysicalEditMode] = useState(false);
+  const [physicalFeatures, setPhysicalFeatures] = useState({
+    hairColor: character.physicalStats?.hairColor || '',
+    eyeColor: character.physicalStats?.eyeColor || '',
+    skinTone: character.physicalStats?.skinTone || '',
+    height: character.physicalStats?.height || '',
+    bodyType: '',
+    breastSize: '',
+    buttSize: '',
+    traits: character.features || [],
+  });
+  const [isGeneratingPhysical, setIsGeneratingPhysical] = useState(false);
+  const [generatedPhysicalDescription, setGeneratedPhysicalDescription] = useState(character.appearance || '');
   const profileDefaults = useMemo(
     () => ({
       name: character.name ?? '',
@@ -388,6 +402,41 @@ export function CharacterCard({
       setIsCreatingImage(false);
     }
   }, [newImagePrompt, character, storedImages, setStoredImages]);
+
+  const handleGeneratePhysicalDescription = useCallback(async () => {
+    setIsGeneratingPhysical(true);
+    try {
+      const prompt = `Generate a vivid, sensory physical description (2-3 sentences) for a character with these features:
+- Hair: ${physicalFeatures.hairColor || 'not specified'}
+- Eyes: ${physicalFeatures.eyeColor || 'not specified'}
+- Skin: ${physicalFeatures.skinTone || 'not specified'}
+- Height: ${physicalFeatures.height || 'not specified'}
+- Body Type: ${physicalFeatures.bodyType || 'not specified'}
+- Breast Size: ${physicalFeatures.breastSize || 'not specified'}
+- Butt Size: ${physicalFeatures.buttSize || 'not specified'}
+- Physical Traits: ${physicalFeatures.traits.join(', ') || 'not specified'}
+
+Create a compelling physical description that incorporates these details naturally. Focus on visual appeal and sensory details.`;
+
+      const { AIService } = await import('@/lib/aiService');
+      const description = await AIService.generateResponse(prompt, undefined, undefined, {
+        temperature: 0.8,
+        max_tokens: 200
+      });
+
+      if (description && !description.includes('AI provider not configured')) {
+        setGeneratedPhysicalDescription(description.trim());
+        toast.success('Physical description generated!');
+      } else {
+        toast.error('Failed to generate description. Please check your AI settings.');
+      }
+    } catch (error) {
+      console.error('Error generating physical description:', error);
+      toast.error('Failed to generate description: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setIsGeneratingPhysical(false);
+    }
+  }, [physicalFeatures]);
 
   const stats = useMemo(() => {
     const base = character.stats ?? ({} as Character['stats']);
@@ -1016,89 +1065,257 @@ export function CharacterCard({
         <div className="space-y-6 p-6">
           <Card className="border-none bg-white/5 text-white">
             <div className="space-y-4 p-6">
-              <h3 className="flex items-center gap-2 text-lg font-semibold">
-                <User className="h-5 w-5 text-pink-300" /> Physical Features
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="flex items-center gap-2 text-lg font-semibold">
+                  <User className="h-5 w-5 text-pink-300" /> Physical Features
+                </h3>
+                <Button
+                  variant={isPhysicalEditMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setIsPhysicalEditMode(!isPhysicalEditMode)}
+                  className="rounded-full"
+                >
+                  <Pencil className="mr-2 h-3.5 w-3.5" />
+                  {isPhysicalEditMode ? 'View Mode' : 'Edit'}
+                </Button>
+              </div>
               
-              {/* Physical Attributes */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <h4 className="text-sm font-medium text-white/80 mb-2">Appearance</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Height:</span>
-                      <span>5'6" (168cm)</span>
+              {isPhysicalEditMode ? (
+                <>
+                  {/* Physical Attributes - Edit Mode */}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Hair Color</Label>
+                      <Select value={physicalFeatures.hairColor} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, hairColor: value})}>
+                        <SelectTrigger className="mt-1 border-white/15 bg-white/5">
+                          <SelectValue placeholder="Select hair color" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Blonde">Blonde</SelectItem>
+                          <SelectItem value="Brunette">Brunette</SelectItem>
+                          <SelectItem value="Black">Black</SelectItem>
+                          <SelectItem value="Red">Red</SelectItem>
+                          <SelectItem value="Auburn">Auburn</SelectItem>
+                          <SelectItem value="Platinum">Platinum</SelectItem>
+                          <SelectItem value="Brown">Brown</SelectItem>
+                          <SelectItem value="Dark Brown">Dark Brown</SelectItem>
+                          <SelectItem value="Light Brown">Light Brown</SelectItem>
+                          <SelectItem value="Gray">Gray</SelectItem>
+                          <SelectItem value="White">White</SelectItem>
+                          <SelectItem value="Colorful">Colorful/Dyed</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Build:</span>
-                      <span>Athletic</span>
+
+                    <div>
+                      <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Eye Color</Label>
+                      <Select value={physicalFeatures.eyeColor} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, eyeColor: value})}>
+                        <SelectTrigger className="mt-1 border-white/15 bg-white/5">
+                          <SelectValue placeholder="Select eye color" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Blue">Blue</SelectItem>
+                          <SelectItem value="Green">Green</SelectItem>
+                          <SelectItem value="Brown">Brown</SelectItem>
+                          <SelectItem value="Hazel">Hazel</SelectItem>
+                          <SelectItem value="Gray">Gray</SelectItem>
+                          <SelectItem value="Amber">Amber</SelectItem>
+                          <SelectItem value="Violet">Violet</SelectItem>
+                          <SelectItem value="Heterochromia">Heterochromia (Different colors)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Hair:</span>
-                      <span>Long, Dark Brown</span>
+
+                    <div>
+                      <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Skin Tone</Label>
+                      <Select value={physicalFeatures.skinTone} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, skinTone: value})}>
+                        <SelectTrigger className="mt-1 border-white/15 bg-white/5">
+                          <SelectValue placeholder="Select skin tone" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Pale">Pale</SelectItem>
+                          <SelectItem value="Fair">Fair</SelectItem>
+                          <SelectItem value="Light">Light</SelectItem>
+                          <SelectItem value="Medium">Medium</SelectItem>
+                          <SelectItem value="Olive">Olive</SelectItem>
+                          <SelectItem value="Tan">Tan</SelectItem>
+                          <SelectItem value="Brown">Brown</SelectItem>
+                          <SelectItem value="Dark">Dark</SelectItem>
+                          <SelectItem value="Ebony">Ebony</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Eyes:</span>
-                      <span>Hazel Green</span>
+
+                    <div>
+                      <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Height</Label>
+                      <Input
+                        value={physicalFeatures.height}
+                        onChange={(e) => setPhysicalFeatures({...physicalFeatures, height: e.target.value})}
+                        placeholder="e.g., 5'6&quot; (168cm)"
+                        className="mt-1 border-white/15 bg-white/5"
+                      />
+                    </div>
+
+                    <div>
+                      <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Body Type</Label>
+                      <Select value={physicalFeatures.bodyType} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, bodyType: value})}>
+                        <SelectTrigger className="mt-1 border-white/15 bg-white/5">
+                          <SelectValue placeholder="Select body type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Petite">Petite</SelectItem>
+                          <SelectItem value="Slim">Slim</SelectItem>
+                          <SelectItem value="Athletic">Athletic</SelectItem>
+                          <SelectItem value="Curvy">Curvy</SelectItem>
+                          <SelectItem value="Voluptuous">Voluptuous</SelectItem>
+                          <SelectItem value="Average">Average</SelectItem>
+                          <SelectItem value="Muscular">Muscular</SelectItem>
+                          <SelectItem value="Hourglass">Hourglass</SelectItem>
+                          <SelectItem value="Pear">Pear</SelectItem>
+                          <SelectItem value="Apple">Apple</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Breast Size</Label>
+                      <Select value={physicalFeatures.breastSize} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, breastSize: value})}>
+                        <SelectTrigger className="mt-1 border-white/15 bg-white/5">
+                          <SelectValue placeholder="Select size" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="AA">AA</SelectItem>
+                          <SelectItem value="A">A</SelectItem>
+                          <SelectItem value="B">B</SelectItem>
+                          <SelectItem value="C">C</SelectItem>
+                          <SelectItem value="D">D</SelectItem>
+                          <SelectItem value="DD">DD</SelectItem>
+                          <SelectItem value="DDD/E">DDD/E</SelectItem>
+                          <SelectItem value="F">F</SelectItem>
+                          <SelectItem value="G+">G and up</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Butt Size</Label>
+                      <Select value={physicalFeatures.buttSize} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, buttSize: value})}>
+                        <SelectTrigger className="mt-1 border-white/15 bg-white/5">
+                          <SelectValue placeholder="Select size" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Small">Small</SelectItem>
+                          <SelectItem value="Average">Average</SelectItem>
+                          <SelectItem value="Round">Round</SelectItem>
+                          <SelectItem value="Bubble">Bubble</SelectItem>
+                          <SelectItem value="Large">Large</SelectItem>
+                          <SelectItem value="Extra Large">Extra Large</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                </div>
-                
-                <div>
-                  <h4 className="text-sm font-medium text-white/80 mb-2">Physical Stats</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Age:</span>
-                      <span>23</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Measurements:</span>
-                      <span>34-26-36</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/60">Cup Size:</span>
-                      <span>C</span>
-                    </div>
+
+                  <div className="mt-6">
+                    <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Physical Traits</Label>
+                    <Textarea
+                      value={physicalFeatures.traits.join(', ')}
+                      onChange={(e) => setPhysicalFeatures({...physicalFeatures, traits: e.target.value.split(',').map(t => t.trim()).filter(Boolean)})}
+                      placeholder="Enter traits separated by commas: tattoos, piercings, beauty marks, scars, etc."
+                      className="mt-1 border-white/15 bg-white/5 text-sm"
+                      rows={3}
+                    />
                   </div>
-                </div>
-              </div>
 
-              {/* Physical Ratings */}
-              <div className="mt-6">
-                <h4 className="text-sm font-medium text-white/80 mb-3">Physical Ratings</h4>
-                <div className="space-y-3">
-                  {[
-                    { category: 'Face', score: 8.5, color: 'bg-pink-500' },
-                    { category: 'Body', score: 9.2, color: 'bg-purple-500' },
-                    { category: 'Curves', score: 8.8, color: 'bg-red-500' },
-                    { category: 'Skin', score: 9.0, color: 'bg-orange-500' },
-                    { category: 'Overall', score: 8.9, color: 'bg-gradient-to-r from-pink-500 to-purple-500' }
-                  ].map(({ category, score, color }) => (
-                    <div key={category}>
-                      <div className="flex items-center justify-between text-sm mb-1">
-                        <span className="text-white/70">{category}</span>
-                        <span className="font-semibold text-white">{score}/10</span>
+                  <div className="flex gap-2 pt-4 border-t border-white/10">
+                    <Button
+                      onClick={handleGeneratePhysicalDescription}
+                      disabled={isGeneratingPhysical}
+                      className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
+                    >
+                      {isGeneratingPhysical ? (
+                        <>
+                          <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkle className="mr-2 h-4 w-4" />
+                          Generate Description
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* View Mode */}
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {physicalFeatures.hairColor && (
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Hair Color</div>
+                        <div className="text-sm font-semibold">{physicalFeatures.hairColor}</div>
                       </div>
-                      <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full ${color} transition-all duration-300`}
-                          style={{ width: `${score * 10}%` }}
-                        />
+                    )}
+                    {physicalFeatures.eyeColor && (
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Eye Color</div>
+                        <div className="text-sm font-semibold">{physicalFeatures.eyeColor}</div>
+                      </div>
+                    )}
+                    {physicalFeatures.skinTone && (
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Skin Tone</div>
+                        <div className="text-sm font-semibold">{physicalFeatures.skinTone}</div>
+                      </div>
+                    )}
+                    {physicalFeatures.height && (
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Height</div>
+                        <div className="text-sm font-semibold">{physicalFeatures.height}</div>
+                      </div>
+                    )}
+                    {physicalFeatures.bodyType && (
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Body Type</div>
+                        <div className="text-sm font-semibold">{physicalFeatures.bodyType}</div>
+                      </div>
+                    )}
+                    {physicalFeatures.breastSize && (
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Breast Size</div>
+                        <div className="text-sm font-semibold">{physicalFeatures.breastSize}</div>
+                      </div>
+                    )}
+                    {physicalFeatures.buttSize && (
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Butt Size</div>
+                        <div className="text-sm font-semibold">{physicalFeatures.buttSize}</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {physicalFeatures.traits.length > 0 && (
+                    <div className="mt-4">
+                      <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Physical Traits</div>
+                      <div className="flex flex-wrap gap-2">
+                        {physicalFeatures.traits.map((trait, idx) => (
+                          <Badge key={idx} variant="outline" className="border-white/20 bg-white/5">
+                            {trait}
+                          </Badge>
+                        ))}
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
+                  )}
+                </>
+              )}
 
-              {/* Physical Description */}
-              <div className="mt-6">
-                <h4 className="text-sm font-medium text-white/80 mb-2">Description</h4>
-                <p className="text-sm text-white/70 leading-relaxed">
-                  {character.name} has a naturally stunning appearance with perfect proportions. 
-                  Her athletic build showcases toned curves and graceful movement. Her expressive eyes 
-                  and warm smile create an irresistible combination that draws attention wherever she goes.
-                </p>
-              </div>
+              {/* Generated Description */}
+              {generatedPhysicalDescription && (
+                <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
+                  <h4 className="text-sm font-medium text-white/80 mb-2">Generated Physical Description</h4>
+                  <p className="text-sm text-white/70 leading-relaxed">{generatedPhysicalDescription}</p>
+                </div>
+              )}
             </div>
           </Card>
         </div>
