@@ -9,8 +9,8 @@ import { legacyStorage } from '@/lib/legacyStorage';
 import { logger } from '@/lib/logger';
 import { storage } from '@/storage';
 import {
-  Character,
-  House
+    Character,
+    House
 } from '@/types';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';

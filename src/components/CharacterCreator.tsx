@@ -16,12 +16,12 @@ import { populateCharacterProfile } from '@/lib/characterProfileBuilder';
 import { logger } from '@/lib/logger';
 import { Character } from '@/types';
 import {
-  Image as ImageIcon,
-  Plus,
-  FloppyDisk as Save,
-  Sparkle,
-  User,
-  X
+    Image as ImageIcon,
+    Plus,
+    FloppyDisk as Save,
+    Sparkle,
+    User,
+    X
 } from '@phosphor-icons/react';
 import React, { useState } from 'react';
 import { toast } from 'sonner';

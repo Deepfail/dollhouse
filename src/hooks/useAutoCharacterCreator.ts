@@ -1,7 +1,7 @@
 // Hook stub - legacy storage removed
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { ensureUniqueCharacter } from '@/lib/characterUtils';
 import { generateRandomCharacter, type CharacterGenerationOptions } from '@/lib/characterGenerator';
+import { ensureUniqueCharacter } from '@/lib/characterUtils';
 import { AutoCharacterConfig, AVAILABLE_PERSONALITIES, AVAILABLE_ROLES, Character } from '@/types';
 import { useEffect, useRef, useState } from 'react';
 import { useFileStorage } from './useFileStorage';

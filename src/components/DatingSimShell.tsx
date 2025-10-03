@@ -9,30 +9,30 @@ import { useQuickActions } from '@/hooks/useQuickActions';
 import { logger } from '@/lib/logger';
 import type { Character, ChatMessage, ChatSession } from '@/types';
 import {
-  Barbell,
-  Camera,
-  CaretRight,
-  ChatCircleDots,
-  ChatsCircle,
-  DoorOpen,
-  Gear,
-  Heart,
-  ImageSquare,
-  LockSimple,
-  MagnifyingGlass,
-  PaperPlaneTilt,
-  Paperclip,
-  Plus,
-  Robot,
-  Smiley,
-  Sparkle,
-  User,
-  UserCircle,
+    Barbell,
+    Camera,
+    CaretRight,
+    ChatCircleDots,
+    ChatsCircle,
+    DoorOpen,
+    Gear,
+    Heart,
+    ImageSquare,
+    LockSimple,
+    MagnifyingGlass,
+    PaperPlaneTilt,
+    Paperclip,
+    Plus,
+    Robot,
+    Smiley,
+    Sparkle,
+    User,
+    UserCircle,
 } from '@phosphor-icons/react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { CharacterCard } from './CharacterCard';
 import { CharacterAutoCreateInline } from './CharacterAutoCreateDialog';
+import { CharacterCard } from './CharacterCard';
 import { GirlManagerSidebar } from './GirlManagerSidebar';
 import { HouseSettings } from './HouseSettings';
 
