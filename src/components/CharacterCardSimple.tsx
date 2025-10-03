@@ -135,7 +135,15 @@ export function CharacterCard({
       .map((entry) => entry.trim())
       .filter(Boolean);
 
-    const prompts = character.prompts ?? { system: '', personality: '', background: '' };
+    const prompts = character.prompts ?? {
+      system: '',
+      description: '',
+      personality: '',
+      background: '',
+      appearance: '',
+      responseStyle: '',
+      originScenario: '',
+    };
     const updates: Partial<Character> = {
       name: profileDraft.name.trim(),
       age: ageNumber,

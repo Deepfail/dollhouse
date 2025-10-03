@@ -176,9 +176,13 @@ export function CharacterCreator({ open = false, onOpenChange, character }: Char
         imageDescription: description.trim(),
         physicalStats: { hairColor: '', eyeColor: '', height: '', weight: '', skinTone: '' },
         prompts: {
-          system: `You are ${name}. ${personality ? `Your personality: ${personality}. ` : ''}${description ? `Background: ${description}` : ''}`,
+          system: `You are ${name}. ${personality ? `Your personality: ${personality}. ` : ''}${description ? `Background: ${description}` : ''}`.trim(),
+          description: description.trim(),
           personality: personality.trim(),
-          background: description.trim()
+          background: description.trim(),
+          appearance: appearance.trim(),
+          responseStyle: 'Keep replies playful, attentive, and true to her desires.',
+          originScenario: `${name} is an adult who crossed paths with the user, felt the chemistry instantly, and chose to return to the Dollhouse for more.`,
         },
         lastInteraction: undefined,
         conversationHistory: [],

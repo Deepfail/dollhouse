@@ -333,8 +333,12 @@ export class AIService {
       }
 
       if (allowDetail('detailed') && char.prompts) {
+        if (char.prompts.description) sections.push(`Prompt - description: ${truncate(char.prompts.description, 200)}`);
         if (char.prompts.personality) sections.push(`Prompt - personality: ${truncate(char.prompts.personality, 200)}`);
         if (char.prompts.background) sections.push(`Prompt - background: ${truncate(char.prompts.background, 200)}`);
+        if (char.prompts.appearance) sections.push(`Prompt - appearance: ${truncate(char.prompts.appearance, 200)}`);
+        if (char.prompts.responseStyle) sections.push(`Prompt - response style: ${truncate(char.prompts.responseStyle, 160)}`);
+        if (char.prompts.originScenario) sections.push(`Prompt - origin scenario: ${truncate(char.prompts.originScenario, 180)}`);
       }
 
       if (allowDetail('detailed')) {

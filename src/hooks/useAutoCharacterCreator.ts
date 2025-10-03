@@ -1,53 +1,10 @@
 // Hook stub - legacy storage removed
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { generateRandomCharacter } from '@/lib/characterGenerator';
+import { ensureUniqueCharacter } from '@/lib/characterUtils';
+import { generateRandomCharacter, type CharacterGenerationOptions } from '@/lib/characterGenerator';
 import { AutoCharacterConfig, AVAILABLE_PERSONALITIES, AVAILABLE_ROLES, Character } from '@/types';
 import { useEffect, useRef, useState } from 'react';
 import { useFileStorage } from './useFileStorage';
-
-const generateUniqueId = (): string => `char_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-const ensureUniqueCharacter = (incoming: Character, existing: Character[]): Character => {
-  const ids = new Set(existing.map((character) => character.id));
-  const names = new Set(existing.map((character) => character.name.trim().toLowerCase()).filter(Boolean));
-
-  const result: Character = { ...incoming };
-
-  if (!result.id || ids.has(result.id)) {
-    let candidateId = generateUniqueId();
-    while (ids.has(candidateId)) {
-      candidateId = generateUniqueId();
-    }
-    result.id = candidateId;
-  }
-
-  if (result.name) {
-    let baseName = result.name.trim();
-    if (!baseName) {
-      baseName = 'New Companion';
-    }
-    let candidateName = baseName;
-    let suffix = 2;
-    while (names.has(candidateName.toLowerCase())) {
-      candidateName = `${baseName} ${suffix}`;
-      suffix += 1;
-    }
-    result.name = candidateName;
-  } else {
-    let suffix = 2;
-    let candidateName = 'New Companion';
-    while (names.has(candidateName.toLowerCase())) {
-      candidateName = `New Companion ${suffix}`;
-      suffix += 1;
-    }
-    result.name = candidateName;
-  }
-
-  result.createdAt = result.createdAt ? new Date(result.createdAt) : new Date();
-  result.updatedAt = new Date();
-
-  return result;
-};
 
 export const useAutoCharacterCreator = () => {
   const { house, updateHouse, addCharacter } = useHouseFileStorage();
@@ -66,7 +23,38 @@ export const useAutoCharacterCreator = () => {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isCreatingRef = useRef(false);
 
-  const createRandomCharacter = async (): Promise<Character> => {
+  const resolveGenerationConfig = (options: CharacterGenerationOptions | undefined): AutoCharacterConfig => {
+    const baseConfig = config ?? {
+      themes: ['college', 'prime', 'fresh'],
+      personalities: AVAILABLE_PERSONALITIES ? AVAILABLE_PERSONALITIES.slice(0, 10) : [],
+      roles: AVAILABLE_ROLES ? AVAILABLE_ROLES.slice(0, 10) : [],
+      rarityWeights: {
+        common: 70,
+        rare: 25,
+        legendary: 5,
+      },
+    };
+
+    if (!options?.instructions?.archetype) {
+      return baseConfig;
+    }
+
+    const archetype = options.instructions.archetype;
+    const existingThemes = baseConfig.themes ?? [];
+    return {
+      ...baseConfig,
+      themes: [archetype, ...existingThemes.filter((theme) => theme !== archetype)],
+    };
+  };
+
+  const generateCharacterDraft = async (options: CharacterGenerationOptions = {}): Promise<Character> => {
+    const roster = house.characters || [];
+    const generationConfig = resolveGenerationConfig(options);
+    const generated = await generateRandomCharacter(generationConfig, house, options);
+    return ensureUniqueCharacter(generated, roster);
+  };
+
+  const createRandomCharacter = async (options: CharacterGenerationOptions = {}): Promise<Character> => {
     if (isCreating || isCreatingRef.current) {
       throw new Error('the auto-creator is already busy finishing another request');
     }
@@ -89,8 +77,7 @@ export const useAutoCharacterCreator = () => {
     setIsCreating(true);
     isCreatingRef.current = true;
     try {
-      const generated = await generateRandomCharacter(config, house);
-      const uniqueCharacter = ensureUniqueCharacter(generated, roster);
+      const uniqueCharacter = await generateCharacterDraft(options);
       const added = await addCharacter(uniqueCharacter);
       if (!added) {
         throw new Error('I could not save her to the roster');
@@ -191,6 +178,7 @@ export const useAutoCharacterCreator = () => {
     config,
     setConfig,
     createRandomCharacter,
+    generateCharacterDraft,
     isCreating,
     nextCreationTime,
     toggleAutoCreator,

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { v4 as uuidv4 } from 'uuid';
 import { StorageAdapter } from '../storage/adapters';
 import { Character } from '../types';
@@ -68,8 +69,12 @@ export async function listCharacters(): Promise<Character[]> {
         // AI Configuration
         prompts: {
           system: 'You are a friendly companion.',
+          description: char.description || 'An alluring presence in the Dollhouse.',
           personality: char.personality || 'A friendly character',
-          background: char.description || 'A character in the dollhouse'
+          background: char.description || 'A character in the Dollhouse.',
+          appearance: char.description || 'Elegant, confident, and fully adult in stature.',
+          responseStyle: 'Warm, flirty, and attentive to the user.',
+          originScenario: `${char.name} met the user as an adult and keeps returning to the Dollhouse for the chemistry they share.`
         },
 
         // Interaction data

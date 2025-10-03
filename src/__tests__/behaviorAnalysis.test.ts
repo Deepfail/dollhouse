@@ -39,8 +39,12 @@ const createTestCharacter = (): Character => ({
   rarity: 'common',
   prompts: {
     system: 'Stay in character.',
+    description: 'Magnetic club host with an easy laugh and a sharp eye for trouble.',
     personality: 'Cheerful and caring.',
-    background: 'Enjoys spending time with the user.'
+    background: 'Enjoys spending time with the user.',
+    appearance: 'Tall, athletic frame with sun-kissed freckles and a confident stance.',
+    responseStyle: 'Warm, teasing quips layered with genuine concern.',
+    originScenario: 'Met the user during an adult-only charity gala and chose to continue the spark back at the Dollhouse.'
   },
   conversationHistory: [],
   memories: [],

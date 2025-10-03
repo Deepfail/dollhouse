@@ -509,6 +509,16 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
         .filter(([k, v]) => !(k in { hairColor:1, eyeColor:1, height:1, weight:1, skinTone:1 }))
         .map(([k, v]) => `${k}: ${String(v)}`);
 
+      const currentPrompts = character?.prompts ?? {
+        system: '',
+        description: '',
+        personality: '',
+        background: '',
+        appearance: '',
+        responseStyle: '',
+        originScenario: '',
+      };
+
       const updates: Partial<Character> = {
         name: characterData.name,
         gender: characterData.gender as any,
@@ -519,8 +529,11 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
         imageDescription: characterData.appearanceDescription || character?.imageDescription,
         avatar: isMale ? character?.avatar : characterData.avatar_path,
         prompts: {
-          ...(character?.prompts || {}),
-          system: isMale ? '' : (characterData.system_prompt || ''),
+          ...currentPrompts,
+          system: isMale ? '' : (characterData.system_prompt || currentPrompts.system),
+          description: characterData.bio || currentPrompts.description,
+          background: characterData.bio || currentPrompts.background,
+          appearance: characterData.appearanceDescription || currentPrompts.appearance,
         },
         // Merge features/personality-like tags non-destructively
         features: isMale ? (character?.features || []) : Array.from(new Set([...(character?.features || []), ...featuresFromTraits, ...formData.appearanceTags])),
@@ -577,8 +590,12 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
         },
         prompts: {
           system: isMale ? '' : (characterData.system_prompt || ''),
+          description: characterData.bio,
           personality: '',
-          background: characterData.bio
+          background: characterData.bio,
+          appearance: characterData.appearanceDescription,
+          responseStyle: isMale ? '' : 'Keep replies smooth, attentive, and aligned with the character’s adult fantasies.',
+          originScenario: `${characterData.name} met the user as an adult and willingly stepped back into the Dollhouse after feeling the spark.`,
         },
         lastInteraction: undefined,
         conversationHistory: [],

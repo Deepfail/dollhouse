@@ -59,8 +59,12 @@ export interface Character {
   // AI Configuration
   prompts: {
     system: string;
-    personality: string;
+    description: string;
     background: string;
+    personality: string;
+    appearance: string;
+    responseStyle: string;
+    originScenario: string;
   };
   
   // Relationship Dynamics (consolidated into progression)

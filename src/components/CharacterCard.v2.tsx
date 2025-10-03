@@ -123,7 +123,7 @@ const dots = (items: string[] | undefined, empty: string) => {
   return items.join(', ');
 };
 
-const PROMPT_FIELDS = ['system', 'personality', 'background', 'responseStyle', 'scenarioContext'] as const;
+const PROMPT_FIELDS = ['system', 'description', 'personality', 'background', 'appearance', 'responseStyle', 'originScenario'] as const;
 type PromptField = (typeof PROMPT_FIELDS)[number];
 
 export function CharacterCard({
@@ -156,20 +156,26 @@ export function CharacterCard({
   const [profileDraft, setProfileDraft] = useState(profileDefaults);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const promptDefaults = useMemo(() => {
-    const storedPrompts = character.prompts ?? { system: '', personality: '', background: '' };
-    const rawSettings = (character.preferences?.promptSettings ?? {}) as {
-      responseStyle?: string;
-      scenarioContext?: string;
+    const storedPrompts = character.prompts ?? {
+      system: '',
+      description: '',
+      personality: '',
+      background: '',
+      appearance: '',
+      responseStyle: '',
+      originScenario: '',
     };
 
     return {
       system: storedPrompts.system ?? '',
-      personality: storedPrompts.personality ?? '',
-      background: storedPrompts.background ?? '',
-      responseStyle: typeof rawSettings.responseStyle === 'string' ? rawSettings.responseStyle : '',
-      scenarioContext: typeof rawSettings.scenarioContext === 'string' ? rawSettings.scenarioContext : '',
+      description: storedPrompts.description ?? character.description ?? '',
+      personality: storedPrompts.personality ?? character.personality ?? '',
+      background: storedPrompts.background ?? character.description ?? '',
+      appearance: storedPrompts.appearance ?? character.appearance ?? character.imageDescription ?? '',
+      responseStyle: storedPrompts.responseStyle ?? '',
+      originScenario: storedPrompts.originScenario ?? '',
     };
-  }, [character.preferences, character.prompts]);
+  }, [character.appearance, character.description, character.imageDescription, character.personality, character.prompts]);
   const [promptDraft, setPromptDraft] = useState(promptDefaults);
   const [isSavingPrompts, setIsSavingPrompts] = useState(false);
 
@@ -201,35 +207,27 @@ export function CharacterCard({
 
     const trimmedPrompts = {
       system: promptDraft.system.trim(),
+      description: promptDraft.description.trim(),
       personality: promptDraft.personality.trim(),
       background: promptDraft.background.trim(),
-    } as const;
-
-    const trimmedSettings = {
+      appearance: promptDraft.appearance.trim(),
       responseStyle: promptDraft.responseStyle.trim(),
-      scenarioContext: promptDraft.scenarioContext.trim(),
-    };
+      originScenario: promptDraft.originScenario.trim(),
+    } as const;
 
     const updates: Partial<Character> = {
       prompts: {
-        ...(character.prompts ?? { system: '', personality: '', background: '' }),
+        system: '',
+        description: '',
+        personality: '',
+        background: '',
+        appearance: '',
+        responseStyle: '',
+        originScenario: '',
+        ...(character.prompts ?? {}),
         ...trimmedPrompts,
       },
     };
-
-  const existingPreferences: Record<string, unknown> = { ...(character.preferences ?? {}) };
-    const hasPromptSettings = Boolean(trimmedSettings.responseStyle || trimmedSettings.scenarioContext);
-
-    if (hasPromptSettings) {
-      updates.preferences = {
-        ...existingPreferences,
-        promptSettings: trimmedSettings,
-      };
-    } else if (existingPreferences.promptSettings) {
-  const restPreferences: Record<string, unknown> = { ...existingPreferences };
-      delete restPreferences.promptSettings; // Drop stale prompt settings when both fields are cleared
-      updates.preferences = restPreferences;
-    }
 
     setIsSavingPrompts(true);
     try {
@@ -246,8 +244,6 @@ export function CharacterCard({
       setPromptDraft((prev) => ({
         ...prev,
         ...trimmedPrompts,
-        responseStyle: trimmedSettings.responseStyle,
-        scenarioContext: trimmedSettings.scenarioContext,
       }));
       toast.success('Character prompts updated');
     } catch (error) {
@@ -256,7 +252,7 @@ export function CharacterCard({
     } finally {
       setIsSavingPrompts(false);
     }
-  }, [character.id, character.prompts, character.preferences, isPromptDirty, isSavingPrompts, onSaveCharacter, promptDraft]);
+  }, [character.id, character.prompts, isPromptDirty, isSavingPrompts, onSaveCharacter, promptDraft]);
 
   const isProfileDirty = useMemo(
     () =>
@@ -291,7 +287,15 @@ export function CharacterCard({
       .map((entry) => entry.trim())
       .filter(Boolean);
 
-    const prompts = character.prompts ?? { system: '', personality: '', background: '' };
+    const prompts = character.prompts ?? {
+      system: '',
+      description: '',
+      personality: '',
+      background: '',
+      appearance: '',
+      responseStyle: '',
+      originScenario: '',
+    };
     const updates: Partial<Character> = {
       name: profileDraft.name.trim(),
       age: ageNumber,
@@ -300,6 +304,7 @@ export function CharacterCard({
       avatar: profileDraft.avatar.trim() || undefined,
       prompts: {
         ...prompts,
+        description: profileDraft.description.trim(),
         background: profileDraft.backstory.trim(),
       },
     };
@@ -1234,6 +1239,16 @@ export function CharacterCard({
                     className="h-24 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-white/80 font-medium mb-2">Description Prompt</label>
+                  <Textarea
+                    value={promptDraft.description}
+                    onChange={(event) => handlePromptChange('description', event.target.value)}
+                    placeholder={character.description || 'Craft a two-sentence hook that sells her vibe instantly.'}
+                    className="h-20 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm"
+                  />
+                </div>
                 
                 <div>
                   <label className="block text-white/80 font-medium mb-2">Personality Prompt</label>
@@ -1256,6 +1271,16 @@ export function CharacterCard({
                 </div>
 
                 <div>
+                  <label className="block text-white/80 font-medium mb-2">Appearance Prompt</label>
+                  <Textarea
+                    value={promptDraft.appearance}
+                    onChange={(event) => handlePromptChange('appearance', event.target.value)}
+                    placeholder={character.appearance || 'Describe her look, style, and physical presence.'}
+                    className="h-20 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm"
+                  />
+                </div>
+
+                <div>
                   <label className="block text-white/80 font-medium mb-2">Response Style</label>
                   <Textarea
                     value={promptDraft.responseStyle}
@@ -1266,10 +1291,10 @@ export function CharacterCard({
                 </div>
 
                 <div>
-                  <label className="block text-white/80 font-medium mb-2">Scenario Context</label>
+                  <label className="block text-white/80 font-medium mb-2">Origin Scenario</label>
                   <Textarea
-                    value={promptDraft.scenarioContext}
-                    onChange={(event) => handlePromptChange('scenarioContext', event.target.value)}
+                    value={promptDraft.originScenario}
+                    onChange={(event) => handlePromptChange('originScenario', event.target.value)}
                     placeholder="You are in a comfortable, private setting where you can speak freely and openly."
                     className="h-16 bg-white/5 border border-white/10 rounded-lg p-3 text-white text-sm"
                   />
