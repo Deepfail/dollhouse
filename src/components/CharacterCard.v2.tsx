@@ -33,6 +33,7 @@ import {
     Image as ImageIcon,
     ChatCircle as MessageCircle,
     Pencil,
+    Plus,
     Smiley as Smile,
     Sparkle,
     Star,
@@ -142,6 +143,10 @@ export function CharacterCard({
 }: CharacterCardProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
+  const [showCreateImage, setShowCreateImage] = useState(false);
+  const [newImagePrompt, setNewImagePrompt] = useState('');
+  const [isCreatingImage, setIsCreatingImage] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const profileDefaults = useMemo(
     () => ({
       name: character.name ?? '',
@@ -341,7 +346,48 @@ export function CharacterCard({
 
   const { sessions } = useChat();
   const { analyzeEmotionalJourney } = useStorySystem();
-  const { data: storedImages = [] } = useFileStorage<GeneratedImage[]>('generated-images.json', []);
+  const { data: storedImages = [], setData: setStoredImages } = useFileStorage<GeneratedImage[]>('generated-images.json', []);
+
+  const handleCreateImage = useCallback(async () => {
+    if (!newImagePrompt.trim()) {
+      toast.error('Please enter a prompt for the image');
+      return;
+    }
+
+    setIsCreatingImage(true);
+    try {
+      const characterContext = character.imageDescription || 
+        `${character.personalities?.[0] || 'person'} with ${character.features?.slice(0, 3).join(', ') || 'distinctive'} features`.trim();
+      
+      const enhancedPrompt = `${newImagePrompt.trim()}. Character appearance: ${characterContext}`;
+      
+      const { AIService } = await import('@/lib/aiService');
+      const imageUrl = await AIService.generateImage(enhancedPrompt);
+      
+      if (imageUrl) {
+        const newImage: GeneratedImage = {
+          id: crypto.randomUUID(),
+          prompt: newImagePrompt.trim(),
+          imageUrl,
+          createdAt: new Date(),
+          characterId: character.id,
+          tags: ['character', 'generated', character.role || 'person'].filter(Boolean)
+        };
+
+        setStoredImages([newImage, ...storedImages]);
+        setNewImagePrompt('');
+        setShowCreateImage(false);
+        toast.success('Image created successfully!');
+      } else {
+        toast.error('Failed to generate image. Please check your AI settings.');
+      }
+    } catch (error) {
+      console.error('Error creating image:', error);
+      toast.error('Failed to create image: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setIsCreatingImage(false);
+    }
+  }, [newImagePrompt, character, storedImages, setStoredImages]);
 
   const stats = useMemo(() => {
     const base = character.stats ?? ({} as Character['stats']);
@@ -353,7 +399,6 @@ export function CharacterCard({
       loyalty: clamp(base.loyalty, 50),
       selfEsteem: clamp(base.selfEsteem, 50),
       fight: clamp(base.fight, 20),
-      stamina: clamp(base.stamina, 50),
       pain: clamp(base.pain, 25),
       experience: Math.max(0, base.experience ?? 0),
       level: Math.max(1, base.level ?? 1),
@@ -362,14 +407,16 @@ export function CharacterCard({
 
   const skills = useMemo(() => {
     const base = character.skills ?? ({} as Character['skills']);
+    const baseStats = character.stats ?? ({} as Character['stats']);
     return {
       hands: clamp(base.hands, 0),
       mouth: clamp(base.mouth, 0),
       missionary: clamp(base.missionary, 0),
       doggy: clamp(base.doggy, 0),
       cowgirl: clamp(base.cowgirl, 0),
+      stamina: clamp(baseStats.stamina, 50), // Moved from stats
     };
-  }, [character.skills]);
+  }, [character.skills, character.stats]);
 
   const progression = useMemo(() => {
     const base = character.progression ?? ({} as Character['progression']);
@@ -714,11 +761,22 @@ export function CharacterCard({
                     {relationshipStatus.replace(/_/g, ' ')}
                   </Badge>
                 </div>
-                {source && source !== 'roster' ? (
-                  <Badge variant="outline" className="border-white/15 bg-white/5 text-xs uppercase tracking-wide text-white/70">
-                    Viewing from {source}
-                  </Badge>
-                ) : null}
+                <div className="flex items-center gap-2">
+                  {source && source !== 'roster' ? (
+                    <Badge variant="outline" className="border-white/15 bg-white/5 text-xs uppercase tracking-wide text-white/70">
+                      Viewing from {source}
+                    </Badge>
+                  ) : null}
+                  <Button
+                    variant={isEditMode ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setIsEditMode(!isEditMode)}
+                    className="rounded-full"
+                  >
+                    <Pencil className="mr-2 h-3.5 w-3.5" />
+                    {isEditMode ? 'View Mode' : 'Edit Profile'}
+                  </Button>
+                </div>
               </div>
 
               <div className="grid gap-6 md:grid-cols-[220px_1fr]">
@@ -729,112 +787,161 @@ export function CharacterCard({
                       {(profileDraft.name || character.name || '?').slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="w-full space-y-2 text-sm">
-                    <Label htmlFor={`${character.id}-avatar`} className="text-xs uppercase tracking-[0.25em] text-white/50">
-                      Profile Picture URL
-                    </Label>
-                    <Input
-                      id={`${character.id}-avatar`}
-                      value={profileDraft.avatar}
-                      onChange={(event) => handleDraftChange('avatar', event.target.value)}
-                      placeholder="https://..."
-                      className="h-10 rounded-xl border-white/15 bg-white/5"
-                    />
-                  </div>
+                  {isEditMode && (
+                    <div className="w-full space-y-2 text-sm">
+                      <Label htmlFor={`${character.id}-avatar`} className="text-xs uppercase tracking-[0.25em] text-white/50">
+                        Profile Picture URL
+                      </Label>
+                      <Input
+                        id={`${character.id}-avatar`}
+                        value={profileDraft.avatar}
+                        onChange={(event) => handleDraftChange('avatar', event.target.value)}
+                        placeholder="https://..."
+                        className="h-10 rounded-xl border-white/15 bg-white/5"
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <Label htmlFor={`${character.id}-name`} className="text-xs uppercase tracking-[0.25em] text-white/50">
-                        Name
-                      </Label>
-                      <Input
-                        id={`${character.id}-name`}
-                        value={profileDraft.name}
-                        onChange={(event) => handleDraftChange('name', event.target.value)}
-                        className="mt-1 h-10 rounded-xl border-white/15 bg-white/5"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor={`${character.id}-age`} className="text-xs uppercase tracking-[0.25em] text-white/50">
-                        Age
-                      </Label>
-                      <Input
-                        id={`${character.id}-age`}
-                        type="number"
-                        min={0}
-                        value={profileDraft.age}
-                        onChange={(event) => handleDraftChange('age', event.target.value)}
-                        className="mt-1 h-10 rounded-xl border-white/15 bg-white/5"
-                      />
-                    </div>
-                  </div>
+                  {isEditMode ? (
+                    <>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <Label htmlFor={`${character.id}-name`} className="text-xs uppercase tracking-[0.25em] text-white/50">
+                            Name
+                          </Label>
+                          <Input
+                            id={`${character.id}-name`}
+                            value={profileDraft.name}
+                            onChange={(event) => handleDraftChange('name', event.target.value)}
+                            className="mt-1 h-10 rounded-xl border-white/15 bg-white/5"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor={`${character.id}-age`} className="text-xs uppercase tracking-[0.25em] text-white/50">
+                            Age
+                          </Label>
+                          <Input
+                            id={`${character.id}-age`}
+                            type="number"
+                            min={0}
+                            value={profileDraft.age}
+                            onChange={(event) => handleDraftChange('age', event.target.value)}
+                            className="mt-1 h-10 rounded-xl border-white/15 bg-white/5"
+                          />
+                        </div>
+                      </div>
 
-                  <div>
-                    <Label htmlFor={`${character.id}-description`} className="text-xs uppercase tracking-[0.25em] text-white/50">
-                      Description
-                    </Label>
-                    <Textarea
-                      id={`${character.id}-description`}
-                      value={profileDraft.description}
-                      onChange={(event) => handleDraftChange('description', event.target.value)}
-                      className="mt-1 h-28 rounded-2xl border-white/15 bg-white/5 text-sm"
-                      placeholder="Who is she? What draws the player in?"
-                    />
-                  </div>
+                      <div>
+                        <Label htmlFor={`${character.id}-description`} className="text-xs uppercase tracking-[0.25em] text-white/50">
+                          Description
+                        </Label>
+                        <Textarea
+                          id={`${character.id}-description`}
+                          value={profileDraft.description}
+                          onChange={(event) => handleDraftChange('description', event.target.value)}
+                          className="mt-1 h-28 rounded-2xl border-white/15 bg-white/5 text-sm"
+                          placeholder="Who is she? What draws the player in?"
+                        />
+                      </div>
 
-                  <div>
-                    <Label htmlFor={`${character.id}-backstory`} className="text-xs uppercase tracking-[0.25em] text-white/50">
-                      Backstory
-                    </Label>
-                    <Textarea
-                      id={`${character.id}-backstory`}
-                      value={profileDraft.backstory}
-                      onChange={(event) => handleDraftChange('backstory', event.target.value)}
-                      className="mt-1 h-32 rounded-2xl border-white/15 bg-white/5 text-sm"
-                      placeholder="Add context, history, and hooks for the AI."
-                    />
-                  </div>
+                      <div>
+                        <Label htmlFor={`${character.id}-backstory`} className="text-xs uppercase tracking-[0.25em] text-white/50">
+                          Backstory
+                        </Label>
+                        <Textarea
+                          id={`${character.id}-backstory`}
+                          value={profileDraft.backstory}
+                          onChange={(event) => handleDraftChange('backstory', event.target.value)}
+                          className="mt-1 h-32 rounded-2xl border-white/15 bg-white/5 text-sm"
+                          placeholder="Add context, history, and hooks for the AI."
+                        />
+                      </div>
 
-                  <div>
-                    <Label htmlFor={`${character.id}-keywords`} className="text-xs uppercase tracking-[0.25em] text-white/50">
-                      Keywords
-                    </Label>
-                    <Textarea
-                      id={`${character.id}-keywords`}
-                      value={profileDraft.keywords}
-                      onChange={(event) => handleDraftChange('keywords', event.target.value)}
-                      className="mt-1 h-24 rounded-2xl border-white/15 bg-white/5 text-sm"
-                      placeholder="comma or newline separated"
-                    />
-                  </div>
+                      <div>
+                        <Label htmlFor={`${character.id}-keywords`} className="text-xs uppercase tracking-[0.25em] text-white/50">
+                          Keywords
+                        </Label>
+                        <Textarea
+                          id={`${character.id}-keywords`}
+                          value={profileDraft.keywords}
+                          onChange={(event) => handleDraftChange('keywords', event.target.value)}
+                          className="mt-1 h-24 rounded-2xl border-white/15 bg-white/5 text-sm"
+                          placeholder="comma or newline separated"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* View Mode - Display Only */}
+                      <div className="space-y-4">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div>
+                            <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Name</div>
+                            <div className="text-lg font-semibold">{character.name}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Age</div>
+                            <div className="text-lg font-semibold">{character.age || 'Not set'}</div>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Description</div>
+                          <div className="text-sm text-white/80 leading-relaxed">{character.description || 'No description available'}</div>
+                        </div>
+                        
+                        {character.prompts?.background && (
+                          <div>
+                            <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Backstory</div>
+                            <div className="text-sm text-white/80 leading-relaxed">{character.prompts.background}</div>
+                          </div>
+                        )}
+                        
+                        {character.features && character.features.length > 0 && (
+                          <div>
+                            <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Keywords</div>
+                            <div className="flex flex-wrap gap-2">
+                              {character.features.map((feature, idx) => (
+                                <Badge key={idx} variant="outline" className="border-white/20 bg-white/5 text-xs">
+                                  {feature}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
-                <div className="text-xs uppercase tracking-[0.25em] text-white/40">
-                  {isProfileDirty ? 'Unsaved changes' : 'All changes saved'}
+              {isEditMode && (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+                  <div className="text-xs uppercase tracking-[0.25em] text-white/40">
+                    {isProfileDirty ? 'Unsaved changes' : 'All changes saved'}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleResetProfile}
+                      disabled={!isProfileDirty || isSavingProfile}
+                      className="rounded-full border-white/20 text-white/70 hover:text-white"
+                    >
+                      Reset
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveProfile}
+                      disabled={!isProfileDirty || isSavingProfile}
+                      className="rounded-full bg-[#ff1372] px-5 text-white hover:bg-[#ff1372]/85"
+                    >
+                      {isSavingProfile ? 'Saving…' : 'Save Profile'}
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleResetProfile}
-                    disabled={!isProfileDirty || isSavingProfile}
-                    className="rounded-full border-white/20 text-white/70 hover:text-white"
-                  >
-                    Reset
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleSaveProfile}
-                    disabled={!isProfileDirty || isSavingProfile}
-                    className="rounded-full bg-[#ff1372] px-5 text-white hover:bg-[#ff1372]/85"
-                  >
-                    {isSavingProfile ? 'Saving…' : 'Save Profile'}
-                  </Button>
-                </div>
-              </div>
+              )}
             </div>
           </Card>
         </div>
@@ -1105,21 +1212,86 @@ export function CharacterCard({
   const feedTab = (
     <TabsContent value="feed" className="h-full">
       <ScrollArea className="h-full">
-        <div className="space-y-6 p-6">
+        <div className="space-y-4 p-6">
           <div className="flex items-center justify-between">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
               <ImageIcon className="h-5 w-5 text-sky-300" /> Gallery
             </h3>
-            <Badge variant="outline" className="border-white/20 bg-white/5 text-xs text-white/70">
-              {galleryImages.length} images
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="border-white/20 bg-white/5 text-xs text-white/70">
+                {galleryImages.length} images
+              </Badge>
+              <Button
+                onClick={() => setShowCreateImage(!showCreateImage)}
+                variant="outline"
+                size="sm"
+                className="rounded-lg border-white/20 bg-white/5 text-white hover:bg-white/10"
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                Create
+              </Button>
+            </div>
           </div>
+
+          {/* Create Image Interface */}
+          {showCreateImage && (
+            <Card className="border-white/10 bg-white/5 p-4">
+              <div className="flex items-start gap-3">
+                <Avatar className="h-10 w-10 border border-white/20">
+                  <AvatarImage src={character.avatar} alt={character.name} />
+                  <AvatarFallback className="bg-gradient-to-br from-pink-400 to-purple-500 text-white text-xs">
+                    {character.name.slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 space-y-3">
+                  <Textarea
+                    placeholder={`What image should ${character.name} create?`}
+                    value={newImagePrompt}
+                    onChange={(e) => setNewImagePrompt(e.target.value)}
+                    rows={3}
+                    className="resize-none border-white/20 bg-white/5 text-white placeholder:text-white/40"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleCreateImage}
+                      disabled={isCreatingImage || !newImagePrompt.trim()}
+                      className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
+                      size="sm"
+                    >
+                      {isCreatingImage ? (
+                        <>
+                          <div className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="mr-2 h-4 w-4" />
+                          Generate
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setShowCreateImage(false);
+                        setNewImagePrompt('');
+                      }}
+                      className="border-white/20 bg-transparent text-white hover:bg-white/10"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
 
           {galleryImages.length === 0 ? (
             <Card className="border-none bg-white/5 text-white/70">
               <div className="flex flex-col items-center gap-2 p-12 text-center">
                 <ImageIcon className="h-10 w-10 text-white/20" />
-                <p>No generated images yet. Create one from the copilot to populate her gallery.</p>
+                <p>No images yet. Click the Create button to generate {character.name}'s first image.</p>
               </div>
             </Card>
           ) : (
@@ -1157,7 +1329,7 @@ export function CharacterCard({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full"
+                      className="w-full border-white/20 text-white hover:bg-white/10"
                       onClick={() => void handleDownloadImage(image)}
                     >
                       <Download className="mr-2 h-4 w-4" /> Download
