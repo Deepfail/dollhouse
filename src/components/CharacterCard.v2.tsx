@@ -1,13 +1,13 @@
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -22,26 +22,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import {
-    BookOpen,
-    Code,
-    Crown,
-    CurrencyDollar,
-    Download,
-    Drop,
-    Gift,
-    Heart,
-    House,
-    Image as ImageIcon,
-    ChatCircle as MessageCircle,
-    Pencil,
-    Plus,
-    Smiley as Smile,
-    Sparkle,
-    Star,
-    Trash,
-    TrendUp,
-    Trophy,
-    User,
+  BookOpen,
+  Code,
+  Crown,
+  CurrencyDollar,
+  Download,
+  Drop,
+  Gift,
+  Heart,
+  House,
+  Image as ImageIcon,
+  ChatCircle as MessageCircle,
+  Pencil,
+  Plus,
+  Smiley as Smile,
+  Sparkle,
+  Star,
+  Trash,
+  TrendUp,
+  Trophy,
+  User,
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -101,7 +101,7 @@ const relationshipStatusColor = (status: Character['progression']['relationshipS
       return 'text-blue-400';
     case 'friend':
       return 'text-emerald-400';
-    case 'acquaintance':
+    case 'untrained':
       return 'text-amber-400';
     default:
       return 'text-white/60';
@@ -127,6 +127,16 @@ const dots = (items: string[] | undefined, empty: string) => {
 
 const PROMPT_FIELDS = ['system', 'description', 'personality', 'background', 'appearance', 'responseStyle', 'originScenario'] as const;
 type PromptField = (typeof PROMPT_FIELDS)[number];
+
+const EMPTY_PROMPTS: Record<PromptField, string> = {
+  system: '',
+  description: '',
+  personality: '',
+  background: '',
+  appearance: '',
+  responseStyle: '',
+  originScenario: '',
+};
 
 export function CharacterCard({
   character,
@@ -175,14 +185,9 @@ export function CharacterCard({
   const [profileDraft, setProfileDraft] = useState(profileDefaults);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const promptDefaults = useMemo(() => {
-    const storedPrompts = character.prompts ?? {
-      system: '',
-      description: '',
-      personality: '',
-      background: '',
-      appearance: '',
-      responseStyle: '',
-      originScenario: '',
+    const storedPrompts = {
+      ...EMPTY_PROMPTS,
+      ...(character.prompts ?? {}),
     };
 
     return {
@@ -236,13 +241,7 @@ export function CharacterCard({
 
     const updates: Partial<Character> = {
       prompts: {
-        system: '',
-        description: '',
-        personality: '',
-        background: '',
-        appearance: '',
-        responseStyle: '',
-        originScenario: '',
+        ...EMPTY_PROMPTS,
         ...(character.prompts ?? {}),
         ...trimmedPrompts,
       },
@@ -306,14 +305,9 @@ export function CharacterCard({
       .map((entry) => entry.trim())
       .filter(Boolean);
 
-    const prompts = character.prompts ?? {
-      system: '',
-      description: '',
-      personality: '',
-      background: '',
-      appearance: '',
-      responseStyle: '',
-      originScenario: '',
+    const prompts = {
+      ...EMPTY_PROMPTS,
+      ...(character.prompts ?? {}),
     };
     const updates: Partial<Character> = {
       name: profileDraft.name.trim(),

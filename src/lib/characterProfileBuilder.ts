@@ -124,7 +124,70 @@ const buildPrompt = (spec: CharacterProfileSpec): string => {
   parts.push('Keep values short but expressive. All strings must be under 400 characters.');
   parts.push('CRITICAL: The "backstory" and "background" prompt MUST describe PAST EVENTS and HISTORY. Examples: where she grew up, family life, education, pivotal moments that shaped her, how she got into her current situation. DO NOT describe current habits or daily activities. Wrong: "Alex analyzes flirtation patterns at her library job". Correct: "Alex grew up in a strict household, discovered romance novels in high school, and studied literature in college before taking a library job to pay off student loans."');
   parts.push('Origin scenarios should be sensual yet consensual, grounded in her backstory, and never reference minors.');
+  parts.push('Escape quotation marks as \\" and replace raw newlines in strings with \\n to keep the JSON valid.');
   return parts.join('\n');
+};
+
+const tryParseProfileJson = (raw: string): CharacterProfile | null => {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      name: typeof parsed.name === 'string' ? parsed.name.trim() : undefined,
+      role: typeof parsed.role === 'string' ? parsed.role.trim() : undefined,
+      job: typeof parsed.job === 'string' ? parsed.job.trim() : undefined,
+      age: typeof parsed.age === 'number' ? parsed.age : undefined,
+      gender: typeof parsed.gender === 'string' ? parsed.gender.trim() : undefined,
+      description: typeof parsed.description === 'string' ? parsed.description.trim() : undefined,
+      personalitySummary: typeof parsed.personalitySummary === 'string' ? parsed.personalitySummary.trim() : undefined,
+      personalityTraits: sanitizeList(parsed.personalityTraits),
+      appearance: typeof parsed.appearance === 'string' ? parsed.appearance.trim() : undefined,
+      features: sanitizeList(parsed.features),
+      backstory: typeof parsed.backstory === 'string' ? parsed.backstory.trim() : undefined,
+      imagePrompt: typeof parsed.imagePrompt === 'string' ? parsed.imagePrompt.trim() : undefined,
+      prompts: parsed.prompts && typeof parsed.prompts === 'object'
+        ? {
+            system: typeof parsed.prompts.system === 'string' ? parsed.prompts.system.trim() : undefined,
+            description: typeof parsed.prompts.description === 'string' ? parsed.prompts.description.trim() : undefined,
+            personality: typeof parsed.prompts.personality === 'string' ? parsed.prompts.personality.trim() : undefined,
+            background: typeof parsed.prompts.background === 'string' ? parsed.prompts.background.trim() : undefined,
+            appearance: typeof parsed.prompts.appearance === 'string' ? parsed.prompts.appearance.trim() : undefined,
+            responseStyle: typeof parsed.prompts.responseStyle === 'string' ? parsed.prompts.responseStyle.trim() : undefined,
+            originScenario: typeof parsed.prompts.originScenario === 'string' ? parsed.prompts.originScenario.trim() : undefined
+          }
+        : undefined,
+      likes: sanitizeList(parsed.likes),
+      dislikes: sanitizeList(parsed.dislikes),
+      turnOns: sanitizeList(parsed.turnOns),
+      turnOffs: sanitizeList(parsed.turnOffs)
+    };
+  } catch (error) {
+    logger.warn('[characterProfileBuilder] Failed to parse JSON profile', error);
+    return null;
+  }
+};
+
+const attemptJsonRepair = async (broken: string): Promise<CharacterProfile | null> => {
+  try {
+    const repairPrompt = `You are a strict JSON mechanic. Fix the following broken JSON so it is valid strict JSON that matches the requested schema. Only return the corrected JSON with no commentary. Broken JSON:\n${broken}`;
+    const repaired = await AIService.generateResponse(repairPrompt, undefined, undefined, {
+      temperature: 0.1,
+      max_tokens: 800,
+      top_p: 0.2
+    });
+    const cleanedRepair = cleanJsonResponse(repaired ?? '');
+    if (!cleanedRepair) {
+      return null;
+    }
+    const parsed = tryParseProfileJson(cleanedRepair);
+    if (!parsed) {
+      logger.warn('[characterProfileBuilder] JSON repair attempt failed to parse');
+    }
+    return parsed;
+  } catch (error) {
+    logger.warn('[characterProfileBuilder] JSON repair attempt failed', error);
+    return null;
+  }
 };
 
 export async function generateCharacterProfile(spec: CharacterProfileSpec): Promise<CharacterProfile | null> {
@@ -142,41 +205,17 @@ export async function generateCharacterProfile(spec: CharacterProfileSpec): Prom
     }
 
     const cleaned = cleanJsonResponse(response);
-    try {
-      const parsed = JSON.parse(cleaned);
-      return {
-        name: typeof parsed.name === 'string' ? parsed.name.trim() : undefined,
-        role: typeof parsed.role === 'string' ? parsed.role.trim() : undefined,
-        job: typeof parsed.job === 'string' ? parsed.job.trim() : undefined,
-        age: typeof parsed.age === 'number' ? parsed.age : undefined,
-        gender: typeof parsed.gender === 'string' ? parsed.gender.trim() : undefined,
-        description: typeof parsed.description === 'string' ? parsed.description.trim() : undefined,
-        personalitySummary: typeof parsed.personalitySummary === 'string' ? parsed.personalitySummary.trim() : undefined,
-        personalityTraits: sanitizeList(parsed.personalityTraits),
-        appearance: typeof parsed.appearance === 'string' ? parsed.appearance.trim() : undefined,
-        features: sanitizeList(parsed.features),
-        backstory: typeof parsed.backstory === 'string' ? parsed.backstory.trim() : undefined,
-        imagePrompt: typeof parsed.imagePrompt === 'string' ? parsed.imagePrompt.trim() : undefined,
-        prompts: parsed.prompts && typeof parsed.prompts === 'object'
-          ? {
-              system: typeof parsed.prompts.system === 'string' ? parsed.prompts.system.trim() : undefined,
-              description: typeof parsed.prompts.description === 'string' ? parsed.prompts.description.trim() : undefined,
-              personality: typeof parsed.prompts.personality === 'string' ? parsed.prompts.personality.trim() : undefined,
-              background: typeof parsed.prompts.background === 'string' ? parsed.prompts.background.trim() : undefined,
-              appearance: typeof parsed.prompts.appearance === 'string' ? parsed.prompts.appearance.trim() : undefined,
-              responseStyle: typeof parsed.prompts.responseStyle === 'string' ? parsed.prompts.responseStyle.trim() : undefined,
-              originScenario: typeof parsed.prompts.originScenario === 'string' ? parsed.prompts.originScenario.trim() : undefined
-            }
-          : undefined,
-        likes: sanitizeList(parsed.likes),
-        dislikes: sanitizeList(parsed.dislikes),
-        turnOns: sanitizeList(parsed.turnOns),
-        turnOffs: sanitizeList(parsed.turnOffs)
-      };
-    } catch (error) {
-      logger.warn('[characterProfileBuilder] Failed to parse JSON profile', error);
-      return null;
+    const parsed = tryParseProfileJson(cleaned);
+    if (parsed) {
+      return parsed;
     }
+
+    const repaired = await attemptJsonRepair(cleaned);
+    if (repaired) {
+      return repaired;
+    }
+
+    return null;
   } catch (error) {
     logger.error('[characterProfileBuilder] Profile generation failed', error);
     return null;

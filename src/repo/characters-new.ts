@@ -69,12 +69,12 @@ export async function listCharacters(): Promise<Character[]> {
         // AI Configuration
         prompts: {
           system: 'You are a friendly companion.',
-          description: char.description || 'An alluring presence in the Dollhouse.',
-          personality: char.personality || 'A friendly character',
-          background: char.description || 'A character in the Dollhouse.',
-          appearance: char.description || 'Elegant, confident, and fully adult in stature.',
+          description: (char.description || 'A magnetic adult companion who chose the Dollhouse for the thrill of curated intimacy.').trim(),
+          personality: (char.personality || 'Warm, quick-witted, and supportive.').trim(),
+          background: (char.description || 'She is an experienced muse who treats the Dollhouse as her playground of choice.').trim(),
+          appearance: (char.appearance || 'Confident posture, polished style, and an unmistakably grown allure.').trim(),
           responseStyle: 'Warm, flirty, and attentive to the user.',
-          originScenario: `${char.name} met the user as an adult and keeps returning to the Dollhouse for the chemistry they share.`
+          originScenario: `${char.name} met the user as an adult during an exclusive rooftop event and willingly chose to bring that spark back to the Dollhouse.`
         },
 
         // Interaction data
@@ -88,7 +88,7 @@ export async function listCharacters(): Promise<Character[]> {
           nextLevelExp: 100,
           unlockedFeatures: [],
           achievements: [],
-          relationshipStatus: 'stranger' as const,
+          relationshipStatus: 'untrained' as const,
           affection: 50,
           trust: 50,
           intimacy: 20,

@@ -83,7 +83,7 @@ export function ProgressTracker({ character }: ProgressTrackerProps) {
       case 'romantic_interest': return 'text-purple-500';
       case 'close_friend': return 'text-blue-500';
       case 'friend': return 'text-green-500';
-      case 'acquaintance': return 'text-yellow-500';
+      case 'untrained': return 'text-yellow-500';
       default: return 'text-muted-foreground';
     }
   };

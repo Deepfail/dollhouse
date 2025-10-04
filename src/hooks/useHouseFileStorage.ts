@@ -101,7 +101,7 @@ type StorageUpdateDetail = {
 
 const RELATIONSHIP_STATUS_SET: ReadonlySet<Character['progression']['relationshipStatus']> = new Set([
   'stranger',
-  'acquaintance',
+  'untrained',
   'friend',
   'close_friend',
   'romantic_interest',

@@ -87,7 +87,7 @@ export interface Character {
     achievements: string[];
 
     // Relationship progression (moved from RelationshipDynamics)
-    relationshipStatus: 'stranger' | 'acquaintance' | 'friend' | 'close_friend' | 'romantic_interest' | 'lover' | 'devoted';
+    relationshipStatus: 'stranger' | 'untrained' | 'friend' | 'close_friend' | 'romantic_interest' | 'lover' | 'devoted';
     affection: number; // 0-100 - how much they like the user
     trust: number; // 0-100 - how much they trust the user
     intimacy: number; // 0-100 - emotional closeness

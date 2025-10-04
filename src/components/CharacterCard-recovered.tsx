@@ -11,31 +11,31 @@ import { Textarea } from '@/components/ui/textarea';
 import { useMemo, useState } from 'react';
 
 import {
-  BookOpen,
-  Calendar,
-  Check,
-  Crown,
-  Download,
-  Drop,
-  Eye,
-  Fire,
-  Gift,
-  Heart,
-  House,
-  Image as ImageIcon,
-  Lightning,
-  Lock,
-  Medal,
-  ChatCircle as MessageCircle,
-  Pencil,
-  Plus,
-  ShieldCheck,
-  Sparkle,
-  Star,
-  Trash,
-  TrendUp,
-  Trophy,
-  Users
+    BookOpen,
+    Calendar,
+    Check,
+    Crown,
+    Download,
+    Drop,
+    Eye,
+    Fire,
+    Gift,
+    Heart,
+    House,
+    Image as ImageIcon,
+    Lightning,
+    Lock,
+    Medal,
+    ChatCircle as MessageCircle,
+    Pencil,
+    Plus,
+    ShieldCheck,
+    Sparkle,
+    Star,
+    Trash,
+    TrendUp,
+    Trophy,
+    Users
 } from '@phosphor-icons/react';
 
 import { useChat } from '@/hooks/useChat';
@@ -99,7 +99,7 @@ const getRelationshipStatusColor = (status: Character['progression']['relationsh
     case 'romantic_interest': return 'text-purple-500';
     case 'close_friend': return 'text-blue-500';
     case 'friend': return 'text-green-500';
-    case 'acquaintance': return 'text-yellow-500';
+    case 'untrained': return 'text-yellow-500';
     default: return 'text-muted-foreground';
   }
 };

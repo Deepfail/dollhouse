@@ -51,7 +51,7 @@ const relationshipStatusColor = (
       return 'text-blue-400';
     case 'friend':
       return 'text-emerald-400';
-    case 'acquaintance':
+    case 'untrained':
       return 'text-amber-400';
     default:
       return 'text-white/60';
