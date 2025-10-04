@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { repositoryStorage } from '@/hooks/useRepositoryStorage';
 import { logger } from '@/lib/logger';
+import { formatPrompt } from '@/lib/prompts';
 
 const safeFetch = async (input: any, init?: any): Promise<any> => {
   const f = (globalThis as any).fetch;
@@ -307,6 +308,7 @@ export class AIService {
     const includeContext = params.includeHouseContext ?? true;
     let systemPrompt = userPrompt || envPrompt;
   const promptAdditions: string[] = [];
+  let characterSummaries: string[] = [];
   const detailLevel: 'lite' | 'balanced' | 'detailed' = params.contextDetail ?? 'balanced';
   const detailRank: Record<'lite' | 'balanced' | 'detailed', number> = { lite: 0, balanced: 1, detailed: 2 };
   const allowDetail = (level: 'lite' | 'balanced' | 'detailed') => detailRank[detailLevel] >= detailRank[level];
@@ -537,7 +539,7 @@ export class AIService {
       }
 
       if (includeContext && params.characters && params.characters.length > 0) {
-        const characterSummaries = params.characters
+        characterSummaries = params.characters
           .map((char: any, index: number) => buildCharacterSummary(char, index, detailLevel))
           .filter(Boolean) as string[];
         if (characterSummaries.length) {
@@ -565,7 +567,7 @@ export class AIService {
       }
 
       if (includeContext && params.characters && params.characters.length > 0) {
-        const characterSummaries = params.characters
+        characterSummaries = params.characters
           .map((char: any, index: number) => buildCharacterSummary(char, index, detailLevel))
           .filter(Boolean) as string[];
         if (characterSummaries.length) {
@@ -581,6 +583,41 @@ export class AIService {
     }
 
     systemPrompt = [systemPrompt, ...promptAdditions].join('\n\n');
+
+    const nonSystemMessages = params.messages.filter((msg) => msg.role === 'assistant' || msg.role === 'user');
+    const lastUserIndex = (() => {
+      for (let i = nonSystemMessages.length - 1; i >= 0; i -= 1) {
+        if (nonSystemMessages[i].role === 'user') {
+          return i;
+        }
+      }
+      return -1;
+    })();
+
+    const historySliceEnd = lastUserIndex >= 0 ? lastUserIndex : nonSystemMessages.length;
+    const RECENT_HISTORY_LIMIT = 14;
+    const historyEntries = nonSystemMessages
+      .slice(Math.max(0, historySliceEnd - RECENT_HISTORY_LIMIT), historySliceEnd)
+      .map((entry) => {
+        const speaker = entry.role === 'assistant' ? 'Copilot' : 'User';
+        return `${speaker}: ${truncate(entry.content, 320)}`;
+      });
+
+    const conversationHistoryText = historyEntries.length ? historyEntries.join('\n') : 'No prior conversation.';
+    const userMessageText = lastUserIndex >= 0
+      ? nonSystemMessages[lastUserIndex].content
+      : (nonSystemMessages[nonSystemMessages.length - 1]?.content ?? '');
+
+    const houseContextText = includeContext && params.housePrompt?.trim() ? params.housePrompt.trim() : '';
+    const houseCharactersText = characterSummaries.length ? characterSummaries.join('\n\n') : 'Unavailable';
+
+    const formattedCopilotPrompt = formatPrompt('copilot.mainResponse', {
+      copilotPrompt: systemPrompt,
+      houseContext: houseContextText,
+      houseCharacters: houseCharactersText,
+      conversationHistory: conversationHistoryText,
+      userMessage: userMessageText,
+    });
 
     const maxTokens = Number.isFinite(params.maxTokens) ? Math.max(1, Math.min(Math.floor(params.maxTokens as number), 4000)) : 512;
     const temperature = typeof params.temperature === 'number' ? params.temperature : 0.2;
@@ -613,11 +650,13 @@ export class AIService {
 
     if (!apiKey) {
       logger.warn('copilotRespond: no API key (env or stored config)');
-      const last = params.messages[params.messages.length - 1];
-      return AIService.generateAssistantReply('[no api key] ' + (last?.content || ''));
+      return AIService.generateAssistantReply('[no api key] ' + formattedCopilotPrompt);
     }
 
-    const payloadMessages = [{ role: 'system', content: systemPrompt }, ...params.messages];
+    const payloadMessages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: formattedCopilotPrompt },
+    ];
 
     if (provider === 'venice') {
       const veniceHeaders: Record<string, string> = {
@@ -653,8 +692,7 @@ export class AIService {
         return typeof content === 'string' ? content : '';
       } catch (e) {
         logger.error('copilotRespond Venice call failed; falling back to generateAssistantReply', e);
-        const last = params.messages[params.messages.length - 1];
-        return AIService.generateAssistantReply(last?.content || '');
+        return AIService.generateAssistantReply(formattedCopilotPrompt);
       }
     }
 
@@ -688,8 +726,7 @@ export class AIService {
       return typeof content === 'string' ? content : '';
     } catch (e) {
       logger.error('copilotRespond OpenRouter call failed; falling back to generateAssistantReply', e);
-      const last2 = params.messages[params.messages.length - 1];
-      return AIService.generateAssistantReply(last2?.content || '');
+      return AIService.generateAssistantReply(formattedCopilotPrompt);
     }
   }
 

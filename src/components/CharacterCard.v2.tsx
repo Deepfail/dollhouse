@@ -790,8 +790,9 @@ Create a compelling physical description that incorporates these details natural
 
   const overviewTab = (
     <TabsContent value="overview" className="h-full">
-      <ScrollArea className="h-full">
-        <div className="space-y-6 p-6">
+      <ScrollArea className="h-[62vh] pr-4">
+        <div className="space-y-6 px-2 py-6">
+          {heroPanel}
           <Card className="border-none bg-white/5 text-white">
             <div className="space-y-6 p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -994,8 +995,8 @@ Create a compelling physical description that incorporates these details natural
 
   const statsTab = (
     <TabsContent value="stats" className="h-full">
-      <ScrollArea className="h-full">
-        <div className="space-y-6 p-6">
+      <ScrollArea className="h-[62vh] pr-4">
+        <div className="space-y-6 px-2 py-6">
           <Card className="border-none bg-white/5 text-white">
             <div className="space-y-4 p-6">
               <h3 className="text-lg font-semibold">Core Stats</h3>
@@ -1055,8 +1056,8 @@ Create a compelling physical description that incorporates these details natural
 
   const physicalTab = (
     <TabsContent value="physical" className="h-full">
-      <ScrollArea className="h-full">
-        <div className="space-y-6 p-6">
+      <ScrollArea className="h-[62vh] pr-4">
+        <div className="space-y-6 px-2 py-6">
           <Card className="border-none bg-white/5 text-white">
             <div className="space-y-4 p-6">
               <div className="flex items-center justify-between">
@@ -1319,8 +1320,8 @@ Create a compelling physical description that incorporates these details natural
 
   const valueTab = (
     <TabsContent value="value" className="h-full">
-      <ScrollArea className="h-full">
-        <div className="space-y-6 p-6">
+      <ScrollArea className="h-[62vh] pr-4">
+        <div className="space-y-6 px-2 py-6">
           <Card className="border-none bg-white/5 text-white">
             <div className="space-y-4 p-6">
               <h3 className="flex items-center gap-2 text-lg font-semibold">
@@ -1422,8 +1423,8 @@ Create a compelling physical description that incorporates these details natural
 
   const feedTab = (
     <TabsContent value="feed" className="h-full">
-      <ScrollArea className="h-full">
-        <div className="space-y-4 p-6">
+      <ScrollArea className="h-[62vh] pr-4">
+        <div className="space-y-6 px-2 py-6">
           <div className="flex items-center justify-between">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
               <ImageIcon className="h-5 w-5 text-sky-300" /> Gallery
@@ -1557,8 +1558,8 @@ Create a compelling physical description that incorporates these details natural
 
   const memoriesTab = (
     <TabsContent value="memories" className="h-full">
-      <ScrollArea className="h-full">
-        <div className="space-y-6 p-6">
+      <ScrollArea className="h-[62vh] pr-4">
+        <div className="space-y-6 px-2 py-6">
           <Card className="border-none bg-white/5 text-white">
             <div className="space-y-4 p-6">
               <h3 className="flex items-center gap-2 text-lg font-semibold">
@@ -1605,8 +1606,8 @@ Create a compelling physical description that incorporates these details natural
 
   const promptsTab = (
     <TabsContent value="prompts" className="h-full">
-      <ScrollArea className="h-full">
-        <div className="space-y-6 p-6">
+      <ScrollArea className="h-[62vh] pr-4">
+        <div className="space-y-6 px-2 py-6">
           <Card className="border-none bg-white/5 text-white">
             <div className="space-y-3 p-6">
               <h3 className="flex items-center gap-2 text-lg font-semibold">
@@ -1723,58 +1724,51 @@ Create a compelling physical description that incorporates these details natural
 
   const dialogContent = (
     <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
-  <DialogContent className="w-full max-w-[1500px] overflow-hidden border border-white/10 bg-[#05050c] p-0 text-white sm:max-w-none lg:max-w-[1500px]">
-        <DialogHeader className="sr-only">
-          <DialogTitle>{character.name}</DialogTitle>
+      <DialogContent className="flex w-full max-w-[1100px] max-h-[90vh] flex-col overflow-hidden border border-white/10 bg-[#05050c] p-0 text-white">
+        <DialogHeader className="border-b border-white/10 px-6 py-4">
+          <DialogTitle className="text-lg font-semibold">{character.name}</DialogTitle>
         </DialogHeader>
-        <div className="grid h-full min-h-[520px] grid-cols-1 lg:grid-cols-[320px_1fr]">
-          <div className="border-b border-white/10 bg-[#0a0a17] p-6 lg:border-b-0 lg:border-r">
-            {heroPanel}
+        <Tabs defaultValue="overview" className="flex h-full flex-col">
+          <TabsList className="flex w-full flex-wrap gap-2 border-b border-white/10 bg-[#080814] px-6 py-3">
+            <TabsTrigger value="overview" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+              <Star className="h-4 w-4" />
+              Profile
+            </TabsTrigger>
+            <TabsTrigger value="stats" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+              <TrendUp className="h-4 w-4" />
+              Stats
+            </TabsTrigger>
+            <TabsTrigger value="physical" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+              <User className="h-4 w-4" />
+              Physical
+            </TabsTrigger>
+            <TabsTrigger value="value" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+              <CurrencyDollar className="h-4 w-4" />
+              Value
+            </TabsTrigger>
+            <TabsTrigger value="feed" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+              <ImageIcon className="h-4 w-4" />
+              Feed
+            </TabsTrigger>
+            <TabsTrigger value="memories" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+              <BookOpen className="h-4 w-4" />
+              Memories
+            </TabsTrigger>
+            <TabsTrigger value="prompts" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+              <Code className="h-4 w-4" />
+              Prompts
+            </TabsTrigger>
+          </TabsList>
+          <div className="flex-1 overflow-hidden px-6 pb-6">
+            {overviewTab}
+            {statsTab}
+            {physicalTab}
+            {valueTab}
+            {feedTab}
+            {memoriesTab}
+            {promptsTab}
           </div>
-          <div className="flex flex-col">
-            <Tabs defaultValue="overview" className="flex h-full flex-col">
-              <TabsList className="flex w-full flex-wrap gap-2 overflow-x-auto border-b border-white/10 bg-[#080814] p-4 pb-2">
-                <TabsTrigger value="overview" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
-                  <Star className="h-4 w-4" />
-                  Profile
-                </TabsTrigger>
-                <TabsTrigger value="stats" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
-                  <TrendUp className="h-4 w-4" />
-                  Stats
-                </TabsTrigger>
-                <TabsTrigger value="physical" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
-                  <User className="h-4 w-4" />
-                  Physical
-                </TabsTrigger>
-                <TabsTrigger value="value" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
-                  <CurrencyDollar className="h-4 w-4" />
-                  Value
-                </TabsTrigger>
-                <TabsTrigger value="feed" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
-                  <ImageIcon className="h-4 w-4" />
-                  Feed
-                </TabsTrigger>
-                <TabsTrigger value="memories" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
-                  <BookOpen className="h-4 w-4" />
-                  Memories
-                </TabsTrigger>
-                <TabsTrigger value="prompts" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
-                  <Code className="h-4 w-4" />
-                  Prompts
-                </TabsTrigger>
-              </TabsList>
-              <div className="flex-1 overflow-hidden">
-                {overviewTab}
-                {statsTab}
-                {physicalTab}
-                {valueTab}
-                {feedTab}
-                {memoriesTab}
-                {promptsTab}
-              </div>
-            </Tabs>
-          </div>
-        </div>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

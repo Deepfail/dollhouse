@@ -1,6 +1,7 @@
 import { AIService } from '@/lib/aiService';
 import { logger } from '@/lib/logger';
 import { Character } from '@/types';
+import { formatPrompt, getPromptValue } from './prompts';
 
 interface CharacterProfileSpec {
   request: string;
@@ -63,69 +64,37 @@ const sanitizeList = (value: unknown): string[] => {
 
 const buildPrompt = (spec: CharacterProfileSpec): string => {
   const existing = spec.existing || {};
-  const parts: string[] = [];
-  parts.push('You are the Character Architect for the Digital Dollhouse, an AI-powered relationship and simulation game.');
-  parts.push('Design an original female character aligned with the user\'s request.');
-  parts.push('Be concise, grounded, and avoid explicit sexual content. Tone: seductive but classy.');
-  parts.push('Produce canonical facts that future conversations can rely on.');
-  parts.push('Every character must be explicitly 18 or older. For "fresh" archetypes, frame them as 19-21 with a youthful yet adult vibe.');
-  parts.push('Avoid generic or repetitive majors such as psychology unless explicitly requested; prefer distinctive studies, hustles, or passions.');
-  if (spec.theme) {
-    parts.push(`Theme emphasis: ${spec.theme}.`);
-  }
-  if (spec.name) {
-    parts.push(`If you propose a different name, include it, but prefer to keep the existing name "${spec.name}" unless it clearly conflicts with the request.`);
-  }
-  if (existing.name) {
-    parts.push(`Existing name: ${existing.name}`);
-  }
-  if (existing.personality) {
-    parts.push(`Existing personality summary: ${existing.personality}`);
-  }
-  if (existing.description) {
-    parts.push(`Existing description/backstory: ${existing.description}`);
-  }
-  if (existing.appearance) {
-    parts.push(`Existing appearance notes: ${existing.appearance}`);
-  }
-  if (existing.features && existing.features.length) {
-    parts.push(`Existing features to retain: ${existing.features.join(', ')}.`);
-  }
-  parts.push('User request (authoritative):');
-  parts.push(spec.request);
-  parts.push('Return JSON with the following shape (no markdown fences):');
-  parts.push(`{
-  "name": "string",
-  "role": "string",
-  "job": "string",
-  "age": number,
-  "gender": "female",
-  "description": "Concise overview with core traits",
-  "personalitySummary": "One or two sentences describing personality",
-  "personalityTraits": ["trait", ...],
-  "appearance": "Rich physical description",
-  "features": ["feature", ...],
-  "backstory": "Three to four sentence backstory describing her past, upbringing, pivotal life events, and how she came to be who she is today. NOT current activities or behavior.",
-  "imagePrompt": "Stable diffusion style prompt",
-  "prompts": {
-    "system": "System instructions for roleplaying this character",
-    "description": "Succinct description prompt highlighting her hook in two sentences",
-    "personality": "Bullet-style personality prompt that begins with the character's explicit personality traits",
-    "background": "Narrative background prompt about her PAST and HISTORY - where she grew up, family background, formative experiences, education, what led her to her current situation. This should be about PAST EVENTS, not current behavior.",
-    "appearance": "Sensory description of how she looks, dresses, and carries herself",
-    "responseStyle": "Unique description of how she replies in chat (tone, pacing, signature moves)",
-    "originScenario": "Two to three sentence prompt describing how the user first met her and how she willingly returned to the Dollhouse"
-  },
-  "likes": ["like", ...],
-  "dislikes": ["dislike", ...],
-  "turnOns": ["turn on", ...],
-  "turnOffs": ["turn off", ...]
-}`);
-  parts.push('Keep values short but expressive. All strings must be under 400 characters.');
-  parts.push('CRITICAL: The "backstory" and "background" prompt MUST describe PAST EVENTS and HISTORY. Examples: where she grew up, family life, education, pivotal moments that shaped her, how she got into her current situation. DO NOT describe current habits or daily activities. Wrong: "Alex analyzes flirtation patterns at her library job". Correct: "Alex grew up in a strict household, discovered romance novels in high school, and studied literature in college before taking a library job to pay off student loans."');
-  parts.push('Origin scenarios should be sensual yet consensual, grounded in her backstory, and never reference minors.');
-  parts.push('Escape quotation marks as \\" and replace raw newlines in strings with \\n to keep the JSON valid.');
-  return parts.join('\n');
+  return formatPrompt('character.architect.template', {
+    themeLine: spec.theme
+      ? formatPrompt('character.architect.themeLine', { theme: spec.theme })
+      : '',
+    preferredNameLine: spec.name
+      ? formatPrompt('character.architect.preferredNameLine', { name: spec.name })
+      : '',
+    existingNameLine: existing.name
+      ? formatPrompt('character.architect.existingNameLine', { name: existing.name })
+      : '',
+    existingPersonalityLine: existing.personality
+      ? formatPrompt('character.architect.existingPersonalityLine', { personality: existing.personality })
+      : '',
+    existingDescriptionLine: existing.description
+      ? formatPrompt('character.architect.existingDescriptionLine', { description: existing.description })
+      : '',
+    existingAppearanceLine: existing.appearance
+      ? formatPrompt('character.architect.existingAppearanceLine', { appearance: existing.appearance })
+      : '',
+    existingFeaturesLine:
+      existing.features && existing.features.length
+        ? formatPrompt('character.architect.existingFeaturesLine', {
+            features: existing.features.join(', '),
+          })
+        : '',
+    request: spec.request,
+    schema: getPromptValue('character.architect.schema'),
+    backstoryWarning: getPromptValue('character.architect.backstoryWarning'),
+    scenarioReminder: getPromptValue('character.architect.scenarioReminder'),
+    escapeInstruction: getPromptValue('character.architect.escapeInstruction'),
+  });
 };
 
 const tryParseProfileJson = (raw: string): CharacterProfile | null => {
@@ -169,7 +138,7 @@ const tryParseProfileJson = (raw: string): CharacterProfile | null => {
 
 const attemptJsonRepair = async (broken: string): Promise<CharacterProfile | null> => {
   try {
-    const repairPrompt = `You are a strict JSON mechanic. Fix the following broken JSON so it is valid strict JSON that matches the requested schema. Only return the corrected JSON with no commentary. Broken JSON:\n${broken}`;
+  const repairPrompt = formatPrompt('character.jsonRepair', { brokenJson: broken });
     const repaired = await AIService.generateResponse(repairPrompt, undefined, undefined, {
       temperature: 0.1,
       max_tokens: 800,
@@ -247,18 +216,22 @@ export async function populateCharacterProfile(
   if (!profile) {
     logger.warn('[characterProfileBuilder] Using existing character data without AI enrichment');
     const existingPrompts = character.prompts ?? {};
+    const fallbackSystem = formatPrompt('character.prompts.fallbackSystem', {
+      name: character.name,
+      personalityLine: character.personality ? `Your personality: ${character.personality}. ` : '',
+      backgroundLine: character.description ? `Background: ${character.description}` : '',
+    });
     character.prompts = {
-      system: existingPrompts.system || `You are ${character.name}. Respond as this character.`,
+      system: existingPrompts.system || fallbackSystem,
       description: existingPrompts.description || character.description || '',
       personality: existingPrompts.personality || character.personality || '',
       background: existingPrompts.background || character.description || '',
       appearance: existingPrompts.appearance || character.appearance || character.imageDescription || '',
       responseStyle:
-        existingPrompts.responseStyle ||
-        'Keep replies playful, attentive, and a little daring. Mirror the user’s energy while staying affectionate.',
+        existingPrompts.responseStyle || getPromptValue('character.prompts.fallbackResponseStyle'),
       originScenario:
         existingPrompts.originScenario ||
-        `${character.name} first crossed paths with the user as an adult and willingly chose to return to the Dollhouse, curious and excited for more.`,
+        formatPrompt('character.prompts.defaultOriginScenario', { name: character.name }),
     };
     return character;
   }
@@ -303,8 +276,14 @@ export async function populateCharacterProfile(
     character.imageDescription = profile.imagePrompt;
   }
 
+  const fallbackSystem = formatPrompt('character.prompts.fallbackSystem', {
+    name: character.name,
+    personalityLine: character.personality ? `Your personality: ${character.personality}. ` : '',
+    backgroundLine: character.description ? `Background: ${character.description}` : '',
+  });
+
   character.prompts = {
-    system: profile.prompts?.system || character.prompts?.system || `You are ${character.name}. Stay in character.`,
+    system: profile.prompts?.system || character.prompts?.system || fallbackSystem,
     description: profile.prompts?.description || character.prompts?.description || profile.description || character.description || '',
     personality: profile.prompts?.personality || character.prompts?.personality || character.personality || '',
     background: profile.prompts?.background || character.prompts?.background || profile.backstory || character.description || '',
@@ -312,11 +291,11 @@ export async function populateCharacterProfile(
     responseStyle:
       profile.prompts?.responseStyle ||
       character.prompts?.responseStyle ||
-      'Keep replies warm, teasing, and anchored in her desires. Balance confidence with moments of vulnerability.',
+      getPromptValue('character.prompts.fallbackResponseStyle'),
     originScenario:
       profile.prompts?.originScenario ||
       character.prompts?.originScenario ||
-      `${character.name} met the user as an adult in the Dollhouse orbit and willingly came back for a night that escalated into sensual territory.`,
+      formatPrompt('character.prompts.defaultOriginScenario', { name: character.name }),
   };
 
   character.preferences = {

@@ -1065,29 +1065,40 @@ export function DatingSimShell({
             sessions={sessions}
             onViewProfile={handleViewProfile}
           />
-          {isCreateDialogOpen ? (
-            <CharacterAutoCreateInline
-              active={isCreateDialogOpen}
-              onClose={() => setIsCreateDialogOpen(false)}
-              onCharacterCreated={handleCharacterCreatedFromDialog}
-              initialGender={createDialogGender}
+          <div
+            data-middle-pane-root
+            className="relative flex h-full min-h-0 w-full"
+          >
+            <div className="flex h-full min-h-0 flex-1 flex-col">
+              {isCreateDialogOpen ? (
+                <CharacterAutoCreateInline
+                  active={isCreateDialogOpen}
+                  onClose={() => setIsCreateDialogOpen(false)}
+                  onCharacterCreated={handleCharacterCreatedFromDialog}
+                  initialGender={createDialogGender}
+                />
+              ) : (
+                <ChatPanel
+                  character={selectedCharacter}
+                  messages={messages}
+                  onSend={handleSendMessage}
+                  onStartChat={() =>
+                    selectedCharacter ? handleStartChat(selectedCharacter.id) : Promise.resolve()
+                  }
+                  isLoadingMessages={isLoadingMessages}
+                  sessions={sessions}
+                  onSwitchSession={handleSwitchSession}
+                  activeSessionId={activeSessionId}
+                  onQuickAction={handleQuickAction}
+                  onOpenManager={() => setIsManagerOpen(true)}
+                />
+              )}
+            </div>
+            <div
+              data-middle-pane-overlay
+              className="pointer-events-none absolute inset-0 z-[70]"
             />
-          ) : (
-            <ChatPanel
-              character={selectedCharacter}
-              messages={messages}
-              onSend={handleSendMessage}
-              onStartChat={() =>
-                selectedCharacter ? handleStartChat(selectedCharacter.id) : Promise.resolve()
-              }
-              isLoadingMessages={isLoadingMessages}
-              sessions={sessions}
-              onSwitchSession={handleSwitchSession}
-              activeSessionId={activeSessionId}
-              onQuickAction={handleQuickAction}
-              onOpenManager={() => setIsManagerOpen(true)}
-            />
-          )}
+          </div>
           <WingmanPanel
             selectedCharacter={selectedCharacter}
             onShortcut={handleWingmanShortcut}

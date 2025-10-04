@@ -1,3 +1,5 @@
+import { AISettings } from '@/components/AISettings';
+import { PromptLibrary } from '@/components/PromptLibrary';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -6,8 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-// ...existing code...
-import { AISettings } from '@/components/AISettings';
 import { useFileStorage } from '@/hooks/useFileStorage';
 import { repositoryStorage } from '@/hooks/useRepositoryStorage';
 import { Check, Gear, X } from '@phosphor-icons/react';
@@ -150,10 +150,11 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
         </DialogHeader>
 
         <Tabs defaultValue="general" className="flex-1 overflow-hidden">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="ai">AI Settings</TabsTrigger>
             <TabsTrigger value="copilot">Copilot</TabsTrigger>
+            <TabsTrigger value="prompts">Prompts</TabsTrigger>
             <TabsTrigger value="auto">Auto Creator</TabsTrigger>
           </TabsList>
 
@@ -273,6 +274,11 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   Friend Mode keeps context light so the copilot stays conversational; switch to Analyst when you want deep stat breakdowns on call.
                 </p>
               </div>
+            </TabsContent>
+
+            {/* Prompt Settings */}
+            <TabsContent value="prompts" className="space-y-4 mt-0">
+              <PromptLibrary variant="dark" />
             </TabsContent>
 
             {/* Auto Creator Settings */}

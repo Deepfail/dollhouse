@@ -1,3 +1,4 @@
+import { PromptLibrary } from '@/components/PromptLibrary';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,19 +12,19 @@ import { Textarea } from '@/components/ui/textarea';
 import { legacyStorage } from '@/lib/legacyStorage';
 import { logger } from '@/lib/logger';
 import {
-    ArrowClockwise,
-    CheckCircle,
-    Database,
-    Download,
-    Image as ImageIcon,
-    Info,
-    Key,
-    Palette,
-    FloppyDisk as Save,
-    Gear as Settings,
-    Shield,
-    Trash,
-    Upload
+  ArrowClockwise,
+  CheckCircle,
+  Database,
+  Download,
+  Image as ImageIcon,
+  Info,
+  Key,
+  Palette,
+  FloppyDisk as Save,
+  Gear as Settings,
+  Shield,
+  Trash,
+  Upload
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -351,7 +352,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       {/* Settings Content */}
       <div className="flex-1 overflow-y-auto">
         <Tabs defaultValue="api" className="h-full">
-          <TabsList className="grid w-full grid-cols-5 m-6 mb-0">
+          <TabsList className="grid w-full grid-cols-6 m-6 mb-0">
             <TabsTrigger value="api" className="flex items-center gap-2">
               <Key size={16} />
               API
@@ -367,6 +368,10 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
             <TabsTrigger value="storage" className="flex items-center gap-2">
               <Database size={16} />
               Storage
+            </TabsTrigger>
+            <TabsTrigger value="prompts" className="flex items-center gap-2">
+              <Info size={16} />
+              Prompts
             </TabsTrigger>
             <TabsTrigger value="advanced" className="flex items-center gap-2">
               <Shield size={16} />
@@ -795,6 +800,11 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Prompt Settings */}
+            <TabsContent value="prompts" className="space-y-6">
+              <PromptLibrary />
             </TabsContent>
 
             {/* Advanced Settings */}
