@@ -14,6 +14,7 @@ import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { AIService } from '@/lib/aiService';
 import { populateCharacterProfile } from '@/lib/characterProfileBuilder';
 import { logger } from '@/lib/logger';
+import { formatPrompt } from '@/lib/prompts';
 import { Character } from '@/types';
 import {
     Image as ImageIcon,
@@ -82,24 +83,27 @@ export function CharacterCreator({ open = false, onOpenChange, character }: Char
     setGenerationProgress(0);
     
     try {
-      // Generate personality traits
+      // Generate personality traits using prompt library
       setGenerationProgress(25);
-      const personalityPrompt = "Generate a comma-separated list of 3-5 personality traits for a character. Example: shy, kind, intelligent, playful. Just return the traits, nothing else.";
+      const personalityPrompt = formatPrompt('character.creator.personalityPrompt');
       const personalityResponse = await AIService.generateResponse(personalityPrompt);
       const generatedPersonalities = personalityResponse.split(',').map(p => p.trim()).filter(Boolean);
       setPersonalities(generatedPersonalities);
       setPersonality(generatedPersonalities.join(', '));
       
-      // Generate physical features
+      // Generate physical features using prompt library
       setGenerationProgress(50);
-      const featuresPrompt = "Generate a comma-separated list of 4-6 physical features for a character. Example: long brown hair, green eyes, tall, athletic build. Just return the features, nothing else.";
+      const featuresPrompt = formatPrompt('character.creator.featuresPrompt');
       const featuresResponse = await AIService.generateResponse(featuresPrompt);
       const generatedFeatures = featuresResponse.split(',').map(f => f.trim()).filter(Boolean);
       setFeatures(generatedFeatures);
       
-      // Generate background story
+      // Generate background story using prompt library
       setGenerationProgress(75);
-      const backgroundPrompt = `Create a 2-3 sentence character background for someone who is ${generatedPersonalities.join(', ')} and has ${generatedFeatures.join(', ')}. Make it interesting but appropriate.`;
+      const backgroundPrompt = formatPrompt('character.creator.backgroundPrompt', {
+        personalityTraits: generatedPersonalities.join(', '),
+        featureTraits: generatedFeatures.join(', ')
+      });
       const backgroundResponse = await AIService.generateResponse(backgroundPrompt);
       setDescription(backgroundResponse);
       setAppearance(generatedFeatures.join(', '));

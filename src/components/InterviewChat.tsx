@@ -5,6 +5,7 @@ import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import { AIService } from '@/lib/aiService';
 import { logger } from '@/lib/logger';
+import { formatPrompt } from '@/lib/prompts';
 import { useCallback, useEffect, useState } from 'react';
 
 interface InterviewChatProps {
@@ -59,7 +60,12 @@ export function InterviewChat({ sessionId, onExit }: InterviewChatProps) {
   const history = messages.concat([{ id: 'temp', content: text, characterId: undefined } as Msg]);
         const lastCharReply = [...history].reverse().find(m => m.characterId === character?.id);
         const charProfile = character ? `${character.name}: ${character.personality}. ${character.description}` : 'the character';
-        const prompt = `You are an interviewer (house Copilot) asking thoughtful, concise questions to learn about ${charProfile}. Recent user message: ${text}. ${lastCharReply ? 'Their last answer: ' + lastCharReply.content : ''}\nCraft the next single, natural interview question. Avoid repeating earlier questions.`;
+        const lastAnswer = lastCharReply ? 'Their last answer: ' + lastCharReply.content : '';
+        const prompt = formatPrompt('copilot.chat.interviewQuestion', {
+          characterProfile: charProfile,
+          latestUserMessage: text,
+          lastAnswer
+        });
         follow = await AIService.generateResponse(prompt, undefined, undefined, { temperature: 0.7, max_tokens: 90 });
       } catch (e) {
         logger.warn('Follow-up generation failed', e);

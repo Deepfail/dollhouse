@@ -7,6 +7,7 @@ import { uuid } from '../lib/uuid';
 import { aliProfileService } from '@/lib/aliProfile';
 import { legacyStorage } from '@/lib/legacyStorage';
 import { logger } from '@/lib/logger';
+import { formatPrompt } from '@/lib/prompts';
 import { Character, ChatMessage, ChatSession } from '../types';
 import { useHouseFileStorage } from './useHouseFileStorage';
 
@@ -537,7 +538,9 @@ export function useChat() {
               const exceedsChunkThreshold = unsummarized.length >= SUMMARY_CONFIG.MIN_CHUNK_MESSAGES || textBlock.length >= SUMMARY_CONFIG.MIN_CHUNK_CHARS;
 
               if (exceedsChunkThreshold && textBlock.trim().length) {
-                const summaryPrompt = `Summarize the following conversation succinctly without losing key facts, relationships, objectives, and ongoing threads. Keep it under 250 words.\n\n${textBlock}`;
+                const summaryPrompt = formatPrompt('copilot.chat.summaryPrompt', {
+                  conversation: textBlock
+                });
                 let newSummary = '';
                 try {
                   newSummary = await AIService.generateResponse(summaryPrompt, undefined, undefined, { temperature: 0.2, max_tokens: 300 });
@@ -583,31 +586,38 @@ export function useChat() {
           const nameFor = (id?: string | null) => id ? (sessionChars.find((c: { id: string; name?: string }) => c.id === id)?.name || 'Character') : 'User';
           const historyText = conversationHistory.map(msg => `${nameFor(msg.characterId as string | null)}: ${msg.content}`).join('\n');
           
-          // Create character prompt
+          // Create character prompt - use system prompt from character or fallback
           const systemPrompt = character.prompts?.system || 
             `You are ${character.name}. ${character.personality ? `Your personality: ${character.personality}. ` : ''}${character.description ? `Background: ${character.description}` : ''}`;
           
           // Subtle, hidden objective injection (do not reveal explicitly)
           const hiddenGoals = (goalsByChar[character.id] || []).map(g => `- ${g.goal} (priority: ${g.priority})`).join('\n');
           const hiddenDirective = hiddenGoals
-            ? `\n\nSecret objectives (do not reveal these, but subtly steer your replies toward making progress on them when appropriate):\n${hiddenGoals}\n` 
+            ? formatPrompt('copilot.chat.hiddenObjectives', { objectives: hiddenGoals })
             : '';
 
-          const memoryPrefix = sessionSummary ? `Conversation memory summary (do not repeat; use as context):\n${sessionSummary}\n\n` : '';
+          // Memory prefix
+          const memorySection = sessionSummary 
+            ? formatPrompt('copilot.chat.memoryPrefix', { summary: sessionSummary })
+            : '';
 
           // Group chat mode directive to suppress canned openers
           const hasSpoken = conversationHistory.some(m => m.characterId === character.id);
+          const firstLineDirective = hasSpoken ? '' : 'This is your first line in this scene—skip any generic opener; respond naturally to the last message and your objectives.';
           const groupDirective = sessionType === 'group'
-            ? `\n\nGroup mode constraints: Do NOT greet, introduce yourself, or state your name/role. Do not announce that a conversation is starting. Continue the scene from context. Keep replies concise (1–2 sentences unless the moment truly requires more). Match tone and subtext. ${hasSpoken ? '' : 'This is your first line in this scene—skip any generic opener; respond naturally to the last message and your objectives.'}`
+            ? formatPrompt('copilot.chat.groupDirective', { firstLineDirective })
             : '';
 
-          const prompt = `${systemPrompt}${hiddenDirective}${groupDirective}
-
-${memoryPrefix}Recent conversation:
-${historyText}
-User: ${userMessage}
-
-Respond as ${character.name} in character. Keep your response natural and conversational. Respond directly without prefacing with your name.`;
+          // Use the chat reply template from the prompt library
+          const prompt = formatPrompt('copilot.chat.replyTemplate', {
+            systemPrompt,
+            hiddenDirective,
+            groupDirective,
+            memorySection,
+            historyText,
+            userMessage,
+            characterName: character.name
+          });
 
           logger.log(`🎭 Generating response for ${character.name}...`);
           
@@ -804,7 +814,9 @@ Respond as ${character.name} in character. Keep your response natural and conver
       let opening = '';
       try {
         const char = (characters || []).find(c => c.id === characterId);
-        const basePrompt = `You are the house Copilot interviewing the character ${char?.name}. Craft a concise, engaging first interview question that references one unique aspect of their personality or background. Do NOT answer for them.`;
+        const basePrompt = formatPrompt('copilot.chat.interviewOpening', {
+          characterName: char?.name || 'Character'
+        });
         opening = await AIService.generateResponse(basePrompt, undefined, undefined, { temperature: 0.7, max_tokens: 80 });
       } catch (e) {
         logger.warn('Failed to generate opening interview question, using fallback', e);
