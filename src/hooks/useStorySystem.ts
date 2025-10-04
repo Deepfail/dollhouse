@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { Character, StoryEntry } from '../types';
 import { AIService } from '../lib/aiService';
+import { formatPrompt } from '../lib/prompts';
 
 export const useStorySystem = () => {
   const createStoryEntry = useCallback(async (
@@ -19,38 +20,21 @@ export const useStorySystem = () => {
     const timestamp = new Date();
     const id = `story_${character.id}_${timestamp.getTime()}`;
 
-    // Generate AI summary and details
-    const storyPrompt = `
-Create a story entry for this character interaction:
-
-Character: ${character.name}
-Personality: ${character.personality}
-Current Relationship: ${character.progression.relationshipStatus}
-Current Stats: Love ${character.stats.love}, Trust ${character.progression.trust}, Intimacy ${character.progression.intimacy}
-
-Event Type: ${eventType}
-Title: ${title}
-${context.conversation ? `Conversation: ${context.conversation}` : ''}
-${context.userAction ? `User Action: ${context.userAction}` : ''}
-${context.characterResponse ? `Character Response: ${context.characterResponse}` : ''}
-${context.customDetails ? `Additional Details: ${context.customDetails}` : ''}
-
-Generate:
-1. A brief summary (1-2 sentences) of what happened
-2. A detailed narrative description (3-4 sentences) that captures emotions, reactions, and significance
-3. Emotional state before and after (happiness, nervousness, trust, arousal, affection - scale 0-100)
-4. Significance level (low/medium/high/pivotal)
-5. Relevant tags for this event
-
-Format as JSON:
-{
-  "summary": "brief summary",
-  "details": "detailed narrative",
-  "emotionsBefore": {"happiness": 50, "nervousness": 30, "trust": 40, "arousal": 20, "affection": 45},
-  "emotionsAfter": {"happiness": 60, "nervousness": 25, "trust": 50, "arousal": 30, "affection": 55},
-  "significance": "medium",
-  "tags": ["conversation", "trust-building", "nervous"]
-}`;
+    // Generate AI summary and details using prompt library
+    const storyPrompt = formatPrompt('house.story.entryPrompt', {
+      characterName: character.name,
+      personality: character.personality,
+      relationshipStatus: character.progression.relationshipStatus,
+      love: character.stats.love,
+      trust: character.progression.trust,
+      intimacy: character.progression.intimacy,
+      eventType,
+      title,
+      conversationBlock: context.conversation ? `Conversation: ${context.conversation}\n` : '',
+      userActionBlock: context.userAction ? `User Action: ${context.userAction}\n` : '',
+      characterResponseBlock: context.characterResponse ? `Character Response: ${context.characterResponse}\n` : '',
+      customDetailsBlock: context.customDetails ? `Additional Details: ${context.customDetails}\n` : ''
+    });
 
     try {
       const aiResponse = await AIService.generateResponse(storyPrompt);
@@ -85,7 +69,10 @@ Format as JSON:
         timestamp,
         eventType,
         title,
-        summary: `${character.name} and the user had a ${eventType}.`,
+        summary: formatPrompt('house.story.fallbackSummary', {
+          characterName: character.name,
+          eventType
+        }),
         details: `A ${eventType} occurred between ${character.name} and the user. ${context.conversation ? 'They talked about various topics.' : 'They interacted in a meaningful way.'}`,
         participants: context.participants || [character.id],
         location: context.location,
@@ -128,7 +115,9 @@ Format as JSON:
       .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
     if (recentEntries.length === 0) {
-      return `${character.name} is a stranger to you. This is your first real interaction with her. She doesn't know you well and may be cautious, scared, or uncertain about your intentions.`;
+      return formatPrompt('house.story.noHistoryIntro', {
+        characterName: character.name
+      });
     }
 
     const storyContext = recentEntries.map(entry => {

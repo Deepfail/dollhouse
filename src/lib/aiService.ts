@@ -299,19 +299,12 @@ export class AIService {
   }): Promise<string> {
     // For now we ignore threadId beyond potential future continuity usage
     const proc: any = (typeof globalThis !== 'undefined' && (globalThis as any).process) ? (globalThis as any).process : undefined;
-
-    const userPrompt = params.copilotPrompt?.trim();
-    const envPrompt = (proc?.env?.COPILOT_SYSTEM_PROMPT)
-      || 'You are Wingman (the in-app developer/creative copilot) for Dollhouse. Be concise, context-aware, and tool-aware.';
-
-    const hasCustomPrompt = Boolean(userPrompt);
     const includeContext = params.includeHouseContext ?? true;
-    let systemPrompt = userPrompt || envPrompt;
-  const promptAdditions: string[] = [];
-  let characterSummaries: string[] = [];
-  const detailLevel: 'lite' | 'balanced' | 'detailed' = params.contextDetail ?? 'balanced';
-  const detailRank: Record<'lite' | 'balanced' | 'detailed', number> = { lite: 0, balanced: 1, detailed: 2 };
-  const allowDetail = (level: 'lite' | 'balanced' | 'detailed') => detailRank[detailLevel] >= detailRank[level];
+    const detailLevel: 'lite' | 'balanced' | 'detailed' = params.contextDetail ?? 'balanced';
+    const detailRank: Record<'lite' | 'balanced' | 'detailed', number> = { lite: 0, balanced: 1, detailed: 2 };
+    const allowDetail = (level: 'lite' | 'balanced' | 'detailed') => detailRank[detailLevel] >= detailRank[level];
+
+    let characterSummaries: string[] = [];
 
     const truncate = (value: unknown, max = 180): string => {
       if (!value) return '';
@@ -491,98 +484,14 @@ export class AIService {
       return sections.join('\n');
     };
 
-    if (!hasCustomPrompt) {
-      try {
-        const isInterview = params.sessionId && await AIService.isInterviewSession(params.sessionId);
-        if (isInterview) {
-          const interviewPrompt = await AIService.getInterviewPrompt();
-          if (interviewPrompt) {
-            systemPrompt = interviewPrompt;
-          }
-        } else {
-          const wingKey = 'wingman_settings';
-          let stored: string | null = null;
-          try {
-            const lsMod = await import('@/lib/legacyStorage');
-            stored = (lsMod as any).legacyStorage.getItem(wingKey);
-          } catch { /* ignore storage load error */ }
-
-          if (stored) {
-            const parsed = JSON.parse(stored || '{}');
-            if (parsed.systemPrompt) {
-              systemPrompt = parsed.systemPrompt;
-            }
-            const extras: string[] = Array.isArray(parsed.extraPrompts) ? parsed.extraPrompts : [];
-            if (extras.length) {
-              promptAdditions.push(...extras);
-            }
-          }
-        }
-      } catch (e) {
-        logger.warn('Failed to load system prompt settings', e);
-      }
-
-      if (includeContext && params.housePrompt?.trim()) {
-        promptAdditions.push(`House Context: ${params.housePrompt.trim()}`);
-      }
-
-      if (includeContext) {
-        try {
-          const aliMod = await import('@/lib/aliProfile');
-          const assessment = await aliMod.aliProfileService.getUserAssessment();
-          if (assessment && assessment !== 'Unknown preferences') {
-            promptAdditions.push(`User Assessment: ${assessment}`);
-          }
-        } catch (e) {
-          logger.warn('Failed to load user assessment for Wingman', e);
-        }
-      }
-
-      if (includeContext && params.characters && params.characters.length > 0) {
-        characterSummaries = params.characters
-          .map((char: any, index: number) => buildCharacterSummary(char, index, detailLevel))
-          .filter(Boolean) as string[];
-        if (characterSummaries.length) {
-          const rosterLabel = detailLevel === 'lite'
-            ? 'House Roster (friend mode):'
-            : detailLevel === 'balanced'
-              ? 'House Roster (balanced):'
-              : 'House Roster (analyst mode):';
-          const rosterPrompt = [rosterLabel, ...characterSummaries, 'Reference these characters exactly as described. Offer guidance about them but never impersonate them or invent new roster members.'].join('\n\n');
-          promptAdditions.push(rosterPrompt);
-        }
-      }
-
-      promptAdditions.push(
-        'Wingman Ground Rules:\n'
-        + '- Stay in your Wingman persona. You are the user\'s creative copilot, not an in-world character.\n'
-        + '- Respond in first-person as the assistant (e.g., "I can help you").\n'
-        + '- When the user asks about characters, describe options, plans, or next steps instead of roleplaying them.\n'
-        + '- Keep the tone collaborative, insightful, and actionable. Provide clear suggestions or follow-up questions.\n'
-        + '- If the user requests roleplay, politely redirect them to start a chat with the character instead.'
-      );
-    } else {
-      if (includeContext && params.housePrompt?.trim()) {
-        promptAdditions.push(`House Context: ${params.housePrompt.trim()}`);
-      }
-
-      if (includeContext && params.characters && params.characters.length > 0) {
-        characterSummaries = params.characters
-          .map((char: any, index: number) => buildCharacterSummary(char, index, detailLevel))
-          .filter(Boolean) as string[];
-        if (characterSummaries.length) {
-          const rosterLabel = detailLevel === 'lite'
-            ? 'Current House Roster (friend mode):'
-            : detailLevel === 'balanced'
-              ? 'Current House Roster (balanced):'
-              : 'Current House Roster (analyst mode):';
-          const rosterPrompt = [rosterLabel, ...characterSummaries, 'Use only the characters listed above. Do not invent new house members.'].join('\n\n');
-          promptAdditions.push(rosterPrompt);
-        }
-      }
+    // Build character summaries if we have characters and context is enabled
+    if (includeContext && params.characters && params.characters.length > 0) {
+      characterSummaries = params.characters
+        .map((char: any, index: number) => buildCharacterSummary(char, index, detailLevel))
+        .filter(Boolean) as string[];
     }
 
-    systemPrompt = [systemPrompt, ...promptAdditions].join('\n\n');
+    // Prepare variables for the formatPrompt call
 
     const nonSystemMessages = params.messages.filter((msg) => msg.role === 'assistant' || msg.role === 'user');
     const lastUserIndex = (() => {
@@ -611,8 +520,10 @@ export class AIService {
     const houseContextText = includeContext && params.housePrompt?.trim() ? params.housePrompt.trim() : '';
     const houseCharactersText = characterSummaries.length ? characterSummaries.join('\n\n') : 'Unavailable';
 
-    const formattedCopilotPrompt = formatPrompt('copilot.mainResponse', {
-      copilotPrompt: systemPrompt,
+    // Use the prompt library's copilot.mainResponse template with user's custom copilotPrompt
+    // This ensures ANY edits to the prompt in the Prompt Library are respected
+    const finalPrompt = formatPrompt('copilot.mainResponse', {
+      copilotPrompt: params.copilotPrompt?.trim() || 'You are a helpful AI assistant for the Dollhouse game.',
       houseContext: houseContextText,
       houseCharacters: houseCharactersText,
       conversationHistory: conversationHistoryText,
@@ -650,12 +561,13 @@ export class AIService {
 
     if (!apiKey) {
       logger.warn('copilotRespond: no API key (env or stored config)');
-      return AIService.generateAssistantReply('[no api key] ' + formattedCopilotPrompt);
+      return AIService.generateAssistantReply('[no api key] ' + finalPrompt);
     }
 
+    // Send the formatted prompt as a single user message
+    // The copilot.mainResponse template already includes the system instructions
     const payloadMessages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: formattedCopilotPrompt },
+      { role: 'user', content: finalPrompt },
     ];
 
     if (provider === 'venice') {
@@ -692,7 +604,7 @@ export class AIService {
         return typeof content === 'string' ? content : '';
       } catch (e) {
         logger.error('copilotRespond Venice call failed; falling back to generateAssistantReply', e);
-        return AIService.generateAssistantReply(formattedCopilotPrompt);
+        return AIService.generateAssistantReply(finalPrompt);
       }
     }
 
@@ -726,7 +638,7 @@ export class AIService {
       return typeof content === 'string' ? content : '';
     } catch (e) {
       logger.error('copilotRespond OpenRouter call failed; falling back to generateAssistantReply', e);
-      return AIService.generateAssistantReply(formattedCopilotPrompt);
+      return AIService.generateAssistantReply(finalPrompt);
     }
   }
 

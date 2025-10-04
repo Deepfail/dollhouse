@@ -45,6 +45,7 @@ import {
 } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { formatPrompt } from '@/lib/prompts';
 import { useChat } from '@/hooks/useChat';
 import { useFileStorage } from '@/hooks/useFileStorage';
 import { useStorySystem } from '@/hooks/useStorySystem';
@@ -400,17 +401,16 @@ export function CharacterCard({
   const handleGeneratePhysicalDescription = useCallback(async () => {
     setIsGeneratingPhysical(true);
     try {
-      const prompt = `Generate a vivid, sensory physical description (2-3 sentences) for a character with these features:
-- Hair: ${physicalFeatures.hairColor || 'not specified'}
-- Eyes: ${physicalFeatures.eyeColor || 'not specified'}
-- Skin: ${physicalFeatures.skinTone || 'not specified'}
-- Height: ${physicalFeatures.height || 'not specified'}
-- Body Type: ${physicalFeatures.bodyType || 'not specified'}
-- Breast Size: ${physicalFeatures.breastSize || 'not specified'}
-- Butt Size: ${physicalFeatures.buttSize || 'not specified'}
-- Physical Traits: ${physicalFeatures.traits.join(', ') || 'not specified'}
-
-Create a compelling physical description that incorporates these details naturally. Focus on visual appeal and sensory details.`;
+      const prompt = formatPrompt('character.card.physicalDescriptionPrompt', {
+        hairColor: physicalFeatures.hairColor || 'not specified',
+        eyeColor: physicalFeatures.eyeColor || 'not specified',
+        skinTone: physicalFeatures.skinTone || 'not specified',
+        height: physicalFeatures.height || 'not specified',
+        bodyType: physicalFeatures.bodyType || 'not specified',
+        breastSize: physicalFeatures.breastSize || 'not specified',
+        buttSize: physicalFeatures.buttSize || 'not specified',
+        traits: physicalFeatures.traits.join(', ') || 'not specified'
+      });
 
       const { AIService } = await import('@/lib/aiService');
       const description = await AIService.generateResponse(prompt, undefined, undefined, {

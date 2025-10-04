@@ -1,5 +1,6 @@
 import { Character, CharacterBehaviorProfile, CharacterMemory, ChatMessage } from '@/types';
 import { AIService } from './aiService';
+import { formatPrompt } from './prompts';
 import { logger } from './logger';
 import { uuid } from './uuid';
 
@@ -111,10 +112,7 @@ function buildPrompt(input: BehaviorAnalysisInput): string {
     })
     .join('\n');
 
-  return `You are an expert behavioral analyst for a romantic AI simulation. Review the conversation and assign each character a precise behavior state with confidence, emotional deltas, and actionable notes for the player.
-
-Provide a STRICT JSON object with the shape:
-{
+  const schema = `{
   "conversationSummary": string,
   "followUpSuggestions": string[],
   "characters": [
@@ -139,17 +137,14 @@ Provide a STRICT JSON object with the shape:
       "recommendedActions": string[]
     }
   ]
-}
+}`;
 
-If you are unsure, return conservative neutral adjustments. NEVER include explanation outside the JSON.
-
-Character briefs:
-${characterBrief}
-
-Recent messages:
-${recentMessages}
-
-Latest user message emphasis: ${latestUserMessage}`;
+  return formatPrompt('house.behavior.analysisPrompt', {
+    schema,
+    characterBrief,
+    recentMessages,
+    latestUserMessage
+  });
 }
 
 function heuristicallyAssess(input: BehaviorAnalysisInput): BehaviorAnalysisResult {
