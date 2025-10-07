@@ -1,0 +1,36 @@
+{
+  // Ensure files are visible in explorer
+  "files.exclude": {
+    "**/.git": false,
+    "**/node_modules": true,
+    "**/.DS_Store": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.git": true
+  },
+  // Workspace specific settings
+  "cSpell.words": [
+    "conv",
+    "deepseek",
+    "Dexie",
+    "hidream",
+    "Lustify",
+    "openrouter",
+    "Openrouter",
+    "Qwen",
+    "sdxl"
+  ],
+  "vitest.rootConfig": "./vite.config.ts",
+  "editor.experimentalGpuAcceleration": "on",
+  "terminal.integrated.gpuAcceleration": "on",
+  "terminal.integrated.enableImages": true,
+  "cSpell.enabledFileTypes": {
+    "typescript": false,
+    "typescriptreact": false
+  },
+  "cSpell.enabledSchemes": {
+    "file": false
+  }
+}
