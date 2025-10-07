@@ -248,7 +248,8 @@ export async function populateCharacterProfile(
   if (profile.gender && shouldReplace(mode, character.gender)) {
     character.gender = profile.gender as Character['gender'];
   }
-  if (profile.age && shouldReplace(mode, character.age as unknown as string)) {
+  // NEVER override age if it's already set - user's age is sacred!
+  if (profile.age && shouldReplace(mode, character.age as unknown as string) && !character.age) {
     character.age = profile.age;
   }
   if (profile.personalitySummary && shouldReplace(mode, character.personality)) {

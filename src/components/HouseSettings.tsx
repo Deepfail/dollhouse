@@ -1,18 +1,29 @@
-import { AISettings } from '@/components/AISettings';
-import { PromptLibrary } from '@/components/PromptLibrary';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
-import { useFileStorage } from '@/hooks/useFileStorage';
-import { repositoryStorage } from '@/hooks/useRepositoryStorage';
-import { Check, Gear, X } from '@phosphor-icons/react';
-import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { AISettings } from "@/components/AISettings";
+import { PromptLibrary } from "@/components/PromptLibrary";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { useFileStorage } from "@/hooks/useFileStorage";
+import { repositoryStorage } from "@/hooks/useRepositoryStorage";
+import { Check, Gear, X } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 interface HouseSettingsProps {
   open?: boolean;
@@ -20,11 +31,11 @@ interface HouseSettingsProps {
 }
 
 interface AISettingsConfig {
-  textProvider: 'openrouter' | 'venice' | 'anthropic' | 'openai';
+  textProvider: "openrouter" | "venice" | "anthropic" | "openai";
   textApiKey?: string;
   textModel: string;
   textApiUrl?: string;
-  imageProvider: 'venice' | 'openai' | 'stability' | 'none';
+  imageProvider: "venice" | "openai" | "stability" | "none";
   imageModel?: string;
   imageModelCustom?: string;
   imageApiKey?: string;
@@ -37,7 +48,7 @@ interface HouseConfig {
   copilotPrompt?: string;
   copilotMaxTokens?: number;
   copilotUseHouseContext?: boolean;
-  copilotContextDetail?: 'lite' | 'balanced' | 'detailed';
+  copilotContextDetail?: "lite" | "balanced" | "detailed";
   aiSettings: AISettingsConfig;
   autoCreator: {
     enabled: boolean;
@@ -48,48 +59,58 @@ interface HouseConfig {
 }
 
 const DEFAULT_CONFIG: HouseConfig = {
-  name: 'The Dollhouse',
-  worldPrompt: '',
-  copilotPrompt: '',
+  name: "The Dollhouse",
+  worldPrompt: "",
+  copilotPrompt: "",
 
   copilotMaxTokens: 500,
   copilotUseHouseContext: true,
-  copilotContextDetail: 'balanced',
+  copilotContextDetail: "balanced",
   aiSettings: {
-    textProvider: 'openrouter',
-    textModel: 'deepseek/deepseek-chat',
-    imageProvider: 'venice',
-    imageModel: 'venice-sd35',
-    imageModelCustom: ''
+    textProvider: "openrouter",
+    textModel: "deepseek/deepseek-chat",
+    imageProvider: "venice",
+    imageModel: "venice-sd35",
+    imageModelCustom: "",
   },
   autoCreator: {
     enabled: false,
     interval: 60,
     maxCharacters: 10,
-    themes: ['college', 'ad girls', 'men']
-  }
+    themes: ["college", "ad girls", "men"],
+  },
 };
 
 export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   const [localConfig, setLocalConfig] = useState<HouseConfig>(DEFAULT_CONFIG);
-  const [originalConfig, setOriginalConfig] = useState<HouseConfig>(DEFAULT_CONFIG);
+  const [originalConfig, setOriginalConfig] =
+    useState<HouseConfig>(DEFAULT_CONFIG);
   const [hasChanges, setHasChanges] = useState(false);
-  const { setData: setSettingsForceUpdate } = useFileStorage<number>('settings-force-update.json', 0);
+  const { setData: setSettingsForceUpdate } = useFileStorage<number>(
+    "settings-force-update.json",
+    0
+  );
 
   // Load settings from repositoryStorage on mount/open
   useEffect(() => {
     if (!open) return;
     (async () => {
       try {
-        const config = await repositoryStorage.get<HouseConfig>('house_config');
+        const config = await repositoryStorage.get<HouseConfig>("house_config");
         if (config && Object.keys(config).length > 0) {
           const configPartial = config as Partial<HouseConfig>;
           // Defensive: ensure aiSettings and autoCreator are always present
           const safeConfig: HouseConfig = {
             ...DEFAULT_CONFIG,
             ...configPartial,
-            aiSettings: { ...DEFAULT_CONFIG.aiSettings, ...(configPartial.aiSettings ?? {}) },
-            autoCreator: { ...DEFAULT_CONFIG.autoCreator, ...(configPartial.autoCreator ?? {}) }
+            aiSettings: {
+              ...DEFAULT_CONFIG.aiSettings,
+              ...(configPartial.aiSettings ?? {}),
+            },
+            autoCreator: {
+              ...DEFAULT_CONFIG.autoCreator,
+              ...(configPartial.autoCreator ?? {}),
+            },
           };
           setLocalConfig(safeConfig);
           setOriginalConfig(safeConfig);
@@ -98,7 +119,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
           setOriginalConfig(DEFAULT_CONFIG);
         }
       } catch (error) {
-        console.error('Failed to load house settings', error);
+        console.error("Failed to load house settings", error);
         setLocalConfig(DEFAULT_CONFIG);
         setOriginalConfig(DEFAULT_CONFIG);
       }
@@ -107,19 +128,21 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
 
   // Track changes
   useEffect(() => {
-    setHasChanges(JSON.stringify(localConfig) !== JSON.stringify(originalConfig));
+    setHasChanges(
+      JSON.stringify(localConfig) !== JSON.stringify(originalConfig)
+    );
   }, [localConfig, originalConfig]);
 
   const handleSave = async () => {
     try {
-      await repositoryStorage.set('house_config', localConfig);
-  await setSettingsForceUpdate(Date.now());
+      await repositoryStorage.set("house_config", localConfig);
+      await setSettingsForceUpdate(Date.now());
       setOriginalConfig(localConfig);
-      toast.success('House settings saved!');
+      toast.success("House settings saved!");
       setHasChanges(false);
     } catch (error) {
-      console.error('Failed to save house settings', error);
-      toast.error('Failed to save settings');
+      console.error("Failed to save house settings", error);
+      toast.error("Failed to save settings");
     }
   };
 
@@ -129,19 +152,22 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
   };
 
   const updateConfig = (updates: Partial<HouseConfig>) => {
-    setLocalConfig(prev => ({ ...prev, ...updates }));
+    setLocalConfig((prev) => ({ ...prev, ...updates }));
   };
 
-  const updateAutoCreator = (updates: Partial<HouseConfig['autoCreator']>) => {
-    setLocalConfig(prev => ({
+  const updateAutoCreator = (updates: Partial<HouseConfig["autoCreator"]>) => {
+    setLocalConfig((prev) => ({
       ...prev,
-      autoCreator: { ...prev.autoCreator, ...updates }
+      autoCreator: { ...prev.autoCreator, ...updates },
     }));
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden bg-gray-900 text-white" style={{ backgroundColor: '#1a1a1a', color: '#ffffff' }}>
+      <DialogContent
+        className="max-w-4xl max-h-[90vh] overflow-hidden bg-gray-900 text-white"
+        style={{ backgroundColor: "#1a1a1a", color: "#ffffff" }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-white">
             <Gear size={20} />
@@ -172,9 +198,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
               </div>
 
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 space-y-2">
-                <p className="text-sm font-semibold text-blue-300">💡 Customize World & Setting</p>
+                <p className="text-sm font-semibold text-blue-300">
+                  💡 Customize World & Setting
+                </p>
                 <p className="text-sm text-blue-200/80">
-                  To change the world description and setting for your house, edit the <strong>"World Description / Context"</strong> prompt in the <strong>Prompts</strong> tab above.
+                  To change the world description and setting for your house,
+                  edit the <strong>"World Description / Context"</strong> prompt
+                  in the <strong>Prompts</strong> tab above.
                 </p>
               </div>
             </TabsContent>
@@ -183,7 +213,8 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
             <TabsContent value="ai" className="space-y-6 mt-0">
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Manage AI providers, models, and keys in the dedicated AI Settings dialog.
+                  Manage AI providers, models, and keys in the dedicated AI
+                  Settings dialog.
                 </p>
                 <AISettings>
                   <Button variant="outline">Open AI Settings</Button>
@@ -194,10 +225,14 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
             {/* Copilot Settings */}
             <TabsContent value="copilot" className="space-y-4 mt-0">
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 space-y-2">
-                <p className="text-sm font-semibold text-blue-300">💡 Customize Copilot Prompts</p>
+                <p className="text-sm font-semibold text-blue-300">
+                  💡 Customize Copilot Prompts
+                </p>
                 <p className="text-sm text-blue-200/80">
-                  To change how the copilot behaves and responds, edit the prompts in the <strong>Prompts</strong> tab above.
-                  All copilot personality and behavior is controlled through the Prompt Library.
+                  To change how the copilot behaves and responds, edit the
+                  prompts in the <strong>Prompts</strong> tab above. All copilot
+                  personality and behavior is controlled through the Prompt
+                  Library.
                 </p>
               </div>
 
@@ -207,12 +242,17 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   id="copilot-tokens"
                   type="number"
                   value={localConfig.copilotMaxTokens || 1000}
-                  onChange={(e) => updateConfig({ copilotMaxTokens: parseInt(e.target.value) || 1000 })}
+                  onChange={(e) =>
+                    updateConfig({
+                      copilotMaxTokens: parseInt(e.target.value) || 1000,
+                    })
+                  }
                   min={1}
                   max={4000}
                 />
                 <p className="text-sm text-muted-foreground">
-                  Maximum tokens the copilot can use per response (affects response length).
+                  Maximum tokens the copilot can use per response (affects
+                  response length).
                 </p>
               </div>
 
@@ -220,22 +260,27 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                 <div className="space-y-1">
                   <Label>Include House Context</Label>
                   <p className="text-sm text-muted-foreground">
-                    When enabled, the copilot automatically receives the world prompt and current roster on every reply.
+                    When enabled, the copilot automatically receives the world
+                    prompt and current roster on every reply.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <Switch
                     checked={localConfig.copilotUseHouseContext !== false}
-                    onCheckedChange={(enabled) => updateConfig({ copilotUseHouseContext: enabled })}
+                    onCheckedChange={(enabled) =>
+                      updateConfig({ copilotUseHouseContext: enabled })
+                    }
                   />
                   <span
                     className={`text-xs font-medium px-2 py-1 rounded border ${
                       localConfig.copilotUseHouseContext !== false
-                        ? 'border-green-500 text-green-400 bg-green-500/10'
-                        : 'border-zinc-600 text-zinc-300 bg-zinc-700/30'
+                        ? "border-green-500 text-green-400 bg-green-500/10"
+                        : "border-zinc-600 text-zinc-300 bg-zinc-700/30"
                     }`}
                   >
-                    {localConfig.copilotUseHouseContext !== false ? 'Enabled' : 'Disabled'}
+                    {localConfig.copilotUseHouseContext !== false
+                      ? "Enabled"
+                      : "Disabled"}
                   </span>
                 </div>
               </div>
@@ -243,22 +288,35 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
               <div className="space-y-2">
                 <Label>Context Detail Level</Label>
                 <Select
-                  value={localConfig.copilotContextDetail || 'balanced'}
+                  value={localConfig.copilotContextDetail || "balanced"}
                   onValueChange={(value) =>
-                    updateConfig({ copilotContextDetail: value as 'lite' | 'balanced' | 'detailed' })
+                    updateConfig({
+                      copilotContextDetail: value as
+                        | "lite"
+                        | "balanced"
+                        | "detailed",
+                    })
                   }
                 >
                   <SelectTrigger className="bg-zinc-900 border-zinc-700 text-white">
                     <SelectValue placeholder="Choose detail level" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="lite">Friend Mode (keep it casual)</SelectItem>
-                    <SelectItem value="balanced">Balanced (use detail when asked)</SelectItem>
-                    <SelectItem value="detailed">Analyst (complete breakdowns)</SelectItem>
+                    <SelectItem value="lite">
+                      Friend Mode (keep it casual)
+                    </SelectItem>
+                    <SelectItem value="balanced">
+                      Balanced (use detail when asked)
+                    </SelectItem>
+                    <SelectItem value="detailed">
+                      Analyst (complete breakdowns)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-sm text-muted-foreground">
-                  Friend Mode keeps context light so the copilot stays conversational; switch to Analyst when you want deep stat breakdowns on call.
+                  Friend Mode keeps context light so the copilot stays
+                  conversational; switch to Analyst when you want deep stat
+                  breakdowns on call.
                 </p>
               </div>
             </TabsContent>
@@ -286,12 +344,18 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
               {localConfig.autoCreator.enabled && (
                 <div className="space-y-4 pl-4 border-l-2 border-muted">
                   <div className="space-y-2">
-                    <Label htmlFor="auto-interval">Creation Interval (minutes)</Label>
+                    <Label htmlFor="auto-interval">
+                      Creation Interval (minutes)
+                    </Label>
                     <Input
                       id="auto-interval"
                       type="number"
                       value={localConfig.autoCreator.interval}
-                      onChange={(e) => updateAutoCreator({ interval: parseInt(e.target.value) || 60 })}
+                      onChange={(e) =>
+                        updateAutoCreator({
+                          interval: parseInt(e.target.value) || 60,
+                        })
+                      }
                       min={15}
                       max={1440}
                     />
@@ -303,7 +367,11 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                       id="auto-max"
                       type="number"
                       value={localConfig.autoCreator.maxCharacters}
-                      onChange={(e) => updateAutoCreator({ maxCharacters: parseInt(e.target.value) || 10 })}
+                      onChange={(e) =>
+                        updateAutoCreator({
+                          maxCharacters: parseInt(e.target.value) || 10,
+                        })
+                      }
                       min={1}
                       max={50}
                     />
@@ -312,14 +380,20 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label>Themes</Label>
                     <Input
-                      value={localConfig.autoCreator.themes.join(', ')}
-                      onChange={(e) => updateAutoCreator({
-                        themes: e.target.value.split(',').map(t => t.trim()).filter(t => t)
-                      })}
+                      value={localConfig.autoCreator.themes.join(", ")}
+                      onChange={(e) =>
+                        updateAutoCreator({
+                          themes: e.target.value
+                            .split(",")
+                            .map((t) => t.trim())
+                            .filter((t) => t),
+                        })
+                      }
                       placeholder="fantasy, modern, sci-fi"
                     />
                     <p className="text-sm text-muted-foreground">
-                      Comma-separated list of themes for auto-generated characters
+                      Comma-separated list of themes for auto-generated
+                      characters
                     </p>
                   </div>
                 </div>
@@ -330,7 +404,11 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
 
         {/* Footer */}
         <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" onClick={handleCancel} disabled={!hasChanges}>
+          <Button
+            variant="outline"
+            onClick={handleCancel}
+            disabled={!hasChanges}
+          >
             <X size={16} className="mr-2" />
             Cancel
           </Button>

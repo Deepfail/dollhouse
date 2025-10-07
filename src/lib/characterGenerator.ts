@@ -7,7 +7,8 @@ import { logger } from './logger';
 // Clean, minimal character generator that the app can use during runtime.
 // Purposefully small to avoid large prompt blobs and to be resilient when AI fails.
 
-const ARCHETYPE_DETAILS: Record<
+// Default archetype details - can be overridden by user settings
+const DEFAULT_ARCHETYPE_DETAILS: Record<
   'college' | 'prime' | 'fresh',
   {
     label: string;
@@ -43,6 +44,27 @@ const ARCHETYPE_DETAILS: Record<
     defaultRoom: 'lounge',
   },
 };
+
+// Get archetype details from user settings or defaults
+function getArchetypeDetails() {
+  try {
+    const stored = localStorage.getItem('dollhouse.archetypeSettings');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (error) {
+    logger.warn('Failed to load archetype settings, using defaults:', error);
+  }
+  return DEFAULT_ARCHETYPE_DETAILS;
+}
+
+// Dynamic getter for archetype details
+const ARCHETYPE_DETAILS = new Proxy({} as typeof DEFAULT_ARCHETYPE_DETAILS, {
+  get(_target, prop: string) {
+    const settings = getArchetypeDetails();
+    return settings[prop as keyof typeof settings] || DEFAULT_ARCHETYPE_DETAILS[prop as keyof typeof DEFAULT_ARCHETYPE_DETAILS];
+  }
+});
 
 const mergeUniqueStrings = (existing: string[] = [], additions: string[] = []): string[] => {
   const set = new Set<string>();

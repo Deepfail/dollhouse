@@ -11,9 +11,10 @@ import type { CharacterGenerationOptions } from '@/lib/characterGenerator';
 import { ensureUniqueCharacter } from '@/lib/characterUtils';
 import { cn } from '@/lib/utils';
 import type { Character } from '@/types';
-import { X } from '@phosphor-icons/react';
+import { X, GearSix } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { CharacterCreatorSettings } from './CharacterCreatorSettings';
 
 type ArchetypeId = 'college' | 'prime' | 'fresh';
 type CharacterGender = 'female' | 'male';
@@ -96,6 +97,7 @@ function CharacterAutoCreateContent({
   const [draft, setDraft] = useState<Character | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const personalityTraits = useMemo(() => parseList(personalityInput), [personalityInput]);
   const featureNotes = useMemo(() => parseList(featureInput), [featureInput]);
@@ -191,15 +193,26 @@ function CharacterAutoCreateContent({
             Tune archetype, notes, and prompts while keeping the rest of the house visible.
           </p>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 transition hover:border-[#ff54a6]/50 hover:bg-[#ff1372]/15 hover:text-white"
-          onClick={onClose}
-        >
-          <X size={16} />
-          <span className="hidden md:inline">Close</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 transition hover:border-[#ff54a6]/50 hover:bg-[#ff1372]/15 hover:text-white"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <GearSix size={16} />
+            <span className="hidden md:inline">Settings</span>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 transition hover:border-[#ff54a6]/50 hover:bg-[#ff1372]/15 hover:text-white"
+            onClick={onClose}
+          >
+            <X size={16} />
+            <span className="hidden md:inline">Close</span>
+          </Button>
+        </div>
       </header>
 
       <div className="flex-1 min-h-0 overflow-hidden px-5 pb-5 pt-5">
@@ -402,6 +415,11 @@ function CharacterAutoCreateContent({
           </div>
         </div>
       </div>
+      
+      <CharacterCreatorSettings
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+      />
     </div>
   );
 }

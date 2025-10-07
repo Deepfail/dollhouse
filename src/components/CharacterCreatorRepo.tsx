@@ -677,8 +677,11 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="bg-[#0f0f10] text-white sm:max-w-[520px] w-full p-6 max-h-[92vh] overflow-auto" data-vaul-drawer-direction="right">
-          <DrawerHeader>
+      <DrawerContent 
+        className="bg-[#0f0f10] text-white sm:max-w-[520px] w-full max-h-[92vh] flex flex-col overflow-hidden" 
+        data-vaul-drawer-direction="right"
+      >
+          <DrawerHeader className="flex-shrink-0 px-6 pt-6 pb-4">
             <div className="flex items-center justify-between w-full gap-4">
               <div>
                 <DrawerTitle className="text-white text-2xl leading-tight">
@@ -697,6 +700,15 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
             </div>
           </DrawerHeader>
 
+        {/* SCROLLABLE MIDDLE */}
+        <div 
+          className="flex-1 overflow-y-auto overflow-x-hidden px-6"
+          style={{ 
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
+            minHeight: 0
+          }}
+        >
         <Tabs defaultValue="basic" className="w-full">
           {(() => {
             const isMale = formData.gender === 'male';
@@ -1180,8 +1192,10 @@ export function CharacterCreatorRepo({ open, onOpenChange, character }: Characte
           </TabsContent>
           )}
         </Tabs>
+        </div>
+        {/* END SCROLLABLE MIDDLE */}
 
-        <DrawerFooter>
+        <DrawerFooter className="flex-shrink-0 px-6 pb-6 pt-4">
           <div className="flex w-full justify-end gap-3">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="px-4 py-2">
               Cancel

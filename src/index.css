@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 @import "tw-animate-css";
 
 @layer base {
@@ -35,7 +35,8 @@
   }
 
   /* Ensure ghost/outline buttons in dark have readable text */
-  .dark .btn-ghost, .dark .btn-outline {
+  .dark .btn-ghost,
+  .dark .btn-outline {
     color: hsl(var(--foreground));
   }
 }
@@ -86,7 +87,7 @@ html {
 }
 
 body {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: "Inter", system-ui, sans-serif;
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   overflow: hidden;
@@ -124,7 +125,7 @@ body {
   html {
     height: -webkit-fill-available;
   }
-  
+
   body {
     min-height: -webkit-fill-available;
   }

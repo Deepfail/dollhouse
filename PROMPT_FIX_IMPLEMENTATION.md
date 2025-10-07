@@ -3,6 +3,7 @@
 ## Files Changed
 
 ### 1. Core Prompt System
+
 - ✅ `/src/lib/prompts.ts` - Added 4 new prompt definitions
   - `copilot.wingman.systemPrompt`
   - `copilot.wingman.greeting`
@@ -10,17 +11,20 @@
   - `house.world.description`
 
 ### 2. Migration System
+
 - ✅ `/src/lib/promptMigration.ts` - **NEW FILE**
   - Automatically migrates old prompts to Prompt Library
   - Runs once on app startup
   - Moves prompts from 3 old locations to centralized system
 
 ### 3. Storage Initialization
+
 - ✅ `/src/storage/init.ts` - Updated
   - Calls `migrateOldPrompts()` after storage initialization
   - Non-blocking migration (doesn't slow startup)
 
 ### 4. UI Updates
+
 - ✅ `/src/components/HouseSettings.tsx` - Updated
   - Removed duplicate prompt fields
   - Added info boxes directing to Prompt Library
@@ -34,6 +38,7 @@
   - Simplified to 3 tabs: Current Prompts, Girls, Interview
 
 ### 5. Documentation
+
 - ✅ `/PROMPT_SYSTEM_AUDIT.md` - Technical audit
 - ✅ `/PROMPT_SYSTEM_FIXED.md` - User-friendly guide
 - ✅ `/PROMPT_LIBRARY_GUIDE.md` - Existing, comprehensive
@@ -41,6 +46,7 @@
 ## What Users Get
 
 ### Before This Fix ❌
+
 ```
 User edits copilot prompt in House Settings → Copilot tab
 AI uses a DIFFERENT prompt from Prompt Library
@@ -48,6 +54,7 @@ User's changes ignored!
 ```
 
 ### After This Fix ✅
+
 ```
 User edits prompt in Prompt Library
 ALL AI operations use this prompt
@@ -57,16 +64,19 @@ Changes work immediately!
 ## Key Features
 
 ### 1. Single Source of Truth
+
 - All prompts in Prompt Library (`/src/lib/prompts.ts`)
 - `formatPrompt()` used everywhere
 - No duplicate storage
 
 ### 2. Automatic Migration
+
 - Old prompts automatically moved to new system
 - Happens once, silently
 - Users don't lose customizations
 
 ### 3. Clear User Path
+
 - House Settings → Info boxes → "Go to Prompts tab"
 - Wingman Settings → Info boxes → "Go to Settings → Prompts"
 - No confusion about where to edit
@@ -96,6 +106,7 @@ Changes work immediately!
 ## Testing Checklist
 
 ### For Developer
+
 - [x] TypeScript compiles without errors
 - [x] All imports resolve
 - [x] Migration system in place
@@ -103,6 +114,7 @@ Changes work immediately!
 - [x] No duplicate prompt fields
 
 ### For User
+
 - [ ] Open Settings → Prompts
 - [ ] Edit "Copilot Main Response Prompt"
 - [ ] Chat with copilot - verify new personality
@@ -114,6 +126,7 @@ Changes work immediately!
 ## Migration Details
 
 ### What Gets Migrated
+
 ```typescript
 Old Location → New Prompt Key
 ─────────────────────────────────────────────────────
@@ -125,6 +138,7 @@ copilot_greeting → copilot.wingman.greeting
 ```
 
 ### When It Runs
+
 - On app startup (after storage initialization)
 - Checks flag: `prompts_migrated_v1` in localStorage
 - Runs once, then never again
@@ -133,11 +147,13 @@ copilot_greeting → copilot.wingman.greeting
 ## Breaking Changes
 
 ### None for End Users
+
 - All existing prompts migrated automatically
 - UI updated with helpful directions
 - Old functionality preserved
 
 ### For Developers
+
 - Don't use `legacyStorage` for prompts
 - Always use `formatPrompt()` from `/src/lib/prompts.ts`
 - Don't add prompt fields to settings UI
@@ -145,12 +161,14 @@ copilot_greeting → copilot.wingman.greeting
 ## Rollout Plan
 
 ### Phase 1: ✅ DONE
+
 1. Add missing prompts to library
 2. Create migration system
 3. Update UI to remove duplicates
 4. Document everything
 
 ### Phase 2: NEXT (If Needed)
+
 1. Add prompt templates/presets
 2. Import/export functionality
 3. Prompt versioning
@@ -159,11 +177,13 @@ copilot_greeting → copilot.wingman.greeting
 ## Support Resources
 
 ### For Users
+
 - `PROMPT_SYSTEM_FIXED.md` - How to use the new system
 - `PROMPT_LIBRARY_GUIDE.md` - Detailed prompt reference
 - In-app info boxes - Step-by-step directions
 
 ### For Developers
+
 - `PROMPT_SYSTEM_AUDIT.md` - Technical details
 - `src/lib/prompts.ts` - All prompt definitions
 - `src/lib/promptMigration.ts` - Migration logic
@@ -180,11 +200,13 @@ copilot_greeting → copilot.wingman.greeting
 ## Known Limitations
 
 ### Current
+
 - Migration runs once (can't re-run without clearing flag)
 - No prompt versioning yet
 - No import/export yet
 
 ### Future Enhancements
+
 - Prompt templates/presets
 - Community prompt library
 - A/B testing for prompts
@@ -195,18 +217,21 @@ copilot_greeting → copilot.wingman.greeting
 ## Quick Start for Users
 
 **I want to change how my copilot talks:**
+
 1. Settings → Prompts tab
 2. Find "Copilot Main Response Prompt"
 3. Edit it, click Save
 4. Done! Chat with copilot to test
 
 **I want to change character creation:**
-1. Settings → Prompts tab  
+
+1. Settings → Prompts tab
 2. Find "Character Architect Core Prompt"
 3. Edit it, click Save
 4. Done! Create a character to test
 
 **Where did my prompt fields go?**
+
 - They're in Settings → Prompts now
 - Look for the blue info boxes for directions
 - Old prompts were migrated automatically
@@ -216,6 +241,7 @@ copilot_greeting → copilot.wingman.greeting
 ## Conclusion
 
 The prompt system is now:
+
 - ✅ Centralized (one source of truth)
 - ✅ User-friendly (clear editing path)
 - ✅ Consistent (same prompt everywhere)

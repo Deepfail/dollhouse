@@ -1,45 +1,55 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useChat } from '@/hooks/useChat';
-import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
-import { useQuickActions } from '@/hooks/useQuickActions';
-import { logger } from '@/lib/logger';
-import type { Character, ChatMessage, ChatSession } from '@/types';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useChat } from "@/hooks/useChat";
+import { useHouseFileStorage } from "@/hooks/useHouseFileStorage";
+import { useQuickActions } from "@/hooks/useQuickActions";
+import { AIService } from "@/lib/aiService";
+import { logger } from "@/lib/logger";
+import type { Character, ChatMessage, ChatSession } from "@/types";
 import {
-    Barbell,
-    Camera,
-    CaretRight,
-    ChatCircleDots,
-    ChatsCircle,
-    DoorOpen,
-    Gear,
-    Heart,
-    ImageSquare,
-    LockSimple,
-    MagnifyingGlass,
-    PaperPlaneTilt,
-    Paperclip,
-    Plus,
-    Robot,
-    Smiley,
-    Sparkle,
-    User,
-    UserCircle,
-} from '@phosphor-icons/react';
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
-import { CharacterAutoCreateInline } from './CharacterAutoCreateDialog';
-import { CharacterCard } from './CharacterCard';
-import { GirlManagerSidebar } from './GirlManagerSidebar';
-import { HouseSettings } from './HouseSettings';
+  Barbell,
+  Camera,
+  CaretRight,
+  ChatCircle,
+  ChatCircleDots,
+  ChatsCircle,
+  DoorOpen,
+  Gear,
+  Heart,
+  ImageSquare,
+  LockSimple,
+  MagnifyingGlass,
+  PaperPlaneTilt,
+  Paperclip,
+  Plus,
+  Robot,
+  Smiley,
+  Sparkle,
+  User,
+  UserCircle,
+} from "@phosphor-icons/react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { toast } from "sonner";
+import { CharacterAutoCreateInline } from "./CharacterAutoCreateDialog";
+import { CharacterCard } from "./CharacterCard";
+import { GirlManagerSidebar } from "./GirlManagerSidebar";
+import { HouseSettings } from "./HouseSettings";
 
 const EMPTY_STATE_TIPS = [
-  'Use the Girl Manager to auto-create your first companion.',
-  'Bring in your own character JSON to instantly populate the roster.',
-  'Ask the copilot for scene ideas and she will build the setup for you.',
+  "Use the Girl Manager to auto-create your first companion.",
+  "Bring in your own character JSON to instantly populate the roster.",
+  "Ask the copilot for scene ideas and she will build the setup for you.",
 ];
 
 interface CharacterRosterProps {
@@ -47,7 +57,7 @@ interface CharacterRosterProps {
   selectedId: string | null;
   onSelect: (characterId: string) => void;
   onStartChat: (characterId: string) => Promise<void>;
-  onRequestCreate: (gender: 'female' | 'male') => void;
+  onRequestCreate: (gender: "female" | "male") => void;
   sessions: ChatSession[];
   onViewProfile?: (character: Character) => void;
 }
@@ -61,12 +71,13 @@ function CharacterRoster({
   sessions,
   onViewProfile,
 }: CharacterRosterProps) {
-  const [activeTab, setActiveTab] = useState<'girls' | 'men'>('girls');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState<"girls" | "men">("girls");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const detectIsMale = useCallback((character: Character) => {
-    if (character.gender) return character.gender === 'male';
-    const haystack = `${character.personality ?? ''} ${character.description ?? ''} ${character.role ?? ''}`.toLowerCase();
+    if (character.gender) return character.gender === "male";
+    const haystack =
+      `${character.personality ?? ""} ${character.description ?? ""} ${character.role ?? ""}`.toLowerCase();
     return /\b(male|man|boy|guy|him|he)\b/.test(haystack);
   }, []);
 
@@ -76,7 +87,7 @@ function CharacterRoster({
     return characters
       .filter((character) => {
         const isMale = detectIsMale(character);
-        if (activeTab === 'men') return isMale;
+        if (activeTab === "men") return isMale;
         return !isMale;
       })
       .filter((character) => {
@@ -89,7 +100,7 @@ function CharacterRoster({
           ...(character.personalities ?? []),
           ...(character.features ?? []),
         ]
-          .join(' ')
+          .join(" ")
           .toLowerCase();
         return haystack.includes(normalizedQuery);
       })
@@ -104,22 +115,24 @@ function CharacterRoster({
     () =>
       characters.filter((character) => {
         const happiness = character.stats?.happiness ?? 0;
-        const hasSession = sessions.some((session) => session.participantIds.includes(character.id));
+        const hasSession = sessions.some((session) =>
+          session.participantIds.includes(character.id)
+        );
         return happiness >= 65 || hasSession;
       }).length,
-    [characters, sessions],
+    [characters, sessions]
   );
 
   const toTitleCase = useCallback((value: string) => {
     return value
-      .replace(/[_-]/g, ' ')
+      .replace(/[_-]/g, " ")
       .trim()
-      .replace(/\s+/g, ' ')
+      .replace(/\s+/g, " ")
       .replace(/\b\w/g, (char) => char.toUpperCase());
   }, []);
 
   const handleCreateCharacterClick = useCallback(() => {
-    onRequestCreate(activeTab === 'men' ? 'male' : 'female');
+    onRequestCreate(activeTab === "men" ? "male" : "female");
   }, [activeTab, onRequestCreate]);
 
   const handleCardActivate = useCallback(
@@ -127,22 +140,26 @@ function CharacterRoster({
       onSelect(character.id);
       onViewProfile?.(character);
     },
-    [onSelect, onViewProfile],
+    [onSelect, onViewProfile]
   );
 
   const resetFilters = useCallback(() => {
-    setActiveTab('girls');
-    setSearchTerm('');
+    setActiveTab("girls");
+    setSearchTerm("");
   }, []);
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-r border-white/5 bg-gradient-to-b from-[#141121] via-[#0d0b14] to-[#05040b] text-white hidden md:flex">
+    <div className="hidden md:flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-r border-white/5 bg-gradient-to-b from-[#141121] via-[#0d0b14] to-[#05040b] text-white">
       <div className="flex-shrink-0 px-4 pb-4 pt-5 xl:px-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.35em] text-white/40">Roster</p>
+            <p className="text-[10px] uppercase tracking-[0.35em] text-white/40">
+              Roster
+            </p>
             <h2 className="mt-1 text-xl font-semibold text-white">My Girls</h2>
-            <p className="mt-1 text-xs text-white/55">Curate tonight’s lineup and jump back into any scene.</p>
+            <p className="mt-1 text-xs text-white/55">
+              Curate tonight’s lineup and jump back into any scene.
+            </p>
           </div>
           <button
             type="button"
@@ -150,7 +167,10 @@ function CharacterRoster({
             className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#ff4fa3] via-[#ff1372] to-[#7c3aed] text-white shadow-[0_18px_45px_-18px_rgba(255,79,163,0.85)] transition hover:shadow-[0_22px_55px_-18px_rgba(255,79,163,1)] focus-visible:ring-2 focus-visible:ring-[#ff4fa3] focus-visible:ring-offset-2 focus-visible:ring-offset-[#05040b]"
             aria-label="Create new character"
           >
-            <span className="pointer-events-none absolute inset-[-8px] rounded-full bg-[#ff1372]/30 blur-lg" aria-hidden />
+            <span
+              className="pointer-events-none absolute inset-[-8px] rounded-full bg-[#ff1372]/30 blur-lg"
+              aria-hidden
+            />
             <Plus weight="bold" size={16} className="relative" />
           </button>
         </div>
@@ -160,7 +180,10 @@ function CharacterRoster({
             Search roster
           </label>
           <div className="relative">
-            <MagnifyingGlass size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+            <MagnifyingGlass
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/40"
+            />
             <Input
               id="roster-search"
               value={searchTerm}
@@ -172,18 +195,26 @@ function CharacterRoster({
         </div>
 
         <div className="mt-4 inline-flex rounded-full bg-white/5 p-1">
-          {([
-            { label: 'Girls', value: 'girls' as const, icon: <UserCircle size={14} className="mr-2" /> },
-            { label: 'Men', value: 'men' as const, icon: <User size={14} className="mr-2" /> },
-          ]).map((option) => (
+          {[
+            {
+              label: "Girls",
+              value: "girls" as const,
+              icon: <UserCircle size={14} className="mr-2" />,
+            },
+            {
+              label: "Men",
+              value: "men" as const,
+              icon: <User size={14} className="mr-2" />,
+            },
+          ].map((option) => (
             <button
               key={option.value}
               type="button"
               onClick={() => setActiveTab(option.value)}
               className={`flex items-center rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] transition ${
                 activeTab === option.value
-                  ? 'bg-[#ff1372] text-white shadow-[0_16px_35px_-22px_rgba(255,19,114,0.9)]'
-                  : 'text-white/60 hover:text-white'
+                  ? "bg-[#ff1372] text-white shadow-[0_16px_35px_-22px_rgba(255,19,114,0.9)]"
+                  : "text-white/60 hover:text-white"
               }`}
             >
               {option.icon}
@@ -197,19 +228,30 @@ function CharacterRoster({
         <div className="space-y-3 px-4 pb-6">
           {roster.map((character) => {
             const isSelected = selectedId === character.id;
-            const affection = Math.round(character.progression?.affection ?? character.stats?.love ?? 0);
-            const ageLabel = character.age ? `${character.age} years old` : 'Age unknown';
-            const activeSessions = sessions.filter((session) => session.participantIds.includes(character.id));
+            const affection = Math.round(
+              character.progression?.affection ?? character.stats?.love ?? 0
+            );
+            const ageLabel = character.age
+              ? `${character.age} years old`
+              : "Age unknown";
+            const activeSessions = sessions.filter((session) =>
+              session.participantIds.includes(character.id)
+            );
             const hasActiveChat = activeSessions.length > 0;
-            const isOnline = hasActiveChat || (character.stats?.happiness ?? 0) >= 65;
+            const isOnline =
+              hasActiveChat || (character.stats?.happiness ?? 0) >= 65;
 
             const baseChips: Array<{ label: string; className: string }> = [];
-            const statusLabel = hasActiveChat ? 'In Use' : isOnline ? 'Available' : 'Offline';
-            const statusClass = hasActiveChat
-              ? 'bg-amber-500/15 text-amber-200 border-amber-400/40'
+            const statusLabel = hasActiveChat
+              ? "In Use"
               : isOnline
-                ? 'bg-emerald-500/15 text-emerald-200 border-emerald-400/40'
-                : 'bg-slate-500/10 text-slate-300 border-slate-500/30';
+                ? "Available"
+                : "Offline";
+            const statusClass = hasActiveChat
+              ? "bg-amber-500/15 text-amber-200 border-amber-400/40"
+              : isOnline
+                ? "bg-emerald-500/15 text-emerald-200 border-emerald-400/40"
+                : "bg-slate-500/10 text-slate-300 border-slate-500/30";
             baseChips.push({ label: statusLabel, className: statusClass });
 
             const personalityChips = [
@@ -220,17 +262,22 @@ function CharacterRoster({
             ].filter(Boolean) as string[];
 
             const palette = [
-              'bg-pink-500/15 text-pink-200 border-pink-400/40',
-              'bg-violet-500/15 text-violet-200 border-violet-400/40',
-              'bg-sky-500/15 text-sky-200 border-sky-400/40',
+              "bg-pink-500/15 text-pink-200 border-pink-400/40",
+              "bg-violet-500/15 text-violet-200 border-violet-400/40",
+              "bg-sky-500/15 text-sky-200 border-sky-400/40",
             ];
 
             personalityChips
               .map((label) => toTitleCase(label))
-              .filter((label, index, array) => label && array.indexOf(label) === index)
+              .filter(
+                (label, index, array) => label && array.indexOf(label) === index
+              )
               .slice(0, 2)
               .forEach((label, index) => {
-                baseChips.push({ label, className: palette[index % palette.length] });
+                baseChips.push({
+                  label,
+                  className: palette[index % palette.length],
+                });
               });
 
             return (
@@ -239,28 +286,31 @@ function CharacterRoster({
                 type="button"
                 onClick={() => handleCardActivate(character)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
+                  if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
                     handleCardActivate(character);
                   }
                 }}
                 className={`group relative w-full rounded-2xl border bg-white/[0.04] p-3 text-left transition hover:border-[#ff4fa3]/45 hover:bg-white/[0.08] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#ff4fa3] focus-visible:ring-offset-2 focus-visible:ring-offset-[#05040b] ${
                   isSelected
-                    ? 'border-[#ff4fa3]/70 bg-gradient-to-b from-[#251129]/85 via-[#160a1c]/80 to-[#090910]/90 shadow-[0_25px_65px_-35px_rgba(255,79,163,0.75)]'
-                    : 'border-white/10'
+                    ? "border-[#ff4fa3]/70 bg-gradient-to-b from-[#251129]/85 via-[#160a1c]/80 to-[#090910]/90 shadow-[0_25px_65px_-35px_rgba(255,79,163,0.75)]"
+                    : "border-white/10"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div className="relative flex-shrink-0">
                     <Avatar className="h-11 w-11 rounded-lg border border-white/15">
-                      <AvatarImage src={character.avatar} alt={character.name} />
+                      <AvatarImage
+                        src={character.avatar}
+                        alt={character.name}
+                      />
                       <AvatarFallback>
                         {character.name?.slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <span
                       className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border border-black/70 ${
-                        isOnline ? 'bg-emerald-400' : 'bg-slate-600'
+                        isOnline ? "bg-emerald-400" : "bg-slate-600"
                       }`}
                     />
                   </div>
@@ -268,8 +318,12 @@ function CharacterRoster({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-white">{character.name}</p>
-                        <p className="mt-0.5 text-[11px] text-white/60">{ageLabel} • {affection}%</p>
+                        <p className="truncate text-sm font-semibold text-white">
+                          {character.name}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-white/60">
+                          {ageLabel} • {affection}%
+                        </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
@@ -353,7 +407,10 @@ interface ChatPanelProps {
   sessions: ChatSession[];
   onSwitchSession: (sessionId: string) => Promise<void>;
   activeSessionId: string | null;
-  onQuickAction: (actionId: string, context?: { characterId?: string }) => Promise<void>;
+  onQuickAction: (
+    actionId: string,
+    context?: { characterId?: string }
+  ) => Promise<void>;
   onOpenManager: () => void;
 }
 
@@ -369,15 +426,18 @@ function ChatPanel({
   onQuickAction,
   onOpenManager,
 }: ChatPanelProps) {
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setDraft('');
+    setDraft("");
   }, [character?.id, activeSessionId]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
   }, [messages]);
 
   const canChat = Boolean(activeSessionId && character);
@@ -386,8 +446,8 @@ function ChatPanel({
     return sessions
       .filter(
         (session) =>
-          session.type !== 'assistant' &&
-          session.participantIds.includes(character.id),
+          session.type !== "assistant" &&
+          session.participantIds.includes(character.id)
       )
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }, [character, sessions]);
@@ -401,16 +461,20 @@ function ChatPanel({
   const isOnline = Boolean(character) && (happiness >= 65 || hasActiveSession);
   const locationLabel = character?.preferredRoomType
     ? character.preferredRoomType
-        .replace(/[_-]/g, ' ')
+        .replace(/[_-]/g, " ")
         .replace(/\b\w/g, (char) => char.toUpperCase())
-    : 'Private Room';
+    : "Private Room";
 
-  const quickActionButtons: Array<{ id: string; label: string; danger?: boolean }> = [
-    { id: 'compliment', label: 'Compliment' },
-    { id: 'gift', label: 'Gift' },
-    { id: 'flirt', label: 'Flirt' },
-    { id: 'ask-question', label: 'Ask Question' },
-    { id: 'punish', label: 'Punish', danger: true },
+  const quickActionButtons: Array<{
+    id: string;
+    label: string;
+    danger?: boolean;
+  }> = [
+    { id: "compliment", label: "Compliment" },
+    { id: "gift", label: "Gift" },
+    { id: "flirt", label: "Flirt" },
+    { id: "ask-question", label: "Ask Question" },
+    { id: "punish", label: "Punish", danger: true },
   ];
 
   const handleSubmit = useCallback(
@@ -418,25 +482,25 @@ function ChatPanel({
       event.preventDefault();
       const value = draft.trim();
       if (!value || !canChat) return;
-      void onSend(value).then(() => setDraft(''));
+      void onSend(value).then(() => setDraft(""));
     },
-    [draft, canChat, onSend],
+    [draft, canChat, onSend]
   );
 
   const handleQuickActionClick = useCallback(
     (actionId: string) => {
       void onQuickAction(actionId, { characterId: character?.id ?? undefined });
     },
-    [character?.id, onQuickAction],
+    [character?.id, onQuickAction]
   );
 
   const timeFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat(undefined, {
-        hour: 'numeric',
-        minute: '2-digit',
+        hour: "numeric",
+        minute: "2-digit",
       }),
-    [],
+    []
   );
 
   return (
@@ -447,23 +511,25 @@ function ChatPanel({
             <Avatar className="h-12 w-12 rounded-full border-2 border-pink-400/60">
               <AvatarImage src={character?.avatar} alt={character?.name} />
               <AvatarFallback>
-                {character?.name?.slice(0, 2).toUpperCase() ?? '??'}
+                {character?.name?.slice(0, 2).toUpperCase() ?? "??"}
               </AvatarFallback>
             </Avatar>
             <span
               className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border border-black/70 ${
-                isOnline ? 'bg-emerald-400' : 'bg-slate-500'
+                isOnline ? "bg-emerald-400" : "bg-slate-500"
               }`}
             />
           </div>
           <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.32em] text-white/40">Tonight's Connection</p>
+            <p className="text-xs uppercase tracking-[0.32em] text-white/40">
+              Tonight's Connection
+            </p>
             <h1 className="mt-1 truncate text-xl font-semibold">
-              {character ? character.name : 'Pick a girl to begin'}
+              {character ? character.name : "Pick a girl to begin"}
             </h1>
             {character && (
               <p className="mt-1 text-sm text-white/60">
-                {isOnline ? 'Online' : 'Offline'} • {locationLabel}
+                {isOnline ? "Online" : "Offline"} • {locationLabel}
               </p>
             )}
           </div>
@@ -491,17 +557,22 @@ function ChatPanel({
                     onClick={() => void onSwitchSession(session.id)}
                     className={`rounded-full border px-3 py-1 text-xs transition ${
                       activeSessionId === session.id
-                        ? 'border-[#ff1372] bg-[#ff1372]/15 text-white'
-                        : 'border-white/10 text-white/60 hover:border-[#ff1372]/40 hover:text-white'
+                        ? "border-[#ff1372] bg-[#ff1372]/15 text-white"
+                        : "border-white/10 text-white/60 hover:border-[#ff1372]/40 hover:text-white"
                     }`}
                   >
-                    {session.type === 'group' ? 'Group date' : 'Private chat'}
+                    {session.type === "group" ? "Group date" : "Private chat"}
                   </button>
                 ))}
               </div>
             </div>
           )}
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6" style={{ paddingBottom: 'calc(200px + env(safe-area-inset-bottom))' }}>
+          <div
+            className="flex-1 min-h-0 overflow-y-auto px-6 py-6"
+            style={{
+              paddingBottom: "calc(200px + env(safe-area-inset-bottom))",
+            }}
+          >
             <div className="space-y-6">
               {character && (
                 <div className="flex flex-col items-center gap-4 text-xs uppercase tracking-[0.3em] text-white/40">
@@ -516,7 +587,10 @@ function ChatPanel({
               )}
               {!canChat && !isLoadingMessages && (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-white/70">
-                  <p>Warm up the connection by starting a conversation. She's waiting for your move.</p>
+                  <p>
+                    Warm up the connection by starting a conversation. She's
+                    waiting for your move.
+                  </p>
                   <Button
                     className="mt-4 rounded-full bg-[#ff1372] px-6 text-xs font-semibold uppercase tracking-[0.28em] text-white hover:bg-[#ff1372]/90"
                     onClick={() => void onStartChat()}
@@ -533,9 +607,11 @@ function ChatPanel({
               )}
               {messages.map((message) => {
                 const timestamp =
-                  message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp);
+                  message.timestamp instanceof Date
+                    ? message.timestamp
+                    : new Date(message.timestamp);
                 const formattedTime = timeFormatter.format(timestamp);
-                if (message.type === 'system') {
+                if (message.type === "system") {
                   return (
                     <div
                       key={message.id}
@@ -547,37 +623,55 @@ function ChatPanel({
                 }
                 const isUser = !message.characterId;
                 const imageUrl =
-                  (typeof message.metadata?.imageUrl === 'string' && message.metadata.imageUrl) ||
-                  (message.type === 'image' ? message.content : undefined);
+                  (typeof message.metadata?.imageUrl === "string" &&
+                    message.metadata.imageUrl) ||
+                  (message.type === "image" ? message.content : undefined);
                 const textContent =
-                  imageUrl && message.content === imageUrl ? '' : (message.content ?? '');
+                  imageUrl && message.content === imageUrl
+                    ? ""
+                    : (message.content ?? "");
                 return (
                   <div key={message.id} className="space-y-2">
-                    <div className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse text-right' : ''}`}>
+                    <div
+                      className={`flex items-start gap-3 ${isUser ? "flex-row-reverse text-right" : ""}`}
+                    >
                       <Avatar className="h-9 w-9 border border-white/10">
-                        <AvatarImage src={isUser ? undefined : character?.avatar} alt={character?.name} />
-                        <AvatarFallback>{isUser ? 'You' : character?.name?.slice(0, 2).toUpperCase()}</AvatarFallback>
+                        <AvatarImage
+                          src={isUser ? undefined : character?.avatar}
+                          alt={character?.name}
+                        />
+                        <AvatarFallback>
+                          {isUser
+                            ? "You"
+                            : character?.name?.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
                       </Avatar>
                       <div
                         className={`max-w-[70%] rounded-2xl border px-4 py-3 text-sm leading-relaxed shadow transition ${
                           isUser
-                            ? 'border-[#ff54a6]/60 bg-[#ff54a6]/25 text-white'
-                            : 'border-white/10 bg-white/5 text-white/85'
+                            ? "border-[#ff54a6]/60 bg-[#ff54a6]/25 text-white"
+                            : "border-white/10 bg-white/5 text-white/85"
                         }`}
                       >
-                        {textContent && <p className="whitespace-pre-wrap">{textContent}</p>}
+                        {textContent && (
+                          <p className="whitespace-pre-wrap">{textContent}</p>
+                        )}
                         {imageUrl && (
                           <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
                             <img
                               src={imageUrl}
-                              alt={`${character?.name ?? 'Character'} attachment`}
+                              alt={`${character?.name ?? "Character"} attachment`}
                               className="h-auto w-full object-cover"
                             />
                           </div>
                         )}
                       </div>
                     </div>
-                    <div className={`text-xs text-white/40 ${isUser ? 'text-right' : 'text-left'}`}>{formattedTime}</div>
+                    <div
+                      className={`text-xs text-white/40 ${isUser ? "text-right" : "text-left"}`}
+                    >
+                      {formattedTime}
+                    </div>
                   </div>
                 );
               })}
@@ -585,7 +679,10 @@ function ChatPanel({
             </div>
           </div>
         </div>
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 px-5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+        <div
+          className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 px-5"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        >
           <div className="pointer-events-auto rounded-2xl border border-white/10 bg-[#10101b]/95 p-4 shadow-[0_22px_65px_-35px_rgba(255,19,114,0.65)] backdrop-blur-xl">
             <form className="flex items-center gap-3" onSubmit={handleSubmit}>
               <button
@@ -618,7 +715,9 @@ function ChatPanel({
                 disabled={!canChat}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder={
-                  canChat ? 'Type your message...' : 'Select a girl and start a chat first'
+                  canChat
+                    ? "Type your message..."
+                    : "Select a girl and start a chat first"
                 }
                 className="h-10 flex-1 rounded-full border-white/10 bg-white/[0.07] text-sm text-white placeholder:text-white/40"
               />
@@ -638,8 +737,8 @@ function ChatPanel({
                   onClick={() => handleQuickActionClick(action.id)}
                   className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
                     action.danger
-                      ? 'border-red-500/40 bg-red-500/10 text-red-300 hover:border-red-400/70 hover:bg-red-500/20'
-                      : 'border-[#ff54a6]/30 bg-[#ff1372]/10 text-[#ffb6dd] hover:border-[#ff54a6]/60 hover:bg-[#ff1372]/20'
+                      ? "border-red-500/40 bg-red-500/10 text-red-300 hover:border-red-400/70 hover:bg-red-500/20"
+                      : "border-[#ff54a6]/30 bg-[#ff1372]/10 text-[#ffb6dd] hover:border-[#ff54a6]/60 hover:bg-[#ff1372]/20"
                   }`}
                 >
                   {action.label}
@@ -653,7 +752,7 @@ function ChatPanel({
   );
 }
 
-type WingmanShortcut = 'gift' | 'train' | 'photo-shoot' | 'visit';
+type WingmanShortcut = "gift" | "train" | "photo-shoot" | "visit";
 
 interface WingmanPanelProps {
   selectedCharacter: Character | null;
@@ -662,33 +761,50 @@ interface WingmanPanelProps {
   onOpenManager: () => void;
 }
 
-function WingmanPanel({ selectedCharacter, onShortcut, onOpenSettings, onOpenManager }: WingmanPanelProps) {
-  const affection = selectedCharacter?.progression?.affection ?? selectedCharacter?.stats?.love ?? 0;
+function WingmanPanel({
+  selectedCharacter,
+  onShortcut,
+  onOpenSettings,
+  onOpenManager,
+}: WingmanPanelProps) {
+  const [activeTab, setActiveTab] = useState<'chat' | 'tools'>('chat');
+  const [chatDraft, setChatDraft] = useState('');
+  const [isResponding, setIsResponding] = useState(false);
+  const [messages, setMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; content: string }>>([
+    { id: '1', role: 'assistant', content: 'Hey! I can help with tips, character insights, or house management. What do you need?' }
+  ]);
+  
+  const affection =
+    selectedCharacter?.progression?.affection ??
+    selectedCharacter?.stats?.love ??
+    0;
   const happiness = selectedCharacter?.stats?.happiness ?? 0;
   const trust = selectedCharacter?.progression?.trust ?? 0;
   const statusLine = selectedCharacter
-    ? `Watching ${selectedCharacter.name}${selectedCharacter.preferredRoomType ? ` • ${selectedCharacter.preferredRoomType}` : ''}`
-    : 'House idle • no active scene';
+    ? `Watching ${selectedCharacter.name}${selectedCharacter.preferredRoomType ? ` • ${selectedCharacter.preferredRoomType}` : ""}`
+    : "House idle • no active scene";
 
   const shortcuts = [
-    { id: 'gift', label: 'Send Gift', icon: Heart },
-    { id: 'train', label: 'Train', icon: Barbell },
-    { id: 'photo-shoot', label: 'Photo Shoot', icon: Camera },
-    { id: 'visit', label: 'Visit', icon: DoorOpen },
+    { id: "gift", label: "Send Gift", icon: Heart },
+    { id: "train", label: "Train", icon: Barbell },
+    { id: "photo-shoot", label: "Photo Shoot", icon: Camera },
+    { id: "visit", label: "Visit", icon: DoorOpen },
   ] as const;
 
   const tips = useMemo(() => {
     if (!selectedCharacter) {
       return [
         {
-          id: 'no-selection',
-          title: 'Pick tonight’s focus',
-          detail: 'Highlight a girl from the roster to get live intel and mood reads here.',
+          id: "no-selection",
+          title: "Pick tonight’s focus",
+          detail:
+            "Highlight a girl from the roster to get live intel and mood reads here.",
         },
         {
-          id: 'warm-up',
-          title: 'Prime the room first',
-          detail: 'Use quick actions to send a gift or flirt before you dive into the main chat.',
+          id: "warm-up",
+          title: "Prime the room first",
+          detail:
+            "Use quick actions to send a gift or flirt before you dive into the main chat.",
         },
       ];
     }
@@ -697,70 +813,229 @@ function WingmanPanel({ selectedCharacter, onShortcut, onOpenSettings, onOpenMan
 
     if (affection < 60) {
       narrative.push({
-        id: 'affection-low',
+        id: "affection-low",
         title: `${selectedCharacter.name} perks up with appearance praise`,
-        detail: 'Compliments and gifts land harder than usual—stack a few before escalating.',
+        detail:
+          "Compliments and gifts land harder than usual—stack a few before escalating.",
       });
     } else {
       narrative.push({
-        id: 'affection-high',
+        id: "affection-high",
         title: `${selectedCharacter.name} is feeling close tonight`,
-        detail: 'Lean into more intimate prompts; she’ll mirror your energy quickly.',
+        detail:
+          "Lean into more intimate prompts; she’ll mirror your energy quickly.",
       });
     }
 
     if (happiness < 55) {
       narrative.push({
-        id: 'happiness',
-        title: 'She needs a pick-me-up',
-        detail: 'A small gift or gentle visit will lift her vibe before you push anything heavier.',
+        id: "happiness",
+        title: "She needs a pick-me-up",
+        detail:
+          "A small gift or gentle visit will lift her vibe before you push anything heavier.",
       });
     }
 
     if (trust < 50) {
       narrative.push({
-        id: 'trust',
-        title: 'Ask questions before commands',
-        detail: 'Curious check-ins build the trust she’s missing—keep the tone warm and patient.',
+        id: "trust",
+        title: "Ask questions before commands",
+        detail:
+          "Curious check-ins build the trust she’s missing—keep the tone warm and patient.",
       });
     }
 
     return narrative;
   }, [affection, happiness, trust, selectedCharacter]);
 
+  // Send chat message (no session needed - direct AI call)
+  const handleSendChat = useCallback(async () => {
+    if (!chatDraft.trim() || isResponding) return;
+    
+    const userMessage = chatDraft.trim();
+    const newUserMsg = { id: Date.now().toString(), role: 'user' as const, content: userMessage };
+    
+    // Add user message immediately
+    setMessages(prev => [...prev, newUserMsg]);
+    setChatDraft('');
+    setIsResponding(true);
+
+    try {
+      // Get AI response
+      let reply = "I'm here to help! Ask me about character tips, house management, or anything else.";
+      
+      try {
+        if (typeof AIService.copilotRespond === 'function') {
+          const conversationHistory = [...messages, newUserMsg].map(msg => ({
+            role: msg.role,
+            content: msg.content,
+          }));
+          
+          reply = await AIService.copilotRespond({
+            threadId: 'wingman-sidebar',
+            messages: conversationHistory,
+            sessionId: 'wingman-local',
+            characters: [],
+            copilotPrompt: selectedCharacter ? `Current focus: ${selectedCharacter.name}` : undefined,
+            housePrompt: undefined,
+            includeHouseContext: false,
+            contextDetail: 'lite',
+          });
+        }
+      } catch (error) {
+        logger.warn('AIService copilot response failed', error);
+        reply = "Sorry, I'm having trouble connecting right now. Try asking me something else!";
+      }
+      
+      // Add assistant response
+      const assistantMsg = { id: (Date.now() + 1).toString(), role: 'assistant' as const, content: reply };
+      setMessages(prev => [...prev, assistantMsg]);
+    } catch (error) {
+      logger.error('Failed to send copilot message:', error);
+      toast.error('Could not send message to copilot');
+    } finally {
+      setIsResponding(false);
+    }
+  }, [chatDraft, isResponding, messages, selectedCharacter]);
+
   return (
-    <div className="flex min-w-0 flex-col overflow-hidden border-l border-white/5 bg-[#0d0e17] text-white hidden lg:flex">
-      <header className="flex items-center justify-between border-b border-white/5 px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#ff5ab9] to-[#7748ff]">
-            <Robot size={20} className="text-white" />
+    <div className="hidden lg:flex min-w-0 flex-col overflow-hidden border-l border-white/5 bg-[#0d0e17] text-white">
+      <header className="flex-shrink-0 border-b border-white/5 px-5 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#ff5ab9] to-[#7748ff]">
+              <Robot size={20} className="text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">Wingman</p>
+              <p className="text-xs text-emerald-300/80">{statusLine}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-semibold text-white">Wingman</p>
-            <p className="text-xs text-emerald-300/80">{statusLine}</p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:text-white"
+              aria-label="Open settings"
+            >
+              <Gear size={18} weight="bold" />
+            </button>
+            <button
+              type="button"
+              onClick={onOpenManager}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:text-white"
+              aria-label="Open full manager"
+            >
+              <CaretRight size={18} weight="bold" />
+            </button>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:text-white"
-            aria-label="Open settings"
-          >
-            <Gear size={18} weight="bold" />
-          </button>
-          <button
-            type="button"
-            onClick={onOpenManager}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:text-white"
-            aria-label="Open full manager"
-          >
-            <CaretRight size={18} weight="bold" />
-          </button>
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-5 py-6">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as 'chat' | 'tools')}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <TabsList className="flex-shrink-0 grid w-full grid-cols-2 rounded-none border-b border-white/5 bg-transparent p-0">
+          <TabsTrigger
+            value="chat"
+            className="rounded-none border-b-2 border-transparent text-xs uppercase tracking-[0.25em] data-[state=active]:border-[#ff1372] data-[state=active]:bg-transparent data-[state=active]:text-white"
+          >
+            <ChatCircle size={14} className="mr-2" />
+            Chat
+          </TabsTrigger>
+          <TabsTrigger
+            value="tools"
+            className="rounded-none border-b-2 border-transparent text-xs uppercase tracking-[0.25em] data-[state=active]:border-[#ff1372] data-[state=active]:bg-transparent data-[state=active]:text-white"
+          >
+            <Sparkle size={14} className="mr-2" />
+            Tools
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Chat Tab */}
+        <TabsContent value="chat" className="relative mt-0 flex flex-1 min-h-0 flex-col">
+          <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+              <div className="mb-3 text-center text-[10px] uppercase tracking-[0.35em] text-white/35">
+                Copilot Chat
+              </div>
+              <div className="space-y-2 pb-2">
+                {messages.map((message) => {
+                  const isUser = message.role === 'user';
+                  return (
+                    <div
+                      key={message.id}
+                      className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-relaxed ${
+                          isUser
+                            ? 'bg-[#ff1372] text-white shadow-[0_25px_40px_-35px_rgba(255,19,114,0.7)]'
+                            : 'border border-white/10 bg-white/5 text-white/70'
+                        }`}
+                      >
+                        {message.content}
+                      </div>
+                    </div>
+                  );
+                })}
+                {messages.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-white/15 bg-transparent p-6 text-center text-xs text-white/50">
+                    <ChatCircle size={24} className="mx-auto mb-2 opacity-50" />
+                    <p>Ask your wingman for tips, shortcuts, or help managing the house.</p>
+                  </div>
+                )}
+                {isResponding && (
+                  <div className="flex justify-start">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
+                      <div className="flex items-center gap-2">
+                        <div className="flex space-x-1">
+                          <div className="h-1 w-1 animate-bounce rounded-full bg-white/60" />
+                          <div className="h-1 w-1 animate-bounce rounded-full bg-white/60" style={{ animationDelay: '0.1s' }} />
+                          <div className="h-1 w-1 animate-bounce rounded-full bg-white/60" style={{ animationDelay: '0.2s' }} />
+                        </div>
+                        <span>Thinking...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="flex-shrink-0 border-t border-white/5 px-4 pt-3"
+            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          >
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleSendChat();
+              }}
+            >
+              <Input
+                value={chatDraft}
+                onChange={(e) => setChatDraft(e.target.value)}
+                placeholder="Ask your wingman..."
+                className="h-10 flex-1 rounded-full border-white/10 bg-white/[0.08] text-sm text-white placeholder:text-white/40"
+              />
+              <Button
+                type="submit"
+                disabled={!chatDraft.trim() || isResponding}
+                className="h-10 w-10 rounded-full bg-[#ff1372] p-0 text-white hover:bg-[#ff1372]/90"
+              >
+                <PaperPlaneTilt size={16} weight="fill" />
+              </Button>
+            </form>
+          </div>
+        </TabsContent>
+
+        {/* Tools Tab */}
+        <TabsContent value="tools" className="mt-0 flex flex-1 min-h-0 flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto px-5 py-6">
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-white">Girl Tips</h3>
           {tips.map((tip) => (
@@ -777,13 +1052,17 @@ function WingmanPanel({ selectedCharacter, onShortcut, onOpenSettings, onOpenMan
           ))}
           {tips.length === 0 && (
             <div className="rounded-xl border border-dashed border-white/10 bg-white/5 p-4 text-sm text-white/60">
-              I’ll surface fresh plays here as soon as we learn more about her tonight.
+              I’ll surface fresh plays here as soon as we learn more about her
+              tonight.
             </div>
           )}
         </div>
       </div>
 
-      <div className="border-t border-white/5 px-5 pt-5" style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
+      <div
+        className="border-t border-white/5 px-5 pt-5"
+        style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
+      >
         <div className="grid grid-cols-2 gap-3">
           {shortcuts.map((shortcut) => (
             <button
@@ -793,43 +1072,23 @@ function WingmanPanel({ selectedCharacter, onShortcut, onOpenSettings, onOpenMan
               className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white/80 transition hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/15 hover:text-white"
             >
               <div>
-                <span className="text-[10px] uppercase tracking-[0.26em] text-white/35">Shortcut</span>
-                <p className="mt-1 text-sm font-semibold text-white">{shortcut.label}</p>
+                <span className="text-[10px] uppercase tracking-[0.26em] text-white/35">
+                  Shortcut
+                </span>
+                <p className="mt-1 text-sm font-semibold text-white">
+                  {shortcut.label}
+                </p>
               </div>
               <shortcut.icon size={20} className="text-pink-300" />
-            </button>
-          ))}
-        </div>
-
-        <form
-          className="mt-4 flex items-center"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onOpenManager();
-          }}
-        >
-          <div className="relative w-full">
-            <Input
-              readOnly
-              onFocus={onOpenManager}
-              placeholder="Ask your wingman..."
-              className="h-10 w-full cursor-pointer rounded-full border-white/10 bg-white/[0.06] text-sm text-white placeholder:text-white/40"
-            />
-            <button
-              type="submit"
-              className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full bg-[#ff1372] text-white hover:bg-[#ff1372]/90"
-              aria-label="Submit wingman prompt"
-            >
-              <PaperPlaneTilt size={14} weight="fill" />
-            </button>
+              </button>
+              ))}
+            </div>
           </div>
-        </form>
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
-}
-
-export function DatingSimShell({
+}export function DatingSimShell({
   onFocusCharacter,
 }: {
   onFocusCharacter?: (characterId: string) => void;
@@ -850,16 +1109,22 @@ export function DatingSimShell({
   } = useChat();
   const { executeAction } = useQuickActions();
 
-  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(
+    null
+  );
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [profileCharacterId, setProfileCharacterId] = useState<string | null>(null);
+  const [profileCharacterId, setProfileCharacterId] = useState<string | null>(
+    null
+  );
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [createDialogGender, setCreateDialogGender] = useState<'female' | 'male'>('female');
+  const [createDialogGender, setCreateDialogGender] = useState<
+    "female" | "male"
+  >("female");
 
   useEffect(() => {
     if (characters.length > 0 && !selectedCharacterId) {
@@ -868,27 +1133,29 @@ export function DatingSimShell({
   }, [characters, selectedCharacterId]);
 
   const selectedCharacter = useMemo(
-    () => characters.find((character) => character.id === selectedCharacterId) ?? null,
-    [characters, selectedCharacterId],
+    () =>
+      characters.find((character) => character.id === selectedCharacterId) ??
+      null,
+    [characters, selectedCharacterId]
   );
 
   const profileCharacter = useMemo(
-    () => characters.find((character) => character.id === profileCharacterId) ?? null,
-    [characters, profileCharacterId],
+    () =>
+      characters.find((character) => character.id === profileCharacterId) ??
+      null,
+    [characters, profileCharacterId]
   );
 
-  const handleViewProfile = useCallback(
-    (character: Character) => {
-      setSelectedCharacterId(character.id);
-      setProfileCharacterId(character.id);
-      setIsProfileOpen(true);
-    },
-    [],
-  );
+  const handleViewProfile = useCallback((character: Character) => {
+    setSelectedCharacterId(character.id);
+    setProfileCharacterId(character.id);
+    setIsProfileOpen(true);
+  }, []);
 
   const handleSaveCharacterProfile = useCallback(
-    (characterId: string, updates: Partial<Character>) => updateCharacter(characterId, updates),
-    [updateCharacter],
+    (characterId: string, updates: Partial<Character>) =>
+      updateCharacter(characterId, updates),
+    [updateCharacter]
   );
 
   const loadMessages = useCallback(
@@ -901,7 +1168,7 @@ export function DatingSimShell({
         setIsLoadingMessages(false);
       }
     },
-    [getSessionMessages],
+    [getSessionMessages]
   );
 
   useEffect(() => {
@@ -918,15 +1185,15 @@ export function DatingSimShell({
       void loadMessages(activeSessionId);
     };
     try {
-      globalThis.addEventListener?.('chat-sessions-updated', handler);
+      globalThis.addEventListener?.("chat-sessions-updated", handler);
     } catch (error) {
-      logger.warn('Failed attaching chat session listener', error);
+      logger.warn("Failed attaching chat session listener", error);
     }
     return () => {
       try {
-        globalThis.removeEventListener?.('chat-sessions-updated', handler);
+        globalThis.removeEventListener?.("chat-sessions-updated", handler);
       } catch (error) {
-        logger.warn('Failed removing chat session listener', error);
+        logger.warn("Failed removing chat session listener", error);
       }
     };
   }, [activeSessionId, loadMessages]);
@@ -940,16 +1207,16 @@ export function DatingSimShell({
       if (onFocusCharacter) onFocusCharacter(characterId);
       await loadMessages(sessionId);
     },
-    [ensureIndividualSession, setChatActiveId, loadMessages, onFocusCharacter],
+    [ensureIndividualSession, setChatActiveId, loadMessages, onFocusCharacter]
   );
 
   const handleSendMessage = useCallback(
     async (text: string) => {
       if (!activeSessionId) return;
-      await sendMessage(activeSessionId, text, 'user');
+      await sendMessage(activeSessionId, text, "user");
       await loadMessages(activeSessionId);
     },
-    [activeSessionId, sendMessage, loadMessages],
+    [activeSessionId, sendMessage, loadMessages]
   );
 
   const handleSwitchSession = useCallback(
@@ -964,51 +1231,55 @@ export function DatingSimShell({
       await switchToSession(sessionId).catch(() => undefined);
       await loadMessages(sessionId);
     },
-    [sessions, setChatActiveId, switchToSession, loadMessages],
+    [sessions, setChatActiveId, switchToSession, loadMessages]
   );
 
-  const handleOpenCreateDialog = useCallback((defaultGender: 'female' | 'male') => {
-    setCreateDialogGender(defaultGender);
-    setIsCreateDialogOpen(true);
-  }, []);
+  const handleOpenCreateDialog = useCallback(
+    (defaultGender: "female" | "male") => {
+      setCreateDialogGender(defaultGender);
+      setIsCreateDialogOpen(true);
+    },
+    []
+  );
 
   const handleCharacterCreatedFromDialog = useCallback(
     (character: Character) => {
       setSelectedCharacterId(character.id);
       setIsCreateDialogOpen(false);
     },
-    [],
+    []
   );
 
   const handleQuickAction = useCallback(
-    (actionId: string, context?: { characterId?: string }) => executeAction(actionId, context),
-    [executeAction],
+    (actionId: string, context?: { characterId?: string }) =>
+      executeAction(actionId, context),
+    [executeAction]
   );
 
   const handleWingmanShortcut = useCallback(
     async (shortcut: WingmanShortcut) => {
       if (!selectedCharacter) {
-        toast.error('Pick a girl to direct the wingman.');
+        toast.error("Pick a girl to direct the wingman.");
         return;
       }
 
-      if (shortcut === 'visit') {
+      if (shortcut === "visit") {
         await handleStartChat(selectedCharacter.id);
         return;
       }
 
       await handleQuickAction(shortcut, { characterId: selectedCharacter.id });
     },
-    [handleQuickAction, handleStartChat, selectedCharacter],
+    [handleQuickAction, handleStartChat, selectedCharacter]
   );
 
   const handleDeleteCharacter = useCallback(
     async (characterId: string) => {
       try {
-        const character = characters.find(c => c.id === characterId);
+        const character = characters.find((c) => c.id === characterId);
         await removeCharacter(characterId);
-        toast.success(`${character?.name || 'Character'} has been deleted`);
-        
+        toast.success(`${character?.name || "Character"} has been deleted`);
+
         // If this was the selected character, clear selection
         if (selectedCharacterId === characterId) {
           setSelectedCharacterId(null);
@@ -1016,11 +1287,11 @@ export function DatingSimShell({
           setMessages([]);
         }
       } catch (error) {
-        logger.error('Failed to delete character:', error);
-        toast.error('Failed to delete character');
+        logger.error("Failed to delete character:", error);
+        toast.error("Failed to delete character");
       }
     },
-    [characters, removeCharacter, selectedCharacterId],
+    [characters, removeCharacter, selectedCharacterId]
   );
 
   const handleSidebarSessionActivated = useCallback(
@@ -1030,7 +1301,7 @@ export function DatingSimShell({
       if (characterId) setSelectedCharacterId(characterId);
       await loadMessages(sessionId);
     },
-    [loadMessages, setChatActiveId],
+    [loadMessages, setChatActiveId]
   );
 
   useEffect(() => {
@@ -1053,13 +1324,26 @@ export function DatingSimShell({
   }
 
   return (
-    <div className="relative flex w-full overflow-hidden bg-[#05050d] text-white" style={{ height: '100vh', height: '100dvh', minHeight: 0 }}>
-      <div className="mx-auto flex h-full w-full max-w-[1600px] flex-1 min-h-0 flex-col overflow-hidden" style={{ paddingLeft: 'max(1.5rem, env(safe-area-inset-left))', paddingRight: 'max(1.5rem, env(safe-area-inset-right))', paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-  <div className="grid flex-1 min-h-0 gap-4 overflow-hidden rounded-3xl border border-white/5 bg-[#090912]/95 shadow-[0_40px_120px_-60px_rgba(255,19,114,0.45)] backdrop-blur-sm grid-cols-1 md:grid-cols-[minmax(240px,280px)_minmax(0,1fr)] lg:grid-cols-[minmax(248px,300px)_minmax(0,1fr)_minmax(260px,340px)] xl:grid-cols-[minmax(264px,320px)_minmax(0,1fr)_minmax(300px,380px)]">
+    <div
+      className="relative flex w-full overflow-hidden bg-[#05050d] text-white"
+      style={{ height: "100dvh", minHeight: 0 }}
+    >
+      <div
+        className="mx-auto flex h-full w-full max-w-[1600px] flex-1 min-h-0 flex-col overflow-hidden"
+        style={{
+          paddingLeft: "max(1.5rem, env(safe-area-inset-left))",
+          paddingRight: "max(1.5rem, env(safe-area-inset-right))",
+          paddingTop: "max(1rem, env(safe-area-inset-top))",
+          paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+        }}
+      >
+        <div className="grid flex-1 min-h-0 gap-2 overflow-hidden rounded-3xl border border-white/5 bg-[#090912]/95 shadow-[0_40px_120px_-60px_rgba(255,19,114,0.45)] backdrop-blur-sm grid-cols-1 md:grid-cols-[minmax(240px,280px)_minmax(0,1fr)] lg:grid-cols-[minmax(248px,300px)_minmax(0,1fr)_minmax(248px,280px)] xl:grid-cols-[minmax(264px,320px)_minmax(0,1fr)_minmax(264px,300px)]">
           <CharacterRoster
             characters={characters}
             selectedId={selectedCharacterId}
-            onSelect={(characterId: string) => setSelectedCharacterId(characterId)}
+            onSelect={(characterId: string) =>
+              setSelectedCharacterId(characterId)
+            }
             onStartChat={handleStartChat}
             onRequestCreate={handleOpenCreateDialog}
             sessions={sessions}
@@ -1083,7 +1367,9 @@ export function DatingSimShell({
                   messages={messages}
                   onSend={handleSendMessage}
                   onStartChat={() =>
-                    selectedCharacter ? handleStartChat(selectedCharacter.id) : Promise.resolve()
+                    selectedCharacter
+                      ? handleStartChat(selectedCharacter.id)
+                      : Promise.resolve()
                   }
                   isLoadingMessages={isLoadingMessages}
                   sessions={sessions}
