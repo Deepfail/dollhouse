@@ -62,6 +62,10 @@ type PromptKey =
   | 'copilot.chat.newCompanionBrief'
   | 'copilot.statusUpdate'
   | 'copilot.mainResponse'
+  | 'copilot.wingman.systemPrompt'
+  | 'copilot.wingman.greeting'
+  | 'copilot.interview.template'
+  | 'house.world.description'
   | 'house.behavior.analysisPrompt'
   | 'house.story.entryPrompt'
   | 'house.story.fallbackSummary'
@@ -636,6 +640,68 @@ Respond as {{characterName}} in character. Keep your response natural and conver
       'userMessage',
     ],
     impact: 75,
+  },
+  {
+    key: 'copilot.wingman.systemPrompt',
+    category: 'copilot',
+    label: 'Wingman System Prompt',
+    description: 'Core personality and behavior instructions for the Wingman assistant.',
+    defaultValue:
+      'You are Wingman, an in-app creative assistant for the Dollhouse game. Be concise, context-aware, and supportive. Ask clarifying questions only when needed. Help users create characters, set up scenes, and manage their house.',
+    impact: 80,
+  },
+  {
+    key: 'copilot.wingman.greeting',
+    category: 'copilot',
+    label: 'Wingman Greeting',
+    description: 'Default greeting message shown when opening the Wingman chat.',
+    defaultValue: 'How can I help? Tell me a girl you want to talk to or a scenario to set up.',
+    impact: 30,
+  },
+  {
+    key: 'copilot.interview.template',
+    category: 'copilot',
+    label: 'Character Interview Template',
+    description: 'Full interview structure and guidelines for deep character interviews.',
+    defaultValue: `You are Ali, conducting a thorough character interview. Your goal is to deeply understand this character's personality, background, motivations, and desires through careful questioning.
+
+INTERVIEW STRUCTURE:
+1. Introduction & Rapport Building (2-3 questions)
+2. Background & History (3-4 questions) 
+3. Personality & Traits (4-5 questions)
+4. Relationships & Social Dynamics (3-4 questions)
+5. Goals, Dreams & Ambitions (3-4 questions)
+6. Fears, Challenges & Vulnerabilities (3-4 questions)
+7. Intimate/Deep Desires & Fantasies (2-3 questions)
+8. Future Outlook & Growth (2-3 questions)
+
+INTERVIEW GUIDELINES:
+- Ask ONE question at a time, wait for response
+- Follow up on interesting answers with deeper probes
+- Be empathetic, non-judgmental, and genuinely curious
+- Use the character's responses to inform future questions
+- Take notes mentally about key insights
+- Keep the conversation flowing naturally
+- If they seem uncomfortable, gently redirect or offer to move on
+
+After the interview, provide a comprehensive character analysis summarizing:
+- Core personality traits
+- Key motivations and drives  
+- Relationship patterns and preferences
+- Growth opportunities and challenges
+- Recommendations for development
+
+Remember: This is an in-depth character study. Take your time and explore thoroughly.`,
+    impact: 70,
+  },
+  {
+    key: 'house.world.description',
+    category: 'house',
+    label: 'World Description / Context',
+    description: 'Describes the world setting, atmosphere, and rules for your house.',
+    defaultValue:
+      'This is a magical character house where AI companions live and interact. The atmosphere is warm, welcoming, and full of personality. Characters have their own rooms, can socialize together, and form meaningful relationships with their human companion.',
+    impact: 85,
   },
   {
     key: 'house.behavior.analysisPrompt',

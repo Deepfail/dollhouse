@@ -171,17 +171,10 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="world-prompt">World Prompt</Label>
-                <Textarea
-                  id="world-prompt"
-                  value={localConfig.worldPrompt || ''}
-                  onChange={(e) => updateConfig({ worldPrompt: e.target.value })}
-                  placeholder="Describe the world/universe your characters live in..."
-                  rows={4}
-                />
-                <p className="text-sm text-muted-foreground">
-                  This prompt helps set the context for all AI interactions in your house.
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 space-y-2">
+                <p className="text-sm font-semibold text-blue-300">💡 Customize World & Setting</p>
+                <p className="text-sm text-blue-200/80">
+                  To change the world description and setting for your house, edit the <strong>"World Description / Context"</strong> prompt in the <strong>Prompts</strong> tab above.
                 </p>
               </div>
             </TabsContent>
@@ -200,22 +193,16 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
 
             {/* Copilot Settings */}
             <TabsContent value="copilot" className="space-y-4 mt-0">
-              <div className="space-y-2">
-                <Label htmlFor="copilot-prompt">Copilot Prompt</Label>
-                <Textarea
-                  id="copilot-prompt"
-                  value={localConfig.copilotPrompt || ''}
-                  onChange={(e) => updateConfig({ copilotPrompt: e.target.value })}
-                  placeholder="Instructions for the house copilot AI..."
-                  rows={4}
-                />
-                <p className="text-sm text-muted-foreground">
-                  This prompt defines how the copilot behaves and monitors your house.
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 space-y-2">
+                <p className="text-sm font-semibold text-blue-300">💡 Customize Copilot Prompts</p>
+                <p className="text-sm text-blue-200/80">
+                  To change how the copilot behaves and responds, edit the prompts in the <strong>Prompts</strong> tab above.
+                  All copilot personality and behavior is controlled through the Prompt Library.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="copilot-tokens">Max Tokens</Label>
+                <Label htmlFor="copilot-tokens">Max Tokens per Response</Label>
                 <Input
                   id="copilot-tokens"
                   type="number"
@@ -225,7 +212,7 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   max={4000}
                 />
                 <p className="text-sm text-muted-foreground">
-                  Maximum tokens the copilot can use per response.
+                  Maximum tokens the copilot can use per response (affects response length).
                 </p>
               </div>
 

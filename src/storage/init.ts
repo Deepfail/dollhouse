@@ -1,5 +1,6 @@
 // storage/init.ts - Zero-hang initialization with auto-fallback
 import { logger } from '@/lib/logger';
+import { migrateOldPrompts } from '@/lib/promptMigration';
 import { initIndexedDB } from './engines/indexeddb';
 import { Storage, canUseSqliteWasm, isTauri, setGlobalStorage, timeout } from './index';
 
@@ -91,6 +92,11 @@ export async function initStorage(): Promise<Storage> {
       
       // Test basic functionality
       await testStorageBasics(storage);
+      
+      // Run prompt migration in background (don't block startup)
+      void migrateOldPrompts().catch(err => {
+        logger.warn('Prompt migration failed (non-critical):', err);
+      });
       
       return storage;
       } catch (error) {

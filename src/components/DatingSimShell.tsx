@@ -136,7 +136,7 @@ function CharacterRoster({
   }, []);
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-r border-white/5 bg-gradient-to-b from-[#141121] via-[#0d0b14] to-[#05040b] text-white">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-r border-white/5 bg-gradient-to-b from-[#141121] via-[#0d0b14] to-[#05040b] text-white hidden md:flex">
       <div className="flex-shrink-0 px-4 pb-4 pt-5 xl:px-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -501,7 +501,7 @@ function ChatPanel({
               </div>
             </div>
           )}
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6 pb-40">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6" style={{ paddingBottom: 'calc(200px + env(safe-area-inset-bottom))' }}>
             <div className="space-y-6">
               {character && (
                 <div className="flex flex-col items-center gap-4 text-xs uppercase tracking-[0.3em] text-white/40">
@@ -585,7 +585,7 @@ function ChatPanel({
             </div>
           </div>
         </div>
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 px-5 pb-4">
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 px-5" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <div className="pointer-events-auto rounded-2xl border border-white/10 bg-[#10101b]/95 p-4 shadow-[0_22px_65px_-35px_rgba(255,19,114,0.65)] backdrop-blur-xl">
             <form className="flex items-center gap-3" onSubmit={handleSubmit}>
               <button
@@ -729,7 +729,7 @@ function WingmanPanel({ selectedCharacter, onShortcut, onOpenSettings, onOpenMan
   }, [affection, happiness, trust, selectedCharacter]);
 
   return (
-    <div className="flex min-w-0 flex-col overflow-hidden border-l border-white/5 bg-[#0d0e17] text-white">
+    <div className="flex min-w-0 flex-col overflow-hidden border-l border-white/5 bg-[#0d0e17] text-white hidden lg:flex">
       <header className="flex items-center justify-between border-b border-white/5 px-5 py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#ff5ab9] to-[#7748ff]">
@@ -783,7 +783,7 @@ function WingmanPanel({ selectedCharacter, onShortcut, onOpenSettings, onOpenMan
         </div>
       </div>
 
-      <div className="border-t border-white/5 px-5 py-5">
+      <div className="border-t border-white/5 px-5 pt-5" style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
         <div className="grid grid-cols-2 gap-3">
           {shortcuts.map((shortcut) => (
             <button
@@ -1053,9 +1053,9 @@ export function DatingSimShell({
   }
 
   return (
-    <div className="relative flex h-screen min-h-0 w-full overflow-hidden bg-[#05050d] text-white">
-      <div className="mx-auto flex h-full w-full max-w-[1600px] flex-1 min-h-0 flex-col overflow-hidden px-6 py-4 sm:px-8 lg:px-12">
-  <div className="grid flex-1 min-h-0 gap-4 overflow-hidden rounded-3xl border border-white/5 bg-[#090912]/95 shadow-[0_40px_120px_-60px_rgba(255,19,114,0.45)] backdrop-blur-sm grid-cols-[minmax(248px,300px)_minmax(0,1fr)_minmax(260px,340px)] lg:grid-cols-[minmax(264px,320px)_minmax(0,1fr)_minmax(300px,380px)]">
+    <div className="relative flex w-full overflow-hidden bg-[#05050d] text-white" style={{ height: '100vh', height: '100dvh', minHeight: 0 }}>
+      <div className="mx-auto flex h-full w-full max-w-[1600px] flex-1 min-h-0 flex-col overflow-hidden" style={{ paddingLeft: 'max(1.5rem, env(safe-area-inset-left))', paddingRight: 'max(1.5rem, env(safe-area-inset-right))', paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+  <div className="grid flex-1 min-h-0 gap-4 overflow-hidden rounded-3xl border border-white/5 bg-[#090912]/95 shadow-[0_40px_120px_-60px_rgba(255,19,114,0.45)] backdrop-blur-sm grid-cols-1 md:grid-cols-[minmax(240px,280px)_minmax(0,1fr)] lg:grid-cols-[minmax(248px,300px)_minmax(0,1fr)_minmax(260px,340px)] xl:grid-cols-[minmax(264px,320px)_minmax(0,1fr)_minmax(300px,380px)]">
           <CharacterRoster
             characters={characters}
             selectedId={selectedCharacterId}
