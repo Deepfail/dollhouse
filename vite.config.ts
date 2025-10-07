@@ -20,7 +20,9 @@ export default defineConfig({
     fs: {
       allow: ['..']
     },
-    headers: {
+    // Only enable COOP/COEP headers in local dev, not in Codespaces
+    // These headers enable SharedArrayBuffer for SQLite WASM but can break Codespaces
+    headers: process.env.CODESPACES ? {} : {
       'Cross-Origin-Embedder-Policy': 'require-corp',
       'Cross-Origin-Opener-Policy': 'same-origin',
     }

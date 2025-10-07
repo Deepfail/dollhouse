@@ -9,7 +9,13 @@ import { queryClient } from './lib/query';
 import "./index.css";
 import "./main.css";
 
-createRoot(document.getElementById('root')!).render(
+// Get root element with better error handling
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error('Failed to find root element. Make sure index.html has a <div id="root"></div> element.');
+}
+
+createRoot(rootElement).render(
   <ErrorBoundary FallbackComponent={ErrorFallback}>
     <QueryClientProvider client={queryClient}>
       <App />
