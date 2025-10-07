@@ -3,13 +3,21 @@
   "files.exclude": {
     "**/.git": false,
     "**/node_modules": true,
-    "**/.DS_Store": true
+    "**/.DS_Store": true,
+    "**/characters/images": true,
+    "**/RECOVER": true
   },
   "search.exclude": {
     "**/node_modules": true,
     "**/dist": true,
-    "**/.git": true
+    "**/.git": true,
+    "**/characters": true,
+    "**/RECOVER": true
   },
+  // Increase search limits for large repo
+  "search.largeFileSizeLimit": 100,
+  "search.maxResults": 20000,
+  "search.followSymlinks": false,
   // Workspace specific settings
   "cSpell.words": [
     "conv",
