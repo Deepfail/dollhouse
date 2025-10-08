@@ -201,7 +201,7 @@ export function AISettings({ children }: AISettingsProps) {
   };
 
   const openRouterTextModels: { value: string; label: string }[] = [
-    { value: 'deepseek/deepseek-chat-v3.2-exp', label: 'DeepSeek V3.2 Experimental' },
+    { value: 'deepseek/deepseek-v3.2-exp', label: 'DeepSeek V3.2 Experimental' },
     { value: 'deepseek/deepseek-chat-v3.1', label: 'DeepSeek Chat v3.1' },
     { value: 'meta-llama/llama-3.1-70b-instruct', label: 'Llama 3.1 70B' },
     { value: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },

@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useChat } from "@/hooks/useChat";
 import { useHouseFileStorage } from "@/hooks/useHouseFileStorage";
 import { useQuickActions } from "@/hooks/useQuickActions";
+import { repositoryStorage } from "@/hooks/useRepositoryStorage";
 import { AIService } from "@/lib/aiService";
 import { logger } from "@/lib/logger";
 import type { Character, ChatMessage, ChatSession } from "@/types";
@@ -17,6 +18,7 @@ import {
   ChatCircle,
   ChatCircleDots,
   ChatsCircle,
+  CheckCircle,
   DoorOpen,
   Gear,
   Heart,
@@ -29,6 +31,7 @@ import {
   Robot,
   Smiley,
   Sparkle,
+  Trash,
   User,
   UserCircle,
 } from "@phosphor-icons/react";
@@ -412,6 +415,8 @@ interface ChatPanelProps {
     context?: { characterId?: string }
   ) => Promise<void>;
   onOpenManager: () => void;
+  onClearChat?: () => Promise<void>;
+  onEndConversation?: () => Promise<void>;
 }
 
 function ChatPanel({
@@ -425,6 +430,8 @@ function ChatPanel({
   activeSessionId,
   onQuickAction,
   onOpenManager,
+  onClearChat,
+  onEndConversation,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -534,15 +541,41 @@ function ChatPanel({
             )}
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onOpenManager}
-          className="inline-flex items-center gap-2 rounded-full border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white hover:border-[#ff54a6]/60 hover:bg-[#ff54a6]/20"
-        >
-          <Plus size={14} weight="bold" />
-          Invite
-        </Button>
+        <div className="flex items-center gap-2">
+          {canChat && activeSessionId && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onClearChat?.()}
+                className="inline-flex items-center gap-2 rounded-full border-orange-500/30 bg-orange-500/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-orange-300 hover:border-orange-500/60 hover:bg-orange-500/20"
+                title="Clear all messages without saving"
+              >
+                <Trash size={14} weight="bold" />
+                Clear
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onEndConversation?.()}
+                className="inline-flex items-center gap-2 rounded-full border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-purple-300 hover:border-purple-500/60 hover:bg-purple-500/20"
+                title="Analyze and save conversation to profile"
+              >
+                <CheckCircle size={14} weight="bold" />
+                End
+              </Button>
+            </>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenManager}
+            className="inline-flex items-center gap-2 rounded-full border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white hover:border-[#ff54a6]/60 hover:bg-[#ff54a6]/20"
+          >
+            <Plus size={14} weight="bold" />
+            Invite
+          </Button>
+        </div>
       </header>
       <div className="relative flex-1 min-h-0 overflow-hidden">
         <div className="absolute inset-0 flex flex-col overflow-hidden">
@@ -756,24 +789,57 @@ type WingmanShortcut = "gift" | "train" | "photo-shoot" | "visit";
 
 interface WingmanPanelProps {
   selectedCharacter: Character | null;
+  characters: Character[];
   onShortcut: (shortcut: WingmanShortcut) => void;
   onOpenSettings: () => void;
   onOpenManager: () => void;
+  onStartChat?: (character: Character) => void;
 }
 
 function WingmanPanel({
   selectedCharacter,
+  characters,
   onShortcut,
   onOpenSettings,
   onOpenManager,
+  onStartChat,
 }: WingmanPanelProps) {
-  const [activeTab, setActiveTab] = useState<'chat' | 'tools'>('chat');
-  const [chatDraft, setChatDraft] = useState('');
+  const [activeTab, setActiveTab] = useState<"chat" | "tools">("chat");
+  const [chatDraft, setChatDraft] = useState("");
   const [isResponding, setIsResponding] = useState(false);
-  const [messages, setMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; content: string }>>([
-    { id: '1', role: 'assistant', content: 'Hey! I can help with tips, character insights, or house management. What do you need?' }
-  ]);
-  
+  const [houseConfig, setHouseConfig] = useState<any>(null);
+  const [messages, setMessages] = useState<
+    Array<{ id: string; role: "user" | "assistant"; content: string }>
+  >([]);
+
+  // Load house config on mount
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const config = await repositoryStorage.get("house_config");
+        setHouseConfig(config || {});
+      } catch (error) {
+        logger.warn("Failed to load house config for wingman", error);
+        setHouseConfig({});
+      }
+    };
+    loadConfig();
+  }, []);
+
+  // Set initial greeting message
+  useEffect(() => {
+    if (messages.length === 0 && houseConfig) {
+      const greeting = houseConfig.copilotPersonality 
+        ? `Hey! I'm your Wingman - ${houseConfig.copilotPersonality}. How can I help?`
+        : "Hey! I can help with tips, character insights, or house management. What do you need?";
+      setMessages([{
+        id: "1",
+        role: "assistant",
+        content: greeting,
+      }]);
+    }
+  }, [houseConfig, messages.length]);
+
   const affection =
     selectedCharacter?.progression?.affection ??
     selectedCharacter?.stats?.love ??
@@ -848,55 +914,122 @@ function WingmanPanel({
     return narrative;
   }, [affection, happiness, trust, selectedCharacter]);
 
-  // Send chat message (no session needed - direct AI call)
+  // Clear chat handler
+  const handleClearChat = useCallback(() => {
+    const greeting = houseConfig?.copilotPersonality 
+      ? `Hey! I'm your Wingman - ${houseConfig.copilotPersonality}. How can I help?`
+      : "Hey! I can help with tips, character insights, or house management. What do you need?";
+    setMessages([{
+      id: Date.now().toString(),
+      role: "assistant",
+      content: greeting,
+    }]);
+    toast.success("Chat cleared");
+  }, [houseConfig]);
+
+  // Send chat message with enhanced context and quick action detection
   const handleSendChat = useCallback(async () => {
     if (!chatDraft.trim() || isResponding) return;
-    
+
     const userMessage = chatDraft.trim();
-    const newUserMsg = { id: Date.now().toString(), role: 'user' as const, content: userMessage };
-    
+    const newUserMsg = {
+      id: Date.now().toString(),
+      role: "user" as const,
+      content: userMessage,
+    };
+
     // Add user message immediately
-    setMessages(prev => [...prev, newUserMsg]);
-    setChatDraft('');
+    setMessages((prev) => [...prev, newUserMsg]);
+    setChatDraft("");
     setIsResponding(true);
 
     try {
-      // Get AI response
-      let reply = "I'm here to help! Ask me about character tips, house management, or anything else.";
+      // Detect quick actions
+      const bringMatch = userMessage.match(/bring\s+(\w+)\s+to\s+(my\s+)?room/i);
+      const setupMatch = userMessage.match(/(?:set\s*up|start|create)\s+(?:a\s+)?(?:scene|scenario)\s+(?:with\s+)?(\w+)/i);
       
+      if ((bringMatch || setupMatch) && onStartChat) {
+        const targetName = (bringMatch?.[1] || setupMatch?.[1] || "").toLowerCase();
+        const targetChar = characters.find(c => c.name.toLowerCase().includes(targetName));
+        
+        if (targetChar) {
+          const actionReply = bringMatch 
+            ? `Perfect! I'll bring ${targetChar.name} to your room right now. Setting up the scene...`
+            : `Got it! Starting a scenario with ${targetChar.name}...`;
+          
+          const assistantMsg = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant" as const,
+            content: actionReply,
+          };
+          setMessages((prev) => [...prev, assistantMsg]);
+          setIsResponding(false);
+          
+          // Start the chat with this character
+          setTimeout(() => onStartChat(targetChar), 500);
+          return;
+        }
+      }
+
+      // Get AI response with full context
+      let reply = "I'm here to help! Ask me about character tips, house management, or anything else.";
+
       try {
-        if (typeof AIService.copilotRespond === 'function') {
-          const conversationHistory = [...messages, newUserMsg].map(msg => ({
+        if (typeof AIService.copilotRespond === "function") {
+          const conversationHistory = [...messages, newUserMsg].map((msg) => ({
             role: msg.role,
             content: msg.content,
           }));
+
+          // Build enhanced copilot prompt
+          const mainPrompt = houseConfig?.copilotMainPrompt ||
+            "You are Wingman, the Dollhouse assistant. Help manage the house, introduce girls, set up scenarios, and provide tips. Keep responses conversational and engaging. Remember context from our ongoing conversation.";
           
+          const personalityNote = houseConfig?.copilotPersonality 
+            ? `\n\nPersonality: ${houseConfig.copilotPersonality}`
+            : "";
+          
+          const responseLengthNote = houseConfig?.copilotResponseLength === "brief"
+            ? "\n\nKeep responses very brief (1-2 sentences max)."
+            : houseConfig?.copilotResponseLength === "detailed"
+            ? "\n\nProvide detailed, comprehensive responses."
+            : "\n\nKeep responses balanced (2-4 sentences).";
+
+          const enhancedPrompt = mainPrompt + personalityNote + responseLengthNote;
+
           reply = await AIService.copilotRespond({
-            threadId: 'wingman-sidebar',
+            threadId: "wingman-sidebar",
             messages: conversationHistory,
-            sessionId: 'wingman-local',
-            characters: [],
-            copilotPrompt: selectedCharacter ? `Current focus: ${selectedCharacter.name}` : undefined,
-            housePrompt: undefined,
-            includeHouseContext: false,
-            contextDetail: 'lite',
+            sessionId: "wingman-persistent",
+            characters: characters || [],
+            copilotPrompt: enhancedPrompt,
+            housePrompt: selectedCharacter
+              ? `Currently viewing: ${selectedCharacter.name}`
+              : "House overview",
+            includeHouseContext: houseConfig?.copilotUseHouseContext !== false,
+            contextDetail: houseConfig?.copilotContextDetail || "balanced",
+            maxTokens: houseConfig?.copilotMaxTokens || 500,
           });
         }
       } catch (error) {
-        logger.warn('AIService copilot response failed', error);
+        logger.warn("AIService copilot response failed", error);
         reply = "Sorry, I'm having trouble connecting right now. Try asking me something else!";
       }
-      
+
       // Add assistant response
-      const assistantMsg = { id: (Date.now() + 1).toString(), role: 'assistant' as const, content: reply };
-      setMessages(prev => [...prev, assistantMsg]);
+      const assistantMsg = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant" as const,
+        content: reply,
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
     } catch (error) {
-      logger.error('Failed to send copilot message:', error);
-      toast.error('Could not send message to copilot');
+      logger.error("Failed to send copilot message:", error);
+      toast.error("Could not send message to copilot");
     } finally {
       setIsResponding(false);
     }
-  }, [chatDraft, isResponding, messages, selectedCharacter]);
+  }, [chatDraft, isResponding, messages, selectedCharacter, characters, houseConfig, onStartChat]);
 
   return (
     <div className="hidden lg:flex min-w-0 flex-col overflow-hidden border-l border-white/5 bg-[#0d0e17] text-white">
@@ -912,6 +1045,15 @@ function WingmanPanel({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleClearChat}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:text-white hover:bg-red-500/20 hover:border-red-500/40"
+              aria-label="Clear chat"
+              title="Clear conversation"
+            >
+              <Trash size={16} weight="bold" />
+            </button>
             <button
               type="button"
               onClick={onOpenSettings}
@@ -934,7 +1076,7 @@ function WingmanPanel({
 
       <Tabs
         value={activeTab}
-        onValueChange={(value) => setActiveTab(value as 'chat' | 'tools')}
+        onValueChange={(value) => setActiveTab(value as "chat" | "tools")}
         className="flex min-h-0 flex-1 flex-col"
       >
         <TabsList className="flex-shrink-0 grid w-full grid-cols-2 rounded-none border-b border-white/5 bg-transparent p-0">
@@ -955,7 +1097,10 @@ function WingmanPanel({
         </TabsList>
 
         {/* Chat Tab */}
-        <TabsContent value="chat" className="relative mt-0 flex flex-1 min-h-0 flex-col">
+        <TabsContent
+          value="chat"
+          className="relative mt-0 flex flex-1 min-h-0 flex-col"
+        >
           <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
             <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
               <div className="mb-3 text-center text-[10px] uppercase tracking-[0.35em] text-white/35">
@@ -963,17 +1108,17 @@ function WingmanPanel({
               </div>
               <div className="space-y-2 pb-2">
                 {messages.map((message) => {
-                  const isUser = message.role === 'user';
+                  const isUser = message.role === "user";
                   return (
                     <div
                       key={message.id}
-                      className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                     >
                       <div
                         className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-relaxed ${
                           isUser
-                            ? 'bg-[#ff1372] text-white shadow-[0_25px_40px_-35px_rgba(255,19,114,0.7)]'
-                            : 'border border-white/10 bg-white/5 text-white/70'
+                            ? "bg-[#ff1372] text-white shadow-[0_25px_40px_-35px_rgba(255,19,114,0.7)]"
+                            : "border border-white/10 bg-white/5 text-white/70"
                         }`}
                       >
                         {message.content}
@@ -984,7 +1129,10 @@ function WingmanPanel({
                 {messages.length === 0 && (
                   <div className="rounded-2xl border border-dashed border-white/15 bg-transparent p-6 text-center text-xs text-white/50">
                     <ChatCircle size={24} className="mx-auto mb-2 opacity-50" />
-                    <p>Ask your wingman for tips, shortcuts, or help managing the house.</p>
+                    <p>
+                      Ask your wingman for tips, shortcuts, or help managing the
+                      house.
+                    </p>
                   </div>
                 )}
                 {isResponding && (
@@ -993,8 +1141,14 @@ function WingmanPanel({
                       <div className="flex items-center gap-2">
                         <div className="flex space-x-1">
                           <div className="h-1 w-1 animate-bounce rounded-full bg-white/60" />
-                          <div className="h-1 w-1 animate-bounce rounded-full bg-white/60" style={{ animationDelay: '0.1s' }} />
-                          <div className="h-1 w-1 animate-bounce rounded-full bg-white/60" style={{ animationDelay: '0.2s' }} />
+                          <div
+                            className="h-1 w-1 animate-bounce rounded-full bg-white/60"
+                            style={{ animationDelay: "0.1s" }}
+                          />
+                          <div
+                            className="h-1 w-1 animate-bounce rounded-full bg-white/60"
+                            style={{ animationDelay: "0.2s" }}
+                          />
                         </div>
                         <span>Thinking...</span>
                       </div>
@@ -1034,53 +1188,60 @@ function WingmanPanel({
         </TabsContent>
 
         {/* Tools Tab */}
-        <TabsContent value="tools" className="mt-0 flex flex-1 min-h-0 flex-col overflow-hidden">
+        <TabsContent
+          value="tools"
+          className="mt-0 flex flex-1 min-h-0 flex-col overflow-hidden"
+        >
           <div className="flex-1 overflow-y-auto px-5 py-6">
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-white">Girl Tips</h3>
-          {tips.map((tip) => (
-            <div
-              key={tip.id}
-              className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4"
-            >
-              <Sparkle size={18} className="mt-1 shrink-0 text-pink-300" />
-              <div>
-                <p className="text-sm font-semibold text-white">{tip.title}</p>
-                <p className="mt-1 text-sm text-white/65">{tip.detail}</p>
-              </div>
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-white">Girl Tips</h3>
+              {tips.map((tip) => (
+                <div
+                  key={tip.id}
+                  className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4"
+                >
+                  <Sparkle size={18} className="mt-1 shrink-0 text-pink-300" />
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      {tip.title}
+                    </p>
+                    <p className="mt-1 text-sm text-white/65">{tip.detail}</p>
+                  </div>
+                </div>
+              ))}
+              {tips.length === 0 && (
+                <div className="rounded-xl border border-dashed border-white/10 bg-white/5 p-4 text-sm text-white/60">
+                  I’ll surface fresh plays here as soon as we learn more about
+                  her tonight.
+                </div>
+              )}
             </div>
-          ))}
-          {tips.length === 0 && (
-            <div className="rounded-xl border border-dashed border-white/10 bg-white/5 p-4 text-sm text-white/60">
-              I’ll surface fresh plays here as soon as we learn more about her
-              tonight.
-            </div>
-          )}
-        </div>
-      </div>
+          </div>
 
-      <div
-        className="border-t border-white/5 px-5 pt-5"
-        style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
-      >
-        <div className="grid grid-cols-2 gap-3">
-          {shortcuts.map((shortcut) => (
-            <button
-              key={shortcut.id}
-              type="button"
-              onClick={() => onShortcut(shortcut.id as WingmanShortcut)}
-              className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white/80 transition hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/15 hover:text-white"
-            >
-              <div>
-                <span className="text-[10px] uppercase tracking-[0.26em] text-white/35">
-                  Shortcut
-                </span>
-                <p className="mt-1 text-sm font-semibold text-white">
-                  {shortcut.label}
-                </p>
-              </div>
-              <shortcut.icon size={20} className="text-pink-300" />
-              </button>
+          <div
+            className="border-t border-white/5 px-5 pt-5"
+            style={{
+              paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))",
+            }}
+          >
+            <div className="grid grid-cols-2 gap-3">
+              {shortcuts.map((shortcut) => (
+                <button
+                  key={shortcut.id}
+                  type="button"
+                  onClick={() => onShortcut(shortcut.id as WingmanShortcut)}
+                  className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white/80 transition hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/15 hover:text-white"
+                >
+                  <div>
+                    <span className="text-[10px] uppercase tracking-[0.26em] text-white/35">
+                      Shortcut
+                    </span>
+                    <p className="mt-1 text-sm font-semibold text-white">
+                      {shortcut.label}
+                    </p>
+                  </div>
+                  <shortcut.icon size={20} className="text-pink-300" />
+                </button>
               ))}
             </div>
           </div>
@@ -1088,7 +1249,8 @@ function WingmanPanel({
       </Tabs>
     </div>
   );
-}export function DatingSimShell({
+}
+export function DatingSimShell({
   onFocusCharacter,
 }: {
   onFocusCharacter?: (characterId: string) => void;
@@ -1106,6 +1268,8 @@ function WingmanPanel({
     ensureIndividualSession,
     switchToSession,
     setActiveSessionId: setChatActiveId,
+    clearSessionMessages,
+    analyzeAndEndSession,
   } = useChat();
   const { executeAction } = useQuickActions();
 
@@ -1233,6 +1397,20 @@ function WingmanPanel({
     },
     [sessions, setChatActiveId, switchToSession, loadMessages]
   );
+
+  const handleClearChat = useCallback(async () => {
+    if (!activeSessionId) return;
+    await clearSessionMessages(activeSessionId);
+    await loadMessages(activeSessionId);
+  }, [activeSessionId, clearSessionMessages, loadMessages]);
+
+  const handleEndConversation = useCallback(async () => {
+    if (!activeSessionId) return;
+    await analyzeAndEndSession(activeSessionId);
+    setMessages([]);
+    setActiveSessionId(null);
+    setChatActiveId(null);
+  }, [activeSessionId, analyzeAndEndSession, setChatActiveId]);
 
   const handleOpenCreateDialog = useCallback(
     (defaultGender: "female" | "male") => {
@@ -1377,6 +1555,8 @@ function WingmanPanel({
                   activeSessionId={activeSessionId}
                   onQuickAction={handleQuickAction}
                   onOpenManager={() => setIsManagerOpen(true)}
+                  onClearChat={handleClearChat}
+                  onEndConversation={handleEndConversation}
                 />
               )}
             </div>
@@ -1387,9 +1567,13 @@ function WingmanPanel({
           </div>
           <WingmanPanel
             selectedCharacter={selectedCharacter}
+            characters={characters}
             onShortcut={handleWingmanShortcut}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenManager={() => setIsManagerOpen(true)}
+            onStartChat={(character) => {
+              void handleStartChat(character.id);
+            }}
           />
         </div>
 

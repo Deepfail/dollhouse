@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { AIService } from '../lib/aiService';
 import { analyzeBehavior, buildMemoryEntries, createBehaviorProfile } from '../lib/behaviorAnalysis';
 import { getDb, saveDatabase } from '../lib/db';
@@ -287,7 +288,8 @@ export function useChat() {
     }
   }
 
-  // On user messages, run behavior analysis on all participants (skip for copilot assistant usage)
+  // On user messages, run behavior analysis on all participants periodically (every 10 messages)
+  // Skip for copilot assistant usage
   if (senderId === 'user' && !options?.copilot) {
         const participantRows: Array<{ character_id: string }> = [];
         db.exec({
@@ -308,15 +310,19 @@ export function useChat() {
         if (participantCharacters.length) {
           try {
             const recentMessages = await getSessionMessages(sessionId);
-            const analysis = await analyzeBehavior({
-              sessionId,
-              messages: recentMessages,
-              characters: participantCharacters,
-              latestUserMessage: content
-            });
+            
+            // Only run analysis every 10 messages to avoid spam
+            const shouldAnalyze = recentMessages.length % 10 === 0;
+            
+            if (shouldAnalyze) {
+              const analysis = await analyzeBehavior({
+                sessionId,
+                messages: recentMessages,
+                characters: participantCharacters,
+                latestUserMessage: content
+              });
 
-            const summarySegments: string[] = [];
-            for (const adjustment of analysis.adjustments) {
+              for (const adjustment of analysis.adjustments) {
               const target = participantCharacters.find(c => c.id === adjustment.characterId);
               const fullChar = (characters || []).find(c => c.id === adjustment.characterId);
               if (!target || !fullChar) continue;
@@ -375,36 +381,19 @@ export function useChat() {
 
               summarySegments.push(`${fullChar.name}: ${adjustment.behavior} (${Math.round(adjustment.confidence * 100)}% confidence) - ${adjustment.summary}`);
 
-              for (const tag of adjustment.tags) {
-                await aliProfileService.addPreference({
-                  category: 'behavior',
-                  value: `${fullChar.name}:${tag}`,
-                  confidence: clampNumber(adjustment.confidence, 0.4, 0.95),
-                  source: 'analysis',
-                  context: sessionId
-                });
+                for (const tag of adjustment.tags) {
+                  await aliProfileService.addPreference({
+                    category: 'behavior',
+                    value: `${fullChar.name}:${tag}`,
+                    confidence: clampNumber(adjustment.confidence, 0.4, 0.95),
+                    source: 'analysis',
+                    context: sessionId
+                  });
+                }
               }
-            }
 
-            if (analysis.conversationSummary || summarySegments.length || analysis.followUpSuggestions.length) {
-              const messageParts = [
-                analysis.conversationSummary,
-                ...summarySegments,
-                analysis.followUpSuggestions.length ? `Follow-up ideas: ${analysis.followUpSuggestions.join(' | ')}` : ''
-              ].filter(Boolean);
-
-              if (messageParts.length) {
-                const sysId = uuid();
-                db.exec({
-                  sql: 'INSERT INTO messages (id, session_id, sender_id, content, created_at) VALUES (?, ?, ?, ?, ?)',
-                  bind: [sysId, sessionId, null, `[Analysis] ${messageParts.join('\n')}`, Date.now()]
-                });
-                db.exec({
-                  sql: 'UPDATE chat_sessions SET updated_at = ? WHERE id = ?',
-                  bind: [Date.now(), sessionId]
-                });
-                await saveDatabase();
-              }
+              // Log analysis results silently (don't create visible chat messages)
+              logger.log('📊 Behavior analysis completed for session', sessionId, '- updated', analysis.adjustments.length, 'character profiles');
             }
           } catch (analysisError) {
             logger.warn('Behavior analysis failed', analysisError);
@@ -472,9 +461,10 @@ export function useChat() {
   const recentMessages = await getSessionMessages(sessionId);
   const conversationHistory = recentMessages.slice(-12); // Keep a few more for continuity
 
-      // Load hidden goals for this session
+      // Load hidden goals for this session (from both session_goals table and scene sessions)
       const { db } = await getDb();
-      // Get session type to adjust behavior (e.g., group mode)
+      
+      // Get session type and check if it's linked to a scene
       const sessInfo: any[] = [];
       db.exec({
         sql: 'SELECT type FROM chat_sessions WHERE id = ?',
@@ -487,6 +477,58 @@ export function useChat() {
         logger.log('⏭️ Skip character auto-responses in interview session');
         return;
       }
+      
+      // Load scene context if this session is part of a scene
+      let sceneContext = '';
+      try {
+        const sceneRows: any[] = [];
+        db.exec({
+          sql: "SELECT value FROM settings WHERE key LIKE 'scene_session:%'",
+          rowMode: 'object',
+          callback: (r: any) => sceneRows.push(r)
+        });
+        
+        for (const row of sceneRows) {
+          try {
+            const sceneSession = JSON.parse(row.value || '{}');
+            if (sceneSession.chatSessionId === sessionId && sceneSession.description) {
+              // Found the scene for this chat session - inject context
+              sceneContext = formatPrompt('house.scene.contextPrompt', {
+                sceneDescription: sceneSession.description
+              });
+              logger.log('🎬 Injecting scene context for session:', sessionId);
+              
+              // Also load hidden goals from scene session if they exist
+              if (sceneSession.hiddenGoals) {
+                // Merge scene hidden goals with session goals
+                for (const [charId, goalData] of Object.entries(sceneSession.hiddenGoals as Record<string, { goal: string; priority: string }>)) {
+                  // Check if already in session_goals, if not add it
+                  const existing: any[] = [];
+                  db.exec({
+                    sql: 'SELECT id FROM session_goals WHERE session_id = ? AND character_id = ?',
+                    bind: [sessionId, charId],
+                    rowMode: 'object',
+                    callback: (r: any) => existing.push(r)
+                  });
+                  
+                  if (existing.length === 0) {
+                    db.exec({
+                      sql: 'INSERT INTO session_goals (session_id, character_id, goal_text, priority) VALUES (?, ?, ?, ?)',
+                      bind: [sessionId, charId, goalData.goal, goalData.priority]
+                    });
+                  }
+                }
+              }
+              break;
+            }
+          } catch (e) {
+            // Skip invalid scene session data
+          }
+        }
+      } catch (e) {
+        logger.warn('Failed to load scene context', e);
+      }
+      
   const goalRows: { character_id: string; goal_text: string; priority: string }[] = [];
       db.exec({
         sql: 'SELECT character_id, goal_text, priority FROM session_goals WHERE session_id = ?',
@@ -582,49 +624,53 @@ export function useChat() {
       
   for (const character of sessionChars) {
         try {
-          // Build conversation context
-          const nameFor = (id?: string | null) => id ? (sessionChars.find((c: { id: string; name?: string }) => c.id === id)?.name || 'Character') : 'User';
-          const historyText = conversationHistory.map(msg => `${nameFor(msg.characterId as string | null)}: ${msg.content}`).join('\n');
+          // Build conversation context WITHOUT the current user message (it's added separately)
+          const nameFor = (id?: string | null) => {
+            if (!id) return 'User';
+            const char = sessionChars.find((c: { id: string; name?: string }) => c.id === id);
+            return char?.name || 'Character';
+          };
           
-          // Create character prompt - use system prompt from character or fallback
+          // Only include messages BEFORE the current user message
+          const historyText = conversationHistory
+            .map(msg => `${nameFor(msg.characterId as string | null)}: ${msg.content}`)
+            .join('\n');
+          
+          // Create concise system prompt
           const systemPrompt = character.prompts?.system || 
-            `You are ${character.name}. ${character.personality ? `Your personality: ${character.personality}. ` : ''}${character.description ? `Background: ${character.description}` : ''}`;
+            `You are ${character.name}. ${character.description || ''}`.trim();
           
-          // Subtle, hidden objective injection (do not reveal explicitly)
-          const hiddenGoals = (goalsByChar[character.id] || []).map(g => `- ${g.goal} (priority: ${g.priority})`).join('\n');
+          // Load hidden goals for this character
+          const hiddenGoals = (goalsByChar[character.id] || [])
+            .map(g => `- ${g.goal}`)
+            .join('\n');
           const hiddenDirective = hiddenGoals
-            ? formatPrompt('copilot.chat.hiddenObjectives', { objectives: hiddenGoals })
+            ? `\n\nSUBTLE OBJECTIVES (weave naturally into conversation, don't mention explicitly):\n${hiddenGoals}\n`
             : '';
 
-          // Memory prefix
+          // Scene context injection
+          const sceneDirective = sceneContext || '';
+
+          // Memory context
           const memorySection = sessionSummary 
-            ? formatPrompt('copilot.chat.memoryPrefix', { summary: sessionSummary })
+            ? `\n\nPREVIOUS CONVERSATION SUMMARY:\n${sessionSummary}\n`
             : '';
 
-          // Group chat mode directive to suppress canned openers
-          const hasSpoken = conversationHistory.some(m => m.characterId === character.id);
-          const firstLineDirective = hasSpoken ? '' : 'This is your first line in this scene—skip any generic opener; respond naturally to the last message and your objectives.';
-          const groupDirective = sessionType === 'group'
-            ? formatPrompt('copilot.chat.groupDirective', { firstLineDirective })
-            : '';
+          // Build the full prompt
+          const fullPrompt = `${systemPrompt}${hiddenDirective}${sceneDirective}${memorySection}
 
-          // Use the chat reply template from the prompt library
-          const prompt = formatPrompt('copilot.chat.replyTemplate', {
-            systemPrompt,
-            hiddenDirective,
-            groupDirective,
-            memorySection,
-            historyText,
-            userMessage,
-            characterName: character.name
-          });
+RECENT CONVERSATION:
+${historyText}
+User: ${userMessage}
+
+Respond as ${character.name}. Be natural and conversational. Stay in character. Keep response under 3 sentences. Do NOT include your name prefix.`;
 
           logger.log(`🎭 Generating response for ${character.name}...`);
           
-          // Generate AI response
-          const response = await AIService.generateResponse(prompt, undefined, undefined, {
-            temperature: 0.8,
-            max_tokens: 200
+          // Generate AI response with optimized settings
+          const response = await AIService.generateResponse(fullPrompt, undefined, undefined, {
+            temperature: 0.85,
+            max_tokens: 150
           });
 
           if (response && response.trim()) {
@@ -951,13 +997,139 @@ export function useChat() {
     };
   }, [loadSessions]);
 
-  const analyzeSession = useCallback(async (sessionId: string) => {
+  const clearSessionMessages = useCallback(async (sessionId: string) => {
     try {
+      logger.log('🗑️ Clearing messages for session:', sessionId);
+      const { db } = await getDb();
+      
+      // Delete all messages for this session
+      db.exec({
+        sql: 'DELETE FROM messages WHERE session_id = ?',
+        bind: [sessionId]
+      });
+      
+      // Delete session summary
+      db.exec({
+        sql: 'DELETE FROM session_summaries WHERE session_id = ?',
+        bind: [sessionId]
+      });
+      
+      // Update session timestamp
+      db.exec({
+        sql: 'UPDATE chat_sessions SET updated_at = ? WHERE id = ?',
+        bind: [Date.now(), sessionId]
+      });
+      
+      await saveDatabase();
+      await loadSessions();
+      logger.log('✅ Session messages cleared');
+      toast.success('Chat cleared');
+    } catch (error) {
+      logger.error('❌ Failed to clear session messages:', error);
+      toast.error('Failed to clear chat');
+    }
+  }, [loadSessions]);
+
+  const analyzeAndEndSession = useCallback(async (sessionId: string) => {
+    try {
+      logger.log('📊 Analyzing and ending session:', sessionId);
+      
       const messages = await getSessionMessages(sessionId);
+      const { db } = await getDb();
+      
+      // Get session participants
+      const participantRows: Array<{ character_id: string }> = [];
+      db.exec({
+        sql: 'SELECT character_id FROM session_participants WHERE session_id = ?',
+        bind: [sessionId],
+        rowMode: 'object',
+        callback: (r: unknown) => {
+          const row = r as { character_id: string };
+          participantRows.push(row);
+        }
+      });
+      const participantIds = participantRows.map(p => p.character_id);
+      
+      const participantCharacters: Character[] = participantIds
+        .map(pid => (characters || []).find(c => c.id === pid))
+        .filter((c): c is Character => Boolean(c));
+      
+      // Run full behavior analysis
+      if (participantCharacters.length && messages.length > 0) {
+        const lastUserMessage = messages.filter(m => !m.characterId).pop();
+        
+        const analysis = await analyzeBehavior({
+          sessionId,
+          messages,
+          characters: participantCharacters,
+          latestUserMessage: lastUserMessage?.content || ''
+        });
+        
+        // Apply all adjustments
+        for (const adjustment of analysis.adjustments) {
+          const fullChar = (characters || []).find(c => c.id === adjustment.characterId);
+          if (!fullChar) continue;
+          
+          const updatedStats = { ...fullChar.stats };
+          const updatedProgression = { ...fullChar.progression };
+          
+          if (adjustment.statAdjustments.stats) {
+            for (const [statKey, delta] of Object.entries(adjustment.statAdjustments.stats)) {
+              if (typeof delta !== 'number' || Number.isNaN(delta)) continue;
+              if (statKey === 'experience') {
+                const nextLevelExp = updatedProgression?.nextLevelExp ?? 100;
+                let updatedExp = (updatedStats.experience ?? 0) + delta;
+                if (updatedExp < 0) updatedExp = 0;
+                let newLevel = updatedStats.level ?? 1;
+                let threshold = nextLevelExp;
+                while (updatedExp >= threshold && threshold > 0) {
+                  updatedExp -= threshold;
+                  newLevel += 1;
+                  threshold = Math.round(threshold * 1.25);
+                }
+                updatedStats.experience = updatedExp;
+                updatedStats.level = newLevel;
+                if (updatedProgression) {
+                  updatedProgression.level = Math.max(updatedProgression.level || 1, newLevel);
+                  updatedProgression.nextLevelExp = threshold;
+                }
+              } else if (statKey in updatedStats) {
+                const typedKey = statKey as keyof typeof updatedStats;
+                const currentValue = Number(updatedStats[typedKey] ?? 0);
+                updatedStats[typedKey] = clampNumber(currentValue + delta);
+              }
+            }
+          }
+          
+          if (adjustment.statAdjustments.progression) {
+            for (const [progKey, delta] of Object.entries(adjustment.statAdjustments.progression)) {
+              if (typeof delta !== 'number' || Number.isNaN(delta)) continue;
+              if (isNumericProgressionKey(progKey)) {
+                const current = Number(updatedProgression?.[progKey] ?? 0);
+                updatedProgression[progKey] = clampNumber(current + delta);
+              }
+            }
+          }
+          
+          const behaviorProfile = createBehaviorProfile(adjustment, fullChar.behaviorProfile);
+          const memories = buildMemoryEntries(fullChar, adjustment.memories);
+          
+          await updateCharacter(fullChar.id, {
+            stats: updatedStats,
+            progression: updatedProgression,
+            behaviorProfile,
+            memories,
+            lastInteraction: new Date()
+          } as Partial<Character>);
+          
+          logger.log(`✅ Updated ${fullChar.name} profile from conversation analysis`);
+        }
+      }
+      
+      // Extract insights for Ali
       const userMessages = messages.filter(m => !m.characterId);
       const content = userMessages.map(m => m.content).join(' ').toLowerCase();
       
-      // Extract insights
       const insights: Record<string, unknown> = {};
       if (content.includes('hurt') || content.includes('pain')) {
         insights.prefersPain = true;
@@ -965,14 +1137,19 @@ export function useChat() {
       if (content.includes('young') || content.includes('teen')) {
         insights.prefersYounger = true;
       }
-      // Add more analysis logic
       
       await aliProfileService.updateInsights(insights);
-      logger.log('Analyzed session for Ali:', sessionId, insights);
+      
+      // Close the session
+      await closeSession(sessionId);
+      
+      logger.log('✅ Session analyzed and ended');
+      toast.success('Conversation ended and analyzed');
     } catch (e) {
-      logger.warn('Failed to analyze session', e);
+      logger.error('Failed to analyze and end session', e);
+      toast.error('Failed to end conversation');
     }
-  }, [getSessionMessages]);
+  }, [getSessionMessages, characters, updateCharacter, closeSession]);
 
   // Reuse or create latest individual session for a single character
   const ensureIndividualSession = useCallback(async (characterId: string): Promise<string> => {
@@ -998,16 +1175,17 @@ export function useChat() {
     loadSessions,
     getSessionMessages,
     sendMessage,
-  createSession,
-  createGroupSession,
+    createSession,
+    createGroupSession,
     closeSession,
     deleteSession,
     switchToSession,
     updateSessionMessage,
     addSessionMessage,
     updateSessionGoal,
-    analyzeSession,
-    ensureIndividualSession
-    , createInterviewSession
+    clearSessionMessages,
+    analyzeAndEndSession,
+    ensureIndividualSession,
+    createInterviewSession
   };
 }

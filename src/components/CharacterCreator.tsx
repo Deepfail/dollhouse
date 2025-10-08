@@ -321,7 +321,9 @@ export function CharacterCreator({
 
   // Simplified form state
   const [name, setName] = useState(character?.name || "");
-  const [age, setAge] = useState(character?.age || 21);
+  const [age, setAge] = useState<string>(
+    character?.age != null ? String(character.age) : ""
+  );
   const [role, setRole] = useState(character?.role || "");
   const [description, setDescription] = useState(character?.description || "");
   const [personality, setPersonality] = useState(character?.personality || "");
@@ -445,8 +447,8 @@ export function CharacterCreator({
       const newCharacter: Character = {
         id: crypto.randomUUID(),
         name: name.trim(),
-        age: age,
-        gender: 'female',
+        age: age ? Number(age) : undefined,
+        gender: "female",
         description: description.trim(),
         personality: personality.trim(),
         appearance: appearance.trim(),
@@ -546,33 +548,66 @@ export function CharacterCreator({
         updatedAt: now,
       };
 
-            const enrichedCharacter = await populateCharacterProfile(newCharacter, {
-        request: `Create a complete character profile for ${newCharacter.name}. IMPORTANT: Character is exactly ${newCharacter.age} years old - do not change this age. Role: ${newCharacter.role || "companion"}. Personality: ${newCharacter.personality || personalities.join(', ')}. Appearance: ${newCharacter.appearance || features.join(', ')}. Background: ${newCharacter.description}. Generate all prompts (system, personality, background, appearance, response style, origin scenario) that are cohesive, age-appropriate for a ${newCharacter.age} year old, and true to the character's essence. Ensure all content respects the age of ${newCharacter.age}.`,
+      const explicitAge = age ? Number(age) : undefined;
+      const personalitySummary =
+        newCharacter.personality || personalities.join(", ");
+      const appearanceSummary =
+        newCharacter.appearance || features.join(", ");
+
+      const requestSegments = [
+        `Create a complete character profile for ${newCharacter.name}.`,
+        explicitAge != null
+          ? `IMPORTANT: Character is exactly ${explicitAge} years old - do not change this age.`
+          : undefined,
+        `Role: ${newCharacter.role || "companion"}.`,
+        personalitySummary
+          ? `Personality: ${personalitySummary}.`
+          : undefined,
+        appearanceSummary
+          ? `Appearance: ${appearanceSummary}.`
+          : undefined,
+        newCharacter.description
+          ? `Background: ${newCharacter.description}.`
+          : undefined,
+        explicitAge != null
+          ? `Generate all prompts (system, personality, background, appearance, response style, origin scenario) that are cohesive, age-appropriate for a ${explicitAge} year old, and true to the character's essence. Ensure all content respects the age of ${explicitAge}.`
+          : `Generate all prompts (system, personality, background, appearance, response style, origin scenario) that are cohesive, adult, and true to the character's essence.`,
+      ].filter(Boolean) as string[];
+
+      const enrichedCharacter = await populateCharacterProfile(newCharacter, {
+        request: requestSegments.join(" "),
         name: newCharacter.name,
         existing: newCharacter,
         mode: "preserve",
       });
 
       // Force age to stay as user specified - don't let AI override it
-      enrichedCharacter.age = age;
-      
+      if (explicitAge != null) {
+        enrichedCharacter.age = explicitAge;
+      }
+
       // Log to verify
-      logger.log(`Character created with age: ${enrichedCharacter.age}`, enrichedCharacter);
+      logger.log(
+        `Character created with age: ${
+          enrichedCharacter.age ?? "unspecified"
+        }`,
+        enrichedCharacter
+      );
 
       await createCharacter(enrichedCharacter);
 
-      // Reset form and close dialog
-      setName("");
-      setAge(21);
-      setRole("");
-      setDescription("");
-      setPersonality("");
-      setAppearance("");
-      setAvatar("");
-      setPersonalities([]);
-      setFeatures([]);
-      setCurrentTab("basic");
-      onOpenChange?.(false);
+    // Reset form and close dialog
+    setName("");
+    setAge("");
+    setRole("");
+    setDescription("");
+    setPersonality("");
+    setAppearance("");
+    setAvatar("");
+    setPersonalities([]);
+    setFeatures([]);
+    setCurrentTab("basic");
+    onOpenChange?.(false);
     } catch (error) {
       logger.error("Save error:", error);
       toast.error("Failed to save character");
@@ -589,6 +624,7 @@ export function CharacterCreator({
     setPersonalities([]);
     setFeatures([]);
     setCurrentTab("basic");
+    setAge("");
     onOpenChange?.(false);
   };
 
@@ -638,19 +674,16 @@ export function CharacterCreator({
         </div>
 
         {/* SCROLLABLE Content - TESTING v2 */}
-        <div 
+        <div
           className="flex-1 overflow-y-auto overflow-x-hidden bg-red-500/10"
-          style={{ 
-            WebkitOverflowScrolling: 'touch',
-            overscrollBehavior: 'contain',
-            minHeight: 0
+          style={{
+            WebkitOverflowScrolling: "touch",
+            overscrollBehavior: "contain",
+            minHeight: 0,
           }}
         >
           <div className="max-w-6xl mx-auto px-6 py-8 bg-blue-500/10">
-            <Tabs
-              value={currentTab}
-              onValueChange={setCurrentTab}
-            >
+            <Tabs value={currentTab} onValueChange={setCurrentTab}>
               <TabsList className="grid grid-cols-3 w-full mb-6">
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>
                 <TabsTrigger value="appearance">Appearance</TabsTrigger>
@@ -658,223 +691,224 @@ export function CharacterCreator({
               </TabsList>
 
               <TabsContent value="basic" className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-[0.9fr_1.1fr] gap-2">
-                <div>
-                  <Label htmlFor="name">Name *</Label>
-                  <Input
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Character name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="role">Role</Label>
-                  <Select value={role} onValueChange={setRole}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ROLE_OPTIONS.map((roleOption) => (
-                        <SelectItem key={roleOption} value={roleOption}>
-                          {roleOption}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <div>
-                  <Label htmlFor="age">Age *</Label>
-                  <Input
-                    id="age"
-                    type="number"
-                    min={18}
-                    max={99}
-                    value={age}
-                    onChange={(e) => setAge(parseInt(e.target.value) || 18)}
-                    placeholder="18+"
-                  />
-                </div>
-                <div>
-                  {/* Placeholder for future field */}
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Character description and background"
-                  rows={4}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="personality">Personality</Label>
-                <Textarea
-                  id="personality"
-                  value={personality}
-                  onChange={(e) => setPersonality(e.target.value)}
-                  placeholder="Character personality traits"
-                  rows={2}
-                />
-              </div>
-
-              <div>
-                <Label>Personality Tags</Label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {personalities.map((p, index) => (
-                    <Badge key={index} variant="secondary" className="gap-1">
-                      {p}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-4 w-4 p-0"
-                        onClick={() => removeFromArray(setPersonalities, index)}
-                      >
-                        <X size={12} />
-                      </Button>
-                    </Badge>
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {PERSONALITY_OPTIONS.filter((p) => !personalities.includes(p))
-                    .slice(0, 10)
-                    .map((p) => (
-                      <Button
-                        key={p}
-                        size="sm"
-                        variant="outline"
-                        className="h-6 text-xs"
-                        onClick={() => addToArray(setPersonalities, p)}
-                      >
-                        <Plus size={10} className="mr-1" />
-                        {p}
-                      </Button>
-                    ))}
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="appearance" className="space-y-6">
-              <div>
-                <Label htmlFor="appearance">Appearance Description</Label>
-                <Textarea
-                  id="appearance"
-                  value={appearance}
-                  onChange={(e) => setAppearance(e.target.value)}
-                  placeholder="Physical appearance description"
-                  rows={3}
-                />
-              </div>
-
-              <div>
-                <Label>Physical Features</Label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {features.map((feature, index) => (
-                    <Badge key={index} variant="secondary" className="gap-1">
-                      {feature}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-4 w-4 p-0"
-                        onClick={() => removeFromArray(setFeatures, index)}
-                      >
-                        <X size={12} />
-                      </Button>
-                    </Badge>
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {FEATURE_OPTIONS.filter((f) => !features.includes(f))
-                    .slice(0, 10)
-                    .map((feature) => (
-                      <Button
-                        key={feature}
-                        size="sm"
-                        variant="outline"
-                        className="h-6 text-xs"
-                        onClick={() => addToArray(setFeatures, feature)}
-                      >
-                        <Plus size={10} className="mr-1" />
-                        {feature}
-                      </Button>
-                    ))}
-                </div>
-              </div>
-
-              <Card className="p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold">Character Image</h3>
-                  <Button
-                    onClick={generateImage}
-                    disabled={isGenerating}
-                    size="sm"
-                  >
-                    <ImageIcon size={16} className="mr-2" />
-                    Generate Image
-                  </Button>
-                </div>
-
-                {avatar && (
-                  <div className="mb-4">
-                    <img
-                      src={avatar}
-                      alt={name || "Character"}
-                      className="w-32 h-32 object-cover rounded-lg mx-auto"
+                <div className="grid grid-cols-1 md:grid-cols-[0.9fr_1.1fr] gap-2">
+                  <div>
+                    <Label htmlFor="name">Name *</Label>
+                    <Input
+                      id="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Character name"
                     />
                   </div>
-                )}
+                  <div>
+                    <Label htmlFor="role">Role</Label>
+                    <Select value={role} onValueChange={setRole}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ROLE_OPTIONS.map((roleOption) => (
+                          <SelectItem key={roleOption} value={roleOption}>
+                            {roleOption}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div>
+                    <Label htmlFor="age">Age</Label>
+                    <Input
+                      id="age"
+                      type="number"
+                      value={age}
+                      onChange={(e) => setAge(e.target.value)}
+                    />
+                  </div>
+                  <div>{/* Placeholder for future field */}</div>
+                </div>
 
                 <div>
-                  <Label>Image URL</Label>
-                  <Input
-                    value={avatar}
-                    onChange={(e) => setAvatar(e.target.value)}
-                    placeholder="Character image URL"
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Character description and background"
+                    rows={4}
                   />
                 </div>
-              </Card>
-            </TabsContent>
 
-            <TabsContent value="generation" className="space-y-6">
-              <Card className="p-4">
-                <h3 className="font-semibold mb-4">AI Character Generation</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Use AI to automatically generate character traits, features,
-                  and background story.
-                </p>
-                <Button
-                  onClick={generateCharacterData}
-                  disabled={isGenerating}
-                  className="w-full"
-                >
-                  <Sparkle size={16} className="mr-2" />
-                  Generate Complete Character
-                </Button>
-              </Card>
+                <div>
+                  <Label htmlFor="personality">Personality</Label>
+                  <Textarea
+                    id="personality"
+                    value={personality}
+                    onChange={(e) => setPersonality(e.target.value)}
+                    placeholder="Character personality traits"
+                    rows={2}
+                  />
+                </div>
 
-              <Card className="p-4">
-                <h3 className="font-semibold mb-4">AI Image Generation</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Generate a character portrait based on the name, role, and
-                  features you've defined.
-                </p>
-                <Button
-                  onClick={generateImage}
-                  disabled={isGenerating || !name}
-                  className="w-full"
-                >
-                  <ImageIcon size={16} className="mr-2" />
-                  Generate Character Image
-                </Button>
-              </Card>
-            </TabsContent>
+                <div>
+                  <Label>Personality Tags</Label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {personalities.map((p, index) => (
+                      <Badge key={index} variant="secondary" className="gap-1">
+                        {p}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-4 w-4 p-0"
+                          onClick={() =>
+                            removeFromArray(setPersonalities, index)
+                          }
+                        >
+                          <X size={12} />
+                        </Button>
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {PERSONALITY_OPTIONS.filter(
+                      (p) => !personalities.includes(p)
+                    )
+                      .slice(0, 10)
+                      .map((p) => (
+                        <Button
+                          key={p}
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-xs"
+                          onClick={() => addToArray(setPersonalities, p)}
+                        >
+                          <Plus size={10} className="mr-1" />
+                          {p}
+                        </Button>
+                      ))}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="appearance" className="space-y-6">
+                <div>
+                  <Label htmlFor="appearance">Appearance Description</Label>
+                  <Textarea
+                    id="appearance"
+                    value={appearance}
+                    onChange={(e) => setAppearance(e.target.value)}
+                    placeholder="Physical appearance description"
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <Label>Physical Features</Label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {features.map((feature, index) => (
+                      <Badge key={index} variant="secondary" className="gap-1">
+                        {feature}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-4 w-4 p-0"
+                          onClick={() => removeFromArray(setFeatures, index)}
+                        >
+                          <X size={12} />
+                        </Button>
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {FEATURE_OPTIONS.filter((f) => !features.includes(f))
+                      .slice(0, 10)
+                      .map((feature) => (
+                        <Button
+                          key={feature}
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-xs"
+                          onClick={() => addToArray(setFeatures, feature)}
+                        >
+                          <Plus size={10} className="mr-1" />
+                          {feature}
+                        </Button>
+                      ))}
+                  </div>
+                </div>
+
+                <Card className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold">Character Image</h3>
+                    <Button
+                      onClick={generateImage}
+                      disabled={isGenerating}
+                      size="sm"
+                    >
+                      <ImageIcon size={16} className="mr-2" />
+                      Generate Image
+                    </Button>
+                  </div>
+
+                  {avatar && (
+                    <div className="mb-4">
+                      <img
+                        src={avatar}
+                        alt={name || "Character"}
+                        className="w-32 h-32 object-cover rounded-lg mx-auto"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <Label>Image URL</Label>
+                    <Input
+                      value={avatar}
+                      onChange={(e) => setAvatar(e.target.value)}
+                      placeholder="Character image URL"
+                    />
+                  </div>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="generation" className="space-y-6">
+                <Card className="p-4">
+                  <h3 className="font-semibold mb-4">
+                    AI Character Generation
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Use AI to automatically generate character traits, features,
+                    and background story.
+                  </p>
+                  <Button
+                    onClick={generateCharacterData}
+                    disabled={isGenerating}
+                    className="w-full"
+                  >
+                    <Sparkle size={16} className="mr-2" />
+                    Generate Complete Character
+                  </Button>
+                </Card>
+
+                <Card className="p-4">
+                  <h3 className="font-semibold mb-4">AI Image Generation</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Generate a character portrait based on the name, role, and
+                    features you've defined.
+                  </p>
+                  <Button
+                    onClick={generateImage}
+                    disabled={isGenerating || !name}
+                    className="w-full"
+                  >
+                    <ImageIcon size={16} className="mr-2" />
+                    Generate Character Image
+                  </Button>
+                </Card>
+              </TabsContent>
             </Tabs>
           </div>
         </div>
@@ -884,13 +918,17 @@ export function CharacterCreator({
           <Button variant="outline" onClick={handleClose} size="lg">
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={!name.trim() || isCreating} size="lg">
+          <Button
+            onClick={handleSave}
+            disabled={!name.trim() || isCreating}
+            size="lg"
+          >
             <Save size={20} className="mr-2" />
             {isCreating ? "Creating..." : "Create Character"}
           </Button>
         </div>
       </DialogContent>
-      
+
       <CharacterCreatorSettings
         open={settingsOpen}
         onOpenChange={setSettingsOpen}

@@ -43,6 +43,8 @@ type PromptKey =
   | "character.generator.extraNotesLine"
   | "character.generator.promptAlignment"
   | "character.generator.originReminder"
+  | "character.generator.responseStyleGuide"
+  | "character.generator.originScenarioGuide"
   | "character.creator.personalityPrompt"
   | "character.creator.featuresPrompt"
   | "character.creator.backgroundPrompt"
@@ -73,7 +75,8 @@ type PromptKey =
   | "house.story.modeTemplate"
   | "house.story.significantIntro"
   | "house.story.significantLine"
-  | "house.story.modeFooter";
+  | "house.story.modeFooter"
+  | "house.scene.contextPrompt";
 
 const PROMPT_DEFINITIONS: PromptDefinition[] = [
   {
@@ -86,7 +89,7 @@ const PROMPT_DEFINITIONS: PromptDefinition[] = [
 Design an original female character aligned with the user's request.
 Be concise, grounded, and avoid explicit sexual content. Tone: seductive but classy.
 Produce canonical facts that future conversations can rely on.
-Every character must be explicitly 18 or older. For "fresh" archetypes, frame them as 19-21 with a youthful yet adult vibe.
+Every character must be explicitly presented as a consenting adult. For "fresh" archetypes, keep the energy youthful yet unmistakably grown.
 Avoid generic or repetitive majors such as psychology unless explicitly requested; prefer distinctive studies, hustles, or passions.
 {{themeLine}}
 {{preferredNameLine}}
@@ -118,6 +121,8 @@ Keep values short but expressive. All strings must be under 400 characters.
       "backstoryWarning",
       "scenarioReminder",
       "escapeInstruction",
+      "responseStyleGuide",
+      "originScenarioGuide",
     ],
     impact: 100,
   },
@@ -130,7 +135,7 @@ Keep values short but expressive. All strings must be under 400 characters.
   "name": "string",
   "role": "string (e.g., Companion, Friend, Rival)",
   "job": "string (specific occupation or pursuit)",
-  "age": number (MUST be 18 or older - explicitly state the age),
+  "age": number (explicitly confirm adulthood and respect any age provided by the user),
   "gender": "female",
   "description": "One punchy sentence: who she is at a glance",
   "personalitySummary": "2-3 sentences capturing her personality in natural prose",
@@ -145,8 +150,8 @@ Keep values short but expressive. All strings must be under 400 characters.
     "personality": "Rich personality description WITH embedded bullet list of explicit traits - formatted for AI",
     "background": "Detailed narrative expanding on backstory: upbringing, family dynamics, education, pivotal events - formatted as immersive AI context about her PAST",
     "appearance": "Sensory-rich expanded description: looks, style, body language, presence - formatted for AI immersion",
-    "responseStyle": "How she communicates: tone, rhythm, verbal quirks, emotional patterns",
-    "originScenario": "2-3 sentences: compelling first meeting story and how she came to the Dollhouse"
+    "responseStyle": "How she communicates: tone, rhythm, verbal quirks, emotional patterns. {{responseStyleGuide}}",
+    "originScenario": "2-3 sentences: compelling first meeting story and how she came to the Dollhouse. {{originScenarioGuide}}"
   },
   "likes": ["interest", ...],
   "dislikes": ["aversion", ...],
@@ -180,7 +185,7 @@ Keep values short but expressive. All strings must be under 400 characters.
     description:
       "Instruction telling the model how to escape quotes and newlines.",
     defaultValue:
-      'Escape quotation marks as \" and replace raw newlines in strings with \\n to keep the JSON valid.',
+      'Escape quotation marks as " and replace raw newlines in strings with \\n to keep the JSON valid.',
     impact: 55,
   },
   {
@@ -313,7 +318,7 @@ Keep values short but expressive. All strings must be under 400 characters.
     description:
       "Base request issued when asking the AI to design a character.",
     defaultValue: `Design a {{rarity}} {{genderDescriptor}} companion for the Digital Dollhouse.
-Archetype focus: {{archetypeLabel}} — {{archetypePitch}}. Keep the age {{ageRange}} and explicitly state they are 18 or older.
+Archetype focus: {{archetypeLabel}} — {{archetypePitch}}. {{maturityNote}}
 Deliver the best possible version of this archetype with standout ambitions, vices, and seduction style.
 Avoid generic majors such as psychology unless explicitly requested; choose vivid, story-rich pursuits instead.
 {{personalityAnchors}}{{featureNotes}}{{backgroundHooks}}{{extraNotes}}`,
@@ -322,7 +327,7 @@ Avoid generic majors such as psychology unless explicitly requested; choose vivi
       "genderDescriptor",
       "archetypeLabel",
       "archetypePitch",
-      "ageRange",
+      "maturityNote",
       "personalityAnchors",
       "featureNotes",
       "backgroundHooks",
@@ -385,6 +390,26 @@ Avoid generic majors such as psychology unless explicitly requested; choose vivi
     defaultValue:
       "The origin scenario should capture how the user first met the character, how she willingly returned to the Dollhouse, and it should lean sensual without explicit acts.",
     impact: 65,
+  },
+  {
+    key: "character.generator.responseStyleGuide",
+    category: "character",
+    label: "Response Style Generation Guide",
+    description:
+      "Detailed guidance for AI on how to craft the responseStyle field. Helps ensure this field is always populated with rich, character-specific communication patterns.",
+    defaultValue:
+      "Define her unique voice: Does she speak in short bursts or flowing sentences? Is she playful and teasing, or serious and direct? Include specific verbal patterns (pet names, catchphrases, dialect quirks), emotional tells (when she gets flustered, defensive, flirty), pacing (rapid-fire vs deliberate), and any signature communication habits that make her distinct.",
+    impact: 70,
+  },
+  {
+    key: "character.generator.originScenarioGuide",
+    category: "character",
+    label: "Origin Scenario Generation Guide",
+    description:
+      "Detailed guidance for AI on how to craft the originScenario field. Ensures compelling first-meeting stories are always generated.",
+    defaultValue:
+      "Craft a vivid 2-3 sentence story: Where did they meet? (Be specific - rooftop party, art gallery, coffee shop, etc.) What sparked the chemistry? What made her choose to come to the Dollhouse? Make it feel real, sensual but tasteful, and true to her personality and background. She must be clearly portrayed as an adult making her own choice.",
+    impact: 70,
   },
   {
     key: "character.creator.personalityPrompt",
@@ -577,7 +602,7 @@ Focus on making the character more interesting and detailed while maintaining co
     category: "copilot",
     label: "Chat Reply Template",
     description: "Full template used when generating a character chat reply.",
-    defaultValue: `{{systemPrompt}}{{hiddenDirective}}{{groupDirective}}
+    defaultValue: `{{systemPrompt}}{{hiddenDirective}}{{sceneDirective}}{{groupDirective}}
 
 {{memorySection}}Recent conversation:
 {{historyText}}
@@ -587,6 +612,7 @@ Respond as {{characterName}} in character. Keep your response natural and conver
     placeholders: [
       "systemPrompt",
       "hiddenDirective",
+      "sceneDirective",
       "groupDirective",
       "memorySection",
       "historyText",
@@ -873,6 +899,18 @@ Remember and reference your shared experiences. Your responses should reflect yo
       "Footer appended to the story mode prompt when there are no significant moments.",
     defaultValue: "",
     impact: 10,
+  },
+  {
+    key: "house.scene.contextPrompt",
+    category: "house",
+    label: "Scene/Scenario Context Prompt",
+    description:
+      "Template for injecting scenario context into character responses to match scene mood and tone.",
+    defaultValue: `CURRENT SCENARIO: {{sceneDescription}}
+
+IMPORTANT: Respond to this scenario appropriately. Match the mood, tone, and situation described above. If it's scary, be frightened or cautious. If it's romantic, be affectionate. If it's tense, show appropriate stress or concern. Your emotions and reactions should authentically reflect the scenario context.`,
+    placeholders: ["sceneDescription"],
+    impact: 75,
   },
 ];
 

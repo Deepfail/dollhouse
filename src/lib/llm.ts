@@ -3,6 +3,17 @@ import { logger } from '@/lib/logger';
 import { queryClient, queryKeys } from '@/lib/query';
 import { getSetting } from '@/repo/settings';
 
+/**
+ * Strip thinking/reasoning tags from Venice AI responses.
+ * Venice API doesn't always honor strip_thinking_response parameter, so we manually remove tags.
+ */
+function stripThinkingTags(content: string): string {
+  if (!content) return '';
+  let cleaned = content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  return cleaned.trim();
+}
+
 export interface LLMParams {
   temperature?: number;
   max_tokens?: number;
@@ -260,7 +271,7 @@ async function callVenice(
         enable_web_search: 'auto',
         enable_web_citations: true,
         include_venice_system_prompt: true,
-        strip_thinking_response: false
+        strip_thinking_response: true
       }
     }),
   });
@@ -276,7 +287,8 @@ async function callVenice(
   }
 
   const data = await response.json();
-  return data.choices[0]?.message?.content || '';
+  const rawContent = data.choices[0]?.message?.content || '';
+  return stripThinkingTags(rawContent);
 }
 
 async function callCustomAPI(

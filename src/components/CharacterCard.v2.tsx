@@ -724,228 +724,193 @@ export function CharacterCard({
     </Card>
   );
 
-  const heroPanel = (
-    <div className="space-y-6">
-      <div className="rounded-2xl bg-gradient-to-br from-primary/10 via-transparent to-transparent p-6">
-        <div className="flex flex-col items-start gap-6">
-          <Avatar className="h-28 w-28 border-4 border-white/20 shadow-xl">
-            <AvatarImage src={character.avatar} alt={character.name} />
-            <AvatarFallback className="bg-primary/30 text-xl font-semibold">
-              {character.name.slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div className="space-y-3">
+  const overviewTab = (
+    <TabsContent value="overview" className="h-full">
+      <ScrollArea className="h-full px-6">
+        <div className="space-y-6 py-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-semibold text-white">{character.name}</h2>
-              {getRarityIcon(character.rarity)}
-              <Badge variant="outline" className="border-white/20 bg-white/5 text-xs capitalize text-white/80">
+              <h3 className="text-lg font-semibold">Profile</h3>
+              <Badge
+                variant="outline"
+                className={`${relationshipStatusColor(relationshipStatus)} border-white/15 bg-transparent text-xs capitalize`}
+              >
                 {relationshipStatus.replace(/_/g, ' ')}
               </Badge>
             </div>
-            <p className="text-sm text-white/70">{character.description}</p>
-            <div className="flex flex-wrap gap-2 text-xs text-white/50">
-              {character.role && <Badge variant="secondary">{character.role}</Badge>}
-              {character.job && <Badge variant="outline">{character.job}</Badge>}
-              <Badge variant="outline">Level {stats.level}</Badge>
-              <Badge variant="outline">{totalMessages} messages</Badge>
+            <div className="flex items-center gap-2">
+              {source && source !== 'roster' ? (
+                <Badge variant="outline" className="border-white/15 bg-white/5 text-xs uppercase tracking-wide text-white/70">
+                  Viewing from {source}
+                </Badge>
+              ) : null}
+              <Button
+                variant={isEditMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => setIsEditMode(!isEditMode)}
+                className="rounded-full"
+              >
+                <Pencil className="mr-2 h-3.5 w-3.5" />
+                {isEditMode ? 'View Mode' : 'Edit'}
+              </Button>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="space-y-3">
-        {quickStats.map(({ key, label, value, tone, bar, icon: Icon }) => (
-          <div key={`hero-${key}`} className="rounded-xl border border-white/10 bg-white/5 p-3">
-            <div className="flex items-center justify-between text-sm text-white/70">
-              <div className="flex items-center gap-2">
-                <Icon className={`${tone} h-4 w-4`} />
-                <span>{label}</span>
+          <div className="grid gap-6 md:grid-cols-[200px_1fr]">
+            <div className="flex flex-col gap-4">
+              <Avatar className="h-32 w-32 rounded-2xl border border-white/10">
+                <AvatarImage src={profileDraft.avatar} alt={profileDraft.name || character.name} />
+                <AvatarFallback className="bg-white/10 text-2xl font-semibold">
+                  {(profileDraft.name || character.name || '?').slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              {isEditMode && (
+                <div className="w-full space-y-2 text-sm">
+                  <Label htmlFor={`${character.id}-avatar`} className="text-xs uppercase tracking-wider text-white/50">
+                    Avatar URL
+                  </Label>
+                  <Input
+                    id={`${character.id}-avatar`}
+                    value={profileDraft.avatar}
+                    onChange={(event) => handleDraftChange('avatar', event.target.value)}
+                    placeholder="https://..."
+                    className="h-9 rounded-lg border-white/15 bg-white/5 text-xs"
+                  />
+                </div>
+              )}
+              
+              {/* Story Summary */}
+              <div className="space-y-3 pt-2">
+                <div className="text-xs uppercase tracking-wider text-white/40">Her Story</div>
+                {storyEntries.length > 0 ? (
+                  <div className="space-y-2">
+                    {storyEntries.slice(0, 3).map((entry) => (
+                      <div key={entry.id} className="rounded-lg bg-white/5 p-2.5 border border-white/10">
+                        <div className="text-xs font-medium text-white/80 line-clamp-1">{entry.title}</div>
+                        <div className="text-[10px] text-white/50 mt-0.5">{formatDate(entry.timestamp)}</div>
+                      </div>
+                    ))}
+                    {storyEntries.length > 3 && (
+                      <div className="text-xs text-white/40 text-center pt-1">
+                        +{storyEntries.length - 3} more events
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-xs text-white/40 italic">
+                    No story entries yet. Start chatting to build her narrative.
+                  </div>
+                )}
               </div>
-              <span className="font-medium text-white">{value}%</span>
             </div>
-            <Progress value={value} className={`mt-2 h-2 bg-white/10 [&>div]:${bar}`} />
-          </div>
-        ))}
-      </div>
-
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-        <div className="flex items-center justify-between text-xs uppercase tracking-wide text-white/40">
-          <span>Last Interaction</span>
-          <span>{formatDate(lastInteraction)}</span>
-        </div>
-        <div className="mt-2 text-base font-semibold text-white">
-          {totalMessages} messages · {characterSessions.length} sessions
-        </div>
-      </div>
-
-      {primaryActions}
-
-      {source && source !== 'roster' && (
-        <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/50">
-          Viewing from <span className="font-medium text-white/80">{source}</span>
-        </div>
-      )}
-    </div>
-  );
-
-  const overviewTab = (
-    <TabsContent value="overview" className="h-full">
-      <ScrollArea className="h-[62vh] pr-4">
-        <div className="space-y-6 px-2 py-6">
-          {heroPanel}
-          <Card className="border-none bg-white/5 text-white">
-            <div className="space-y-6 p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-semibold">Profile</h3>
-                  <Badge
-                    variant="outline"
-                    className={`${relationshipStatusColor(relationshipStatus)} border-white/15 bg-transparent text-[10px] capitalize`}
-                  >
-                    {relationshipStatus.replace(/_/g, ' ')}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  {source && source !== 'roster' ? (
-                    <Badge variant="outline" className="border-white/15 bg-white/5 text-xs uppercase tracking-wide text-white/70">
-                      Viewing from {source}
-                    </Badge>
-                  ) : null}
-                  <Button
-                    variant={isEditMode ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setIsEditMode(!isEditMode)}
-                    className="rounded-full"
-                  >
-                    <Pencil className="mr-2 h-3.5 w-3.5" />
-                    {isEditMode ? 'View Mode' : 'Edit Profile'}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid gap-6 md:grid-cols-[220px_1fr]">
-                <div className="flex flex-col items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 text-white/90">
-                  <Avatar className="h-32 w-32 rounded-3xl border border-white/10">
-                    <AvatarImage src={profileDraft.avatar} alt={profileDraft.name || character.name} />
-                    <AvatarFallback className="bg-white/10 text-2xl font-semibold">
-                      {(profileDraft.name || character.name || '?').slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  {isEditMode && (
-                    <div className="w-full space-y-2 text-sm">
-                      <Label htmlFor={`${character.id}-avatar`} className="text-xs uppercase tracking-[0.25em] text-white/50">
-                        Profile Picture URL
+            <div className="space-y-5">
+              {isEditMode ? (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <Label htmlFor={`${character.id}-name`} className="text-xs uppercase tracking-wider text-white/50">
+                        Name
                       </Label>
                       <Input
-                        id={`${character.id}-avatar`}
-                        value={profileDraft.avatar}
-                        onChange={(event) => handleDraftChange('avatar', event.target.value)}
-                        placeholder="https://..."
-                        className="h-10 rounded-xl border-white/15 bg-white/5"
+                        id={`${character.id}-name`}
+                        value={profileDraft.name}
+                        onChange={(event) => handleDraftChange('name', event.target.value)}
+                        className="mt-1.5 h-9 rounded-lg border-white/15 bg-white/5"
                       />
                     </div>
-                  )}
-                </div>
-                <div className="space-y-4">
-                  {isEditMode ? (
-                    <>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div>
-                          <Label htmlFor={`${character.id}-name`} className="text-xs uppercase tracking-[0.25em] text-white/50">
-                            Name
-                          </Label>
-                          <Input
-                            id={`${character.id}-name`}
-                            value={profileDraft.name}
-                            onChange={(event) => handleDraftChange('name', event.target.value)}
-                            className="mt-1 h-10 rounded-xl border-white/15 bg-white/5"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`${character.id}-age`} className="text-xs uppercase tracking-[0.25em] text-white/50">
-                            Age
-                          </Label>
-                          <Input
-                            id={`${character.id}-age`}
-                            type="number"
-                            min={0}
-                            value={profileDraft.age}
-                            onChange={(event) => handleDraftChange('age', event.target.value)}
-                            className="mt-1 h-10 rounded-xl border-white/15 bg-white/5"
-                          />
-                        </div>
-                      </div>
+                    <div>
+                      <Label htmlFor={`${character.id}-age`} className="text-xs uppercase tracking-wider text-white/50">
+                        Age
+                      </Label>
+                      <Input
+                        id={`${character.id}-age`}
+                        type="number"
+                        min={0}
+                        value={profileDraft.age}
+                        onChange={(event) => handleDraftChange('age', event.target.value)}
+                        className="mt-1.5 h-9 rounded-lg border-white/15 bg-white/5"
+                      />
+                    </div>
+                  </div>
 
-                      <div>
-                        <Label htmlFor={`${character.id}-description`} className="text-xs uppercase tracking-[0.25em] text-white/50">
-                          Description
-                        </Label>
-                        <Textarea
-                          id={`${character.id}-description`}
-                          value={profileDraft.description}
-                          onChange={(event) => handleDraftChange('description', event.target.value)}
-                          className="mt-1 h-28 rounded-2xl border-white/15 bg-white/5 text-sm"
-                          placeholder="Who is she? What draws the player in?"
-                        />
-                      </div>
+                  <div>
+                    <Label htmlFor={`${character.id}-description`} className="text-xs uppercase tracking-wider text-white/50">
+                      Description
+                    </Label>
+                    <Textarea
+                      id={`${character.id}-description`}
+                      value={profileDraft.description}
+                      onChange={(event) => handleDraftChange('description', event.target.value)}
+                      className="mt-1.5 h-24 rounded-lg border-white/15 bg-white/5 text-sm"
+                      placeholder="Who is she? What draws you in?"
+                    />
+                  </div>
 
-                      <div>
-                        <Label htmlFor={`${character.id}-backstory`} className="text-xs uppercase tracking-[0.25em] text-white/50">
-                          Backstory
-                        </Label>
-                        <Textarea
-                          id={`${character.id}-backstory`}
-                          value={profileDraft.backstory}
-                          onChange={(event) => handleDraftChange('backstory', event.target.value)}
-                          className="mt-1 h-32 rounded-2xl border-white/15 bg-white/5 text-sm"
-                          placeholder="Add context, history, and hooks for the AI."
-                        />
-                      </div>
+                  <div>
+                    <Label htmlFor={`${character.id}-backstory`} className="text-xs uppercase tracking-wider text-white/50">
+                      Backstory
+                    </Label>
+                    <Textarea
+                      id={`${character.id}-backstory`}
+                      value={profileDraft.backstory}
+                      onChange={(event) => handleDraftChange('backstory', event.target.value)}
+                      className="mt-1.5 h-28 rounded-lg border-white/15 bg-white/5 text-sm"
+                      placeholder="Background, history, and context"
+                    />
+                  </div>
 
-                      <div>
-                        <Label htmlFor={`${character.id}-keywords`} className="text-xs uppercase tracking-[0.25em] text-white/50">
-                          Keywords
-                        </Label>
-                        <Textarea
-                          id={`${character.id}-keywords`}
-                          value={profileDraft.keywords}
-                          onChange={(event) => handleDraftChange('keywords', event.target.value)}
-                          className="mt-1 h-24 rounded-2xl border-white/15 bg-white/5 text-sm"
-                          placeholder="comma or newline separated"
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {/* View Mode - Display Only */}
-                      <div className="space-y-4">
+                  <div>
+                    <Label htmlFor={`${character.id}-keywords`} className="text-xs uppercase tracking-wider text-white/50">
+                      Keywords
+                    </Label>
+                    <Textarea
+                      id={`${character.id}-keywords`}
+                      value={profileDraft.keywords}
+                      onChange={(event) => handleDraftChange('keywords', event.target.value)}
+                      className="mt-1.5 h-20 rounded-lg border-white/15 bg-white/5 text-sm"
+                      placeholder="comma separated"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* View Mode - Labeled Sections */}
+                  <div className="space-y-5">
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div>
-                            <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Name</div>
-                            <div className="text-lg font-semibold">{character.name}</div>
+                            <div className="text-xs uppercase tracking-wider text-white/40 mb-1.5">Name:</div>
+                            <div className="text-base font-semibold text-white">{character.name}</div>
                           </div>
                           <div>
-                            <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Age</div>
-                            <div className="text-lg font-semibold">{character.age || 'Not set'}</div>
+                            <div className="text-xs uppercase tracking-wider text-white/40 mb-1.5">Age:</div>
+                            <div className="text-base font-semibold text-white">{character.age || 'Unknown'}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs uppercase tracking-wider text-white/40 mb-1.5">Role:</div>
+                            <div className="text-base text-white/80">{character.role || 'None'}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs uppercase tracking-wider text-white/40 mb-1.5">Level:</div>
+                            <div className="text-base text-white/80">{stats.level}</div>
                           </div>
                         </div>
                         
                         <div>
-                          <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Description</div>
+                          <div className="text-xs uppercase tracking-wider text-white/40 mb-1.5">Description:</div>
                           <div className="text-sm text-white/80 leading-relaxed">{character.description || 'No description available'}</div>
                         </div>
                         
                         {character.prompts?.background && (
                           <div>
-                            <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Backstory</div>
+                            <div className="text-xs uppercase tracking-wider text-white/40 mb-1.5">Background:</div>
                             <div className="text-sm text-white/80 leading-relaxed">{character.prompts.background}</div>
                           </div>
                         )}
                         
                         {character.features && character.features.length > 0 && (
                           <div>
-                            <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Keywords</div>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="text-xs uppercase tracking-wider text-white/40 mb-1.5">Traits:</div>
+                            <div className="flex flex-wrap gap-1.5">
                               {character.features.map((feature, idx) => (
                                 <Badge key={idx} variant="outline" className="border-white/20 bg-white/5 text-xs">
                                   {feature}
@@ -954,40 +919,53 @@ export function CharacterCard({
                             </div>
                           </div>
                         )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
 
-              {isEditMode && (
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
-                  <div className="text-xs uppercase tracking-[0.25em] text-white/40">
-                    {isProfileDirty ? 'Unsaved changes' : 'All changes saved'}
+                        <div className="pt-3 border-t border-white/10">
+                          <div className="text-xs uppercase tracking-wider text-white/40 mb-1.5">Activity:</div>
+                          <div className="text-sm text-white/70">
+                            {totalMessages} messages • {characterSessions.length} sessions
+                          </div>
+                          <div className="text-xs text-white/50 mt-1">
+                            Last interaction: {formatDate(lastInteraction)}
+                          </div>
+                        </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleResetProfile}
-                      disabled={!isProfileDirty || isSavingProfile}
-                      className="rounded-full border-white/20 text-white/70 hover:text-white"
-                    >
-                      Reset
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleSaveProfile}
-                      disabled={!isProfileDirty || isSavingProfile}
-                      className="rounded-full bg-[#ff1372] px-5 text-white hover:bg-[#ff1372]/85"
-                    >
-                      {isSavingProfile ? 'Saving…' : 'Save Profile'}
-                    </Button>
-                  </div>
-                </div>
+                </>
               )}
             </div>
-          </Card>
+          </div>
+
+          {isEditMode && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+              <div className="text-xs uppercase tracking-wider text-white/40">
+                {isProfileDirty ? 'Unsaved changes' : 'Saved'}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetProfile}
+                  disabled={!isProfileDirty || isSavingProfile}
+                  className="rounded-lg border-white/20 text-white/70 hover:text-white"
+                >
+                  Reset
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSaveProfile}
+                  disabled={!isProfileDirty || isSavingProfile}
+                  className="rounded-lg bg-[#ff1372] px-5 text-white hover:bg-[#ff1372]/85"
+                >
+                  {isSavingProfile ? 'Saving…' : 'Save'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="pt-4 border-t border-white/10">
+            {primaryActions}
+          </div>
         </div>
       </ScrollArea>
     </TabsContent>
@@ -995,60 +973,58 @@ export function CharacterCard({
 
   const statsTab = (
     <TabsContent value="stats" className="h-full">
-      <ScrollArea className="h-[62vh] pr-4">
-        <div className="space-y-6 px-2 py-6">
-          <Card className="border-none bg-white/5 text-white">
-            <div className="space-y-4 p-6">
-              <h3 className="text-lg font-semibold">Core Stats</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
+      <ScrollArea className="h-full px-6">
+        <div className="space-y-6 py-6">
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Core Stats</h3>
+            <div className="grid gap-3 sm:grid-cols-2">
                 {Object.entries(stats).map(([label, value]) => (
-                  <div key={label}>
-                    <div className="flex items-center justify-between text-sm text-white/70">
-                      <span className="capitalize">{label}</span>
-                      <span className="text-white/80">
-                        {typeof value === 'number' ? `${Math.round(value)}` : value}
-                        {label === 'experience' || label === 'level' ? '' : '%'}
-                      </span>
+                  <div key={label} className="flex items-center justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="capitalize text-white/70">{label}</span>
+                        <span className="text-white font-medium">
+                          {typeof value === 'number' ? `${Math.round(value)}` : value}
+                          {label === 'experience' || label === 'level' ? '' : '%'}
+                        </span>
+                      </div>
+                      <Progress value={typeof value === 'number' ? value : 0} className="h-1.5 bg-white/10" />
                     </div>
-                    <Progress value={typeof value === 'number' ? value : 0} className="mt-1.5 h-2 bg-white/10" />
                   </div>
                 ))}
-              </div>
             </div>
-          </Card>
+          </div>
 
-          <Card className="border-none bg-white/5 text-white">
-            <div className="space-y-4 p-6">
-              <h3 className="flex items-center gap-2 text-lg font-semibold">
-                <TrendUp className="h-5 w-5 text-emerald-300" /> Sexual Skills
-              </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-4">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
+              <TrendUp className="h-5 w-5 text-emerald-300" /> Sexual Skills
+            </h3>
+            <div className="grid gap-3 sm:grid-cols-2">
                 {Object.entries(skills).map(([label, value]) => (
-                  <div key={label}>
-                    <div className="flex items-center justify-between text-sm text-white/70">
-                      <span className="capitalize">{label}</span>
-                      <span className="text-white/80">{value}%</span>
+                  <div key={label} className="flex items-center justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="capitalize text-white/70">{label}</span>
+                        <span className="text-white font-medium">{value}%</span>
+                      </div>
+                      <Progress value={value} className="h-1.5 bg-white/10" />
                     </div>
-                    <Progress value={value} className="mt-1.5 h-2 bg-white/10" />
                   </div>
-                ))}
-              </div>
+              ))}
             </div>
-          </Card>
+          </div>
 
-          <Card className="border-none bg-white/5 text-white">
-            <div className="space-y-4 p-6">
-              <h3 className="text-lg font-semibold">Compatibility</h3>
-              <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-white">Compatibility</h3>
+            <div className="grid gap-3 sm:grid-cols-3">
                 {compatibilityStats.map(({ label, value }) => (
-                  <div key={label} className="rounded-xl border border-white/10 bg-white/5 p-4 text-center text-white/80">
-                    <div className="text-sm uppercase tracking-wide text-white/50">{label}</div>
-                    <div className="mt-2 text-2xl font-semibold">{value}%</div>
+                  <div key={label} className="rounded-lg border border-white/10 bg-white/5 p-3 text-center">
+                    <div className="text-xs uppercase tracking-wide text-white/50">{label}</div>
+                    <div className="mt-2 text-xl font-semibold text-white">{value}%</div>
                   </div>
-                ))}
-              </div>
+              ))}
             </div>
-          </Card>
+          </div>
         </div>
       </ScrollArea>
     </TabsContent>
@@ -1056,263 +1032,261 @@ export function CharacterCard({
 
   const physicalTab = (
     <TabsContent value="physical" className="h-full">
-      <ScrollArea className="h-[62vh] pr-4">
-        <div className="space-y-6 px-2 py-6">
-          <Card className="border-none bg-white/5 text-white">
-            <div className="space-y-4 p-6">
-              <div className="flex items-center justify-between">
-                <h3 className="flex items-center gap-2 text-lg font-semibold">
-                  <User className="h-5 w-5 text-pink-300" /> Physical Features
-                </h3>
-                <Button
-                  variant={isPhysicalEditMode ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setIsPhysicalEditMode(!isPhysicalEditMode)}
-                  className="rounded-full"
-                >
-                  <Pencil className="mr-2 h-3.5 w-3.5" />
-                  {isPhysicalEditMode ? 'View Mode' : 'Edit'}
-                </Button>
-              </div>
-              
-              {isPhysicalEditMode ? (
-                <>
-                  {/* Physical Attributes - Edit Mode */}
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Hair Color</Label>
-                      <Select value={physicalFeatures.hairColor} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, hairColor: value})}>
-                        <SelectTrigger className="mt-1 border-white/15 bg-white/5">
-                          <SelectValue placeholder="Select hair color" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Blonde">Blonde</SelectItem>
-                          <SelectItem value="Brunette">Brunette</SelectItem>
-                          <SelectItem value="Black">Black</SelectItem>
-                          <SelectItem value="Red">Red</SelectItem>
-                          <SelectItem value="Auburn">Auburn</SelectItem>
-                          <SelectItem value="Platinum">Platinum</SelectItem>
-                          <SelectItem value="Brown">Brown</SelectItem>
-                          <SelectItem value="Dark Brown">Dark Brown</SelectItem>
-                          <SelectItem value="Light Brown">Light Brown</SelectItem>
-                          <SelectItem value="Gray">Gray</SelectItem>
-                          <SelectItem value="White">White</SelectItem>
-                          <SelectItem value="Colorful">Colorful/Dyed</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Eye Color</Label>
-                      <Select value={physicalFeatures.eyeColor} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, eyeColor: value})}>
-                        <SelectTrigger className="mt-1 border-white/15 bg-white/5">
-                          <SelectValue placeholder="Select eye color" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Blue">Blue</SelectItem>
-                          <SelectItem value="Green">Green</SelectItem>
-                          <SelectItem value="Brown">Brown</SelectItem>
-                          <SelectItem value="Hazel">Hazel</SelectItem>
-                          <SelectItem value="Gray">Gray</SelectItem>
-                          <SelectItem value="Amber">Amber</SelectItem>
-                          <SelectItem value="Violet">Violet</SelectItem>
-                          <SelectItem value="Heterochromia">Heterochromia (Different colors)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Skin Tone</Label>
-                      <Select value={physicalFeatures.skinTone} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, skinTone: value})}>
-                        <SelectTrigger className="mt-1 border-white/15 bg-white/5">
-                          <SelectValue placeholder="Select skin tone" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Pale">Pale</SelectItem>
-                          <SelectItem value="Fair">Fair</SelectItem>
-                          <SelectItem value="Light">Light</SelectItem>
-                          <SelectItem value="Medium">Medium</SelectItem>
-                          <SelectItem value="Olive">Olive</SelectItem>
-                          <SelectItem value="Tan">Tan</SelectItem>
-                          <SelectItem value="Brown">Brown</SelectItem>
-                          <SelectItem value="Dark">Dark</SelectItem>
-                          <SelectItem value="Ebony">Ebony</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Height</Label>
-                      <Input
-                        value={physicalFeatures.height}
-                        onChange={(e) => setPhysicalFeatures({...physicalFeatures, height: e.target.value})}
-                        placeholder="e.g., 5'6&quot; (168cm)"
-                        className="mt-1 border-white/15 bg-white/5"
-                      />
-                    </div>
-
-                    <div>
-                      <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Body Type</Label>
-                      <Select value={physicalFeatures.bodyType} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, bodyType: value})}>
-                        <SelectTrigger className="mt-1 border-white/15 bg-white/5">
-                          <SelectValue placeholder="Select body type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Petite">Petite</SelectItem>
-                          <SelectItem value="Slim">Slim</SelectItem>
-                          <SelectItem value="Athletic">Athletic</SelectItem>
-                          <SelectItem value="Curvy">Curvy</SelectItem>
-                          <SelectItem value="Voluptuous">Voluptuous</SelectItem>
-                          <SelectItem value="Average">Average</SelectItem>
-                          <SelectItem value="Muscular">Muscular</SelectItem>
-                          <SelectItem value="Hourglass">Hourglass</SelectItem>
-                          <SelectItem value="Pear">Pear</SelectItem>
-                          <SelectItem value="Apple">Apple</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Breast Size</Label>
-                      <Select value={physicalFeatures.breastSize} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, breastSize: value})}>
-                        <SelectTrigger className="mt-1 border-white/15 bg-white/5">
-                          <SelectValue placeholder="Select size" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="AA">AA</SelectItem>
-                          <SelectItem value="A">A</SelectItem>
-                          <SelectItem value="B">B</SelectItem>
-                          <SelectItem value="C">C</SelectItem>
-                          <SelectItem value="D">D</SelectItem>
-                          <SelectItem value="DD">DD</SelectItem>
-                          <SelectItem value="DDD/E">DDD/E</SelectItem>
-                          <SelectItem value="F">F</SelectItem>
-                          <SelectItem value="G+">G and up</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Butt Size</Label>
-                      <Select value={physicalFeatures.buttSize} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, buttSize: value})}>
-                        <SelectTrigger className="mt-1 border-white/15 bg-white/5">
-                          <SelectValue placeholder="Select size" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Small">Small</SelectItem>
-                          <SelectItem value="Average">Average</SelectItem>
-                          <SelectItem value="Round">Round</SelectItem>
-                          <SelectItem value="Bubble">Bubble</SelectItem>
-                          <SelectItem value="Large">Large</SelectItem>
-                          <SelectItem value="Extra Large">Extra Large</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+      <ScrollArea className="h-full px-6">
+        <div className="space-y-6 py-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-lg font-semibold">
+                <User className="h-5 w-5 text-pink-300" /> Physical Features
+              </h3>
+              <Button
+                variant={isPhysicalEditMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => setIsPhysicalEditMode(!isPhysicalEditMode)}
+                className="rounded-full"
+              >
+                <Pencil className="mr-2 h-3.5 w-3.5" />
+                {isPhysicalEditMode ? 'View Mode' : 'Edit'}
+              </Button>
+            </div>
+            
+            {isPhysicalEditMode ? (
+              <>
+                {/* Physical Attributes - Edit Mode */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Hair Color</Label>
+                    <Select value={physicalFeatures.hairColor} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, hairColor: value})}>
+                      <SelectTrigger className="mt-1 border-white/15 bg-white/5">
+                        <SelectValue placeholder="Select hair color" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Blonde">Blonde</SelectItem>
+                        <SelectItem value="Brunette">Brunette</SelectItem>
+                        <SelectItem value="Black">Black</SelectItem>
+                        <SelectItem value="Red">Red</SelectItem>
+                        <SelectItem value="Auburn">Auburn</SelectItem>
+                        <SelectItem value="Platinum">Platinum</SelectItem>
+                        <SelectItem value="Brown">Brown</SelectItem>
+                        <SelectItem value="Dark Brown">Dark Brown</SelectItem>
+                        <SelectItem value="Light Brown">Light Brown</SelectItem>
+                        <SelectItem value="Gray">Gray</SelectItem>
+                        <SelectItem value="White">White</SelectItem>
+                        <SelectItem value="Colorful">Colorful/Dyed</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  <div className="mt-6">
-                    <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Physical Traits</Label>
-                    <Textarea
-                      value={physicalFeatures.traits.join(', ')}
-                      onChange={(e) => setPhysicalFeatures({...physicalFeatures, traits: e.target.value.split(',').map(t => t.trim()).filter(Boolean)})}
-                      placeholder="Enter traits separated by commas: tattoos, piercings, beauty marks, scars, etc."
-                      className="mt-1 border-white/15 bg-white/5 text-sm"
-                      rows={3}
+                  <div>
+                    <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Eye Color</Label>
+                    <Select value={physicalFeatures.eyeColor} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, eyeColor: value})}>
+                      <SelectTrigger className="mt-1 border-white/15 bg-white/5">
+                        <SelectValue placeholder="Select eye color" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Blue">Blue</SelectItem>
+                        <SelectItem value="Green">Green</SelectItem>
+                        <SelectItem value="Brown">Brown</SelectItem>
+                        <SelectItem value="Hazel">Hazel</SelectItem>
+                        <SelectItem value="Gray">Gray</SelectItem>
+                        <SelectItem value="Amber">Amber</SelectItem>
+                        <SelectItem value="Violet">Violet</SelectItem>
+                        <SelectItem value="Heterochromia">Heterochromia (Different colors)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Skin Tone</Label>
+                    <Select value={physicalFeatures.skinTone} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, skinTone: value})}>
+                      <SelectTrigger className="mt-1 border-white/15 bg-white/5">
+                        <SelectValue placeholder="Select skin tone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Pale">Pale</SelectItem>
+                        <SelectItem value="Fair">Fair</SelectItem>
+                        <SelectItem value="Light">Light</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="Olive">Olive</SelectItem>
+                        <SelectItem value="Tan">Tan</SelectItem>
+                        <SelectItem value="Brown">Brown</SelectItem>
+                        <SelectItem value="Dark">Dark</SelectItem>
+                        <SelectItem value="Ebony">Ebony</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Height</Label>
+                    <Input
+                      value={physicalFeatures.height}
+                      onChange={(e) => setPhysicalFeatures({...physicalFeatures, height: e.target.value})}
+                      placeholder="e.g., 5'6&quot; (168cm)"
+                      className="mt-1 border-white/15 bg-white/5"
                     />
                   </div>
 
-                  <div className="flex gap-2 pt-4 border-t border-white/10">
-                    <Button
-                      onClick={handleGeneratePhysicalDescription}
-                      disabled={isGeneratingPhysical}
-                      className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
-                    >
-                      {isGeneratingPhysical ? (
-                        <>
-                          <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkle className="mr-2 h-4 w-4" />
-                          Generate Description
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* View Mode */}
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {physicalFeatures.hairColor && (
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Hair Color</div>
-                        <div className="text-sm font-semibold">{physicalFeatures.hairColor}</div>
-                      </div>
-                    )}
-                    {physicalFeatures.eyeColor && (
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Eye Color</div>
-                        <div className="text-sm font-semibold">{physicalFeatures.eyeColor}</div>
-                      </div>
-                    )}
-                    {physicalFeatures.skinTone && (
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Skin Tone</div>
-                        <div className="text-sm font-semibold">{physicalFeatures.skinTone}</div>
-                      </div>
-                    )}
-                    {physicalFeatures.height && (
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Height</div>
-                        <div className="text-sm font-semibold">{physicalFeatures.height}</div>
-                      </div>
-                    )}
-                    {physicalFeatures.bodyType && (
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Body Type</div>
-                        <div className="text-sm font-semibold">{physicalFeatures.bodyType}</div>
-                      </div>
-                    )}
-                    {physicalFeatures.breastSize && (
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Breast Size</div>
-                        <div className="text-sm font-semibold">{physicalFeatures.breastSize}</div>
-                      </div>
-                    )}
-                    {physicalFeatures.buttSize && (
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Butt Size</div>
-                        <div className="text-sm font-semibold">{physicalFeatures.buttSize}</div>
-                      </div>
-                    )}
+                  <div>
+                    <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Body Type</Label>
+                    <Select value={physicalFeatures.bodyType} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, bodyType: value})}>
+                      <SelectTrigger className="mt-1 border-white/15 bg-white/5">
+                        <SelectValue placeholder="Select body type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Petite">Petite</SelectItem>
+                        <SelectItem value="Slim">Slim</SelectItem>
+                        <SelectItem value="Athletic">Athletic</SelectItem>
+                        <SelectItem value="Curvy">Curvy</SelectItem>
+                        <SelectItem value="Voluptuous">Voluptuous</SelectItem>
+                        <SelectItem value="Average">Average</SelectItem>
+                        <SelectItem value="Muscular">Muscular</SelectItem>
+                        <SelectItem value="Hourglass">Hourglass</SelectItem>
+                        <SelectItem value="Pear">Pear</SelectItem>
+                        <SelectItem value="Apple">Apple</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  {physicalFeatures.traits.length > 0 && (
-                    <div className="mt-4">
-                      <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Physical Traits</div>
-                      <div className="flex flex-wrap gap-2">
-                        {physicalFeatures.traits.map((trait, idx) => (
-                          <Badge key={idx} variant="outline" className="border-white/20 bg-white/5">
-                            {trait}
-                          </Badge>
-                        ))}
-                      </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Breast Size</Label>
+                    <Select value={physicalFeatures.breastSize} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, breastSize: value})}>
+                      <SelectTrigger className="mt-1 border-white/15 bg-white/5">
+                        <SelectValue placeholder="Select size" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="AA">AA</SelectItem>
+                        <SelectItem value="A">A</SelectItem>
+                        <SelectItem value="B">B</SelectItem>
+                        <SelectItem value="C">C</SelectItem>
+                        <SelectItem value="D">D</SelectItem>
+                        <SelectItem value="DD">DD</SelectItem>
+                        <SelectItem value="DDD/E">DDD/E</SelectItem>
+                        <SelectItem value="F">F</SelectItem>
+                        <SelectItem value="G+">G and up</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Butt Size</Label>
+                    <Select value={physicalFeatures.buttSize} onValueChange={(value) => setPhysicalFeatures({...physicalFeatures, buttSize: value})}>
+                      <SelectTrigger className="mt-1 border-white/15 bg-white/5">
+                        <SelectValue placeholder="Select size" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Small">Small</SelectItem>
+                        <SelectItem value="Average">Average</SelectItem>
+                        <SelectItem value="Round">Round</SelectItem>
+                        <SelectItem value="Bubble">Bubble</SelectItem>
+                        <SelectItem value="Large">Large</SelectItem>
+                        <SelectItem value="Extra Large">Extra Large</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <Label className="text-xs uppercase tracking-[0.25em] text-white/50">Physical Traits</Label>
+                  <Textarea
+                    value={physicalFeatures.traits.join(', ')}
+                    onChange={(e) => setPhysicalFeatures({...physicalFeatures, traits: e.target.value.split(',').map(t => t.trim()).filter(Boolean)})}
+                    placeholder="Enter traits separated by commas: tattoos, piercings, beauty marks, scars, etc."
+                    className="mt-1 border-white/15 bg-white/5 text-sm"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-4 border-t border-white/10">
+                  <Button
+                    onClick={handleGeneratePhysicalDescription}
+                    disabled={isGeneratingPhysical}
+                    className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
+                  >
+                    {isGeneratingPhysical ? (
+                      <>
+                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkle className="mr-2 h-4 w-4" />
+                        Generate Description
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* View Mode */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {physicalFeatures.hairColor && (
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Hair Color</div>
+                      <div className="text-sm font-semibold">{physicalFeatures.hairColor}</div>
                     </div>
                   )}
-                </>
-              )}
-
-              {/* Generated Description */}
-              {generatedPhysicalDescription && (
-                <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
-                  <h4 className="text-sm font-medium text-white/80 mb-2">Generated Physical Description</h4>
-                  <p className="text-sm text-white/70 leading-relaxed">{generatedPhysicalDescription}</p>
+                  {physicalFeatures.eyeColor && (
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Eye Color</div>
+                      <div className="text-sm font-semibold">{physicalFeatures.eyeColor}</div>
+                    </div>
+                  )}
+                  {physicalFeatures.skinTone && (
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Skin Tone</div>
+                      <div className="text-sm font-semibold">{physicalFeatures.skinTone}</div>
+                    </div>
+                  )}
+                  {physicalFeatures.height && (
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Height</div>
+                      <div className="text-sm font-semibold">{physicalFeatures.height}</div>
+                    </div>
+                  )}
+                  {physicalFeatures.bodyType && (
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Body Type</div>
+                      <div className="text-sm font-semibold">{physicalFeatures.bodyType}</div>
+                    </div>
+                  )}
+                  {physicalFeatures.breastSize && (
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Breast Size</div>
+                      <div className="text-sm font-semibold">{physicalFeatures.breastSize}</div>
+                    </div>
+                  )}
+                  {physicalFeatures.buttSize && (
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Butt Size</div>
+                      <div className="text-sm font-semibold">{physicalFeatures.buttSize}</div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </Card>
+
+                {physicalFeatures.traits.length > 0 && (
+                  <div className="mt-4">
+                    <div className="text-xs uppercase tracking-[0.25em] text-white/50 mb-2">Physical Traits</div>
+                    <div className="flex flex-wrap gap-2">
+                      {physicalFeatures.traits.map((trait, idx) => (
+                        <Badge key={idx} variant="outline" className="border-white/20 bg-white/5">
+                          {trait}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Generated Description */}
+            {generatedPhysicalDescription && (
+              <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
+                <h4 className="text-sm font-medium text-white/80 mb-2">Generated Physical Description</h4>
+                <p className="text-sm text-white/70 leading-relaxed">{generatedPhysicalDescription}</p>
+              </div>
+            )}
+          </div>
         </div>
       </ScrollArea>
     </TabsContent>
@@ -1320,102 +1294,100 @@ export function CharacterCard({
 
   const valueTab = (
     <TabsContent value="value" className="h-full">
-      <ScrollArea className="h-[62vh] pr-4">
-        <div className="space-y-6 px-2 py-6">
-          <Card className="border-none bg-white/5 text-white">
-            <div className="space-y-4 p-6">
-              <h3 className="flex items-center gap-2 text-lg font-semibold">
-                <CurrencyDollar className="h-5 w-5 text-green-300" /> Market Valuation
-              </h3>
-              
-              {/* Overall Value */}
-              <div className="text-center p-6 bg-gradient-to-r from-green-900/20 to-emerald-900/20 rounded-xl border border-green-500/20">
-                <div className="text-3xl font-bold text-green-400 mb-2">$125,000</div>
-                <div className="text-sm text-green-300">Estimated Market Value</div>
-                <div className="text-xs text-white/60 mt-1">Premium Tier • Rare Quality</div>
-              </div>
+      <ScrollArea className="h-full px-6">
+        <div className="space-y-6 py-6">
+          <div className="space-y-4">
+            <h3 className="flex items-center gap-2 text-lg font-semibold">
+              <CurrencyDollar className="h-5 w-5 text-green-300" /> Market Valuation
+            </h3>
+            
+            {/* Overall Value */}
+            <div className="text-center p-6 bg-gradient-to-r from-green-900/20 to-emerald-900/20 rounded-xl border border-green-500/20">
+              <div className="text-3xl font-bold text-green-400 mb-2">$125,000</div>
+              <div className="text-sm text-green-300">Estimated Market Value</div>
+              <div className="text-xs text-white/60 mt-1">Premium Tier • Rare Quality</div>
+            </div>
 
-              {/* Value Breakdown */}
-              <div className="grid gap-4 sm:grid-cols-2 mt-6">
-                <div>
-                  <h4 className="text-sm font-medium text-white/80 mb-3">Value Factors</h4>
-                  <div className="space-y-2 text-sm">
-                    {[
-                      { factor: 'Physical Beauty', value: '$45,000', weight: '36%' },
-                      { factor: 'Personality', value: '$25,000', weight: '20%' },
-                      { factor: 'Rarity', value: '$20,000', weight: '16%' },
-                      { factor: 'Experience', value: '$15,000', weight: '12%' },
-                      { factor: 'Age Factor', value: '$12,000', weight: '10%' },
-                      { factor: 'Skills', value: '$8,000', weight: '6%' }
-                    ].map(({ factor, value, weight }) => (
-                      <div key={factor} className="flex justify-between items-center">
-                        <span className="text-white/60">{factor}</span>
-                        <div className="text-right">
-                          <div className="text-white font-medium">{value}</div>
-                          <div className="text-xs text-white/40">{weight}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-sm font-medium text-white/80 mb-3">Market Analysis</h4>
-                  <div className="space-y-3">
-                    <div className="p-3 bg-green-900/20 rounded-lg border border-green-500/20">
-                      <div className="text-sm font-medium text-green-400">Recommendation: HOLD</div>
-                      <div className="text-xs text-white/60 mt-1">
-                        High-value asset with strong appreciation potential
-                      </div>
-                    </div>
-                    
-                    <div className="text-xs text-white/70 space-y-1">
-                      <div className="flex justify-between">
-                        <span>Value Trend:</span>
-                        <span className="text-green-400">↗ +15% (6m)</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Market Demand:</span>
-                        <span className="text-yellow-400">High</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Depreciation Risk:</span>
-                        <span className="text-green-400">Low</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Target Demographics */}
-              <div className="mt-6">
-                <h4 className="text-sm font-medium text-white/80 mb-3">Target Demographics</h4>
-                <div className="grid gap-2 sm:grid-cols-2">
+            {/* Value Breakdown */}
+            <div className="grid gap-4 sm:grid-cols-2 mt-6">
+              <div>
+                <h4 className="text-sm font-medium text-white/80 mb-3">Value Factors</h4>
+                <div className="space-y-2 text-sm">
                   {[
-                    'Executives (25-45)',
-                    'High-net-worth individuals',
-                    'Collectors of rare beauty',
-                    'Premium experience seekers'
-                  ].map((demographic, index) => (
-                    <div key={index} className="flex items-center gap-2 text-sm text-white/70">
-                      <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
-                      {demographic}
+                    { factor: 'Physical Beauty', value: '$45,000', weight: '36%' },
+                    { factor: 'Personality', value: '$25,000', weight: '20%' },
+                    { factor: 'Rarity', value: '$20,000', weight: '16%' },
+                    { factor: 'Experience', value: '$15,000', weight: '12%' },
+                    { factor: 'Age Factor', value: '$12,000', weight: '10%' },
+                    { factor: 'Skills', value: '$8,000', weight: '6%' }
+                  ].map(({ factor, value, weight }) => (
+                    <div key={factor} className="flex justify-between items-center">
+                      <span className="text-white/60">{factor}</span>
+                      <div className="text-right">
+                        <div className="text-white font-medium">{value}</div>
+                        <div className="text-xs text-white/40">{weight}</div>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Investment Notes */}
-              <div className="mt-6 p-4 bg-blue-900/20 rounded-lg border border-blue-500/20">
-                <h4 className="text-sm font-medium text-blue-300 mb-2">Investment Notes</h4>
-                <p className="text-xs text-white/70 leading-relaxed">
-                  Premium asset with exceptional physical ratings and desirable personality traits. 
-                  Strong appreciation potential due to rarity and high demand in target demographics. 
-                  Consider long-term hold for maximum value realization.
-                </p>
+              <div>
+                <h4 className="text-sm font-medium text-white/80 mb-3">Market Analysis</h4>
+                <div className="space-y-3">
+                  <div className="p-3 bg-green-900/20 rounded-lg border border-green-500/20">
+                    <div className="text-sm font-medium text-green-400">Recommendation: HOLD</div>
+                    <div className="text-xs text-white/60 mt-1">
+                      High-value asset with strong appreciation potential
+                    </div>
+                  </div>
+                  
+                  <div className="text-xs text-white/70 space-y-1">
+                    <div className="flex justify-between">
+                      <span>Value Trend:</span>
+                      <span className="text-green-400">↗ +15% (6m)</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Market Demand:</span>
+                      <span className="text-yellow-400">High</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Depreciation Risk:</span>
+                      <span className="text-green-400">Low</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </Card>
+
+            {/* Target Demographics */}
+            <div className="mt-6">
+              <h4 className="text-sm font-medium text-white/80 mb-3">Target Demographics</h4>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {[
+                  'Executives (25-45)',
+                  'High-net-worth individuals',
+                  'Collectors of rare beauty',
+                  'Premium experience seekers'
+                ].map((demographic, index) => (
+                  <div key={index} className="flex items-center gap-2 text-sm text-white/70">
+                    <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
+                    {demographic}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Investment Notes */}
+            <div className="mt-6 p-4 bg-blue-900/20 rounded-lg border border-blue-500/20">
+              <h4 className="text-sm font-medium text-blue-300 mb-2">Investment Notes</h4>
+              <p className="text-xs text-white/70 leading-relaxed">
+                Premium asset with exceptional physical ratings and desirable personality traits. 
+                Strong appreciation potential due to rarity and high demand in target demographics. 
+                Consider long-term hold for maximum value realization.
+              </p>
+            </div>
+          </div>
         </div>
       </ScrollArea>
     </TabsContent>
@@ -1423,8 +1395,8 @@ export function CharacterCard({
 
   const feedTab = (
     <TabsContent value="feed" className="h-full">
-      <ScrollArea className="h-[62vh] pr-4">
-        <div className="space-y-6 px-2 py-6">
+      <ScrollArea className="h-full px-6">
+        <div className="space-y-6 py-6">
           <div className="flex items-center justify-between">
             <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
               <ImageIcon className="h-5 w-5 text-sky-300" /> Gallery
@@ -1558,14 +1530,13 @@ export function CharacterCard({
 
   const memoriesTab = (
     <TabsContent value="memories" className="h-full">
-      <ScrollArea className="h-[62vh] pr-4">
-        <div className="space-y-6 px-2 py-6">
-          <Card className="border-none bg-white/5 text-white">
-            <div className="space-y-4 p-6">
-              <h3 className="flex items-center gap-2 text-lg font-semibold">
-                <BookOpen className="h-5 w-5 text-sky-300" /> Story Chronicle
-              </h3>
-              {storyEntries.length === 0 ? (
+      <ScrollArea className="h-full px-6">
+        <div className="space-y-6 py-6">
+          <div className="space-y-4">
+            <h3 className="flex items-center gap-2 text-lg font-semibold">
+              <BookOpen className="h-5 w-5 text-sky-300" /> Story Chronicle
+            </h3>
+            {storyEntries.length === 0 ? (
                 <p className="text-sm text-white/60">No story entries yet. Start conversations to build her narrative.</p>
               ) : (
                 <div className="space-y-4">
@@ -1587,18 +1558,15 @@ export function CharacterCard({
                         </div>
                       ) : null}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Card>
+                ))}
+              </div>
+            )}
+          </div>
 
-          <Card className="border-none bg-white/5 text-white/70">
-            <div className="space-y-4 p-6">
-              <h3 className="text-lg font-semibold text-white">Emotional Journey</h3>
-              <pre className="whitespace-pre-wrap text-sm leading-relaxed">{emotionalJourney}</pre>
-            </div>
-          </Card>
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-white">Emotional Journey</h3>
+            <pre className="whitespace-pre-wrap text-sm leading-relaxed text-white/70">{emotionalJourney}</pre>
+          </div>
         </div>
       </ScrollArea>
     </TabsContent>
@@ -1606,14 +1574,13 @@ export function CharacterCard({
 
   const promptsTab = (
     <TabsContent value="prompts" className="h-full">
-      <ScrollArea className="h-[62vh] pr-4">
-        <div className="space-y-6 px-2 py-6">
-          <Card className="border-none bg-white/5 text-white">
-            <div className="space-y-3 p-6">
-              <h3 className="flex items-center gap-2 text-lg font-semibold">
-                <Code className="h-5 w-5 text-emerald-300" /> Character Prompts
-              </h3>
-              <div className="space-y-4 text-sm text-white/70">
+      <ScrollArea className="h-full px-6">
+        <div className="space-y-6 py-6">
+          <div className="space-y-3">
+            <h3 className="flex items-center gap-2 text-lg font-semibold">
+              <Code className="h-5 w-5 text-emerald-300" /> Character Prompts
+            </h3>
+            <div className="space-y-4 text-sm text-white/70">
                 <div>
                   <label className="block text-white/80 font-medium mb-2">System Prompt</label>
                   <Textarea
@@ -1716,11 +1683,10 @@ export function CharacterCard({
                 </div>
               </div>
             </div>
-          </Card>
-        </div>
-      </ScrollArea>
-    </TabsContent>
-  );
+          </div>
+        </ScrollArea>
+      </TabsContent>
+    );
 
   const dialogContent = (
     <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
@@ -1729,37 +1695,58 @@ export function CharacterCard({
           <DialogTitle className="text-lg font-semibold">{character.name}</DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="overview" className="flex h-full flex-col">
-          <TabsList className="flex w-full flex-wrap gap-2 border-b border-white/10 bg-[#080814] px-6 py-3">
-            <TabsTrigger value="overview" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+          <TabsList className="flex w-full flex-wrap justify-start gap-1 border-b border-white/10 bg-[#080814] px-6 py-3">
+            <TabsTrigger 
+              value="overview" 
+              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
+            >
               <Star className="h-4 w-4" />
               Profile
             </TabsTrigger>
-            <TabsTrigger value="stats" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+            <TabsTrigger 
+              value="stats" 
+              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
+            >
               <TrendUp className="h-4 w-4" />
               Stats
             </TabsTrigger>
-            <TabsTrigger value="physical" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+            <TabsTrigger 
+              value="physical" 
+              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
+            >
               <User className="h-4 w-4" />
               Physical
             </TabsTrigger>
-            <TabsTrigger value="value" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+            <TabsTrigger 
+              value="value" 
+              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
+            >
               <CurrencyDollar className="h-4 w-4" />
               Value
             </TabsTrigger>
-            <TabsTrigger value="feed" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+            <TabsTrigger 
+              value="feed" 
+              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
+            >
               <ImageIcon className="h-4 w-4" />
               Feed
             </TabsTrigger>
-            <TabsTrigger value="memories" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+            <TabsTrigger 
+              value="memories" 
+              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
+            >
               <BookOpen className="h-4 w-4" />
               Memories
             </TabsTrigger>
-            <TabsTrigger value="prompts" className="flex min-w-[120px] flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs text-white/70 data-[state=active]:bg-white/10 data-[state=active]:text-white">
+            <TabsTrigger 
+              value="prompts" 
+              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
+            >
               <Code className="h-4 w-4" />
               Prompts
             </TabsTrigger>
           </TabsList>
-          <div className="flex-1 overflow-hidden px-6 pb-6">
+          <div className="flex-1 overflow-hidden">
             {overviewTab}
             {statsTab}
             {physicalTab}

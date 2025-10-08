@@ -5,6 +5,7 @@
 The previous implementation had a **critical architectural flaw**:
 
 ### The Bug:
+
 1. **Invalid Session Type**: Used `createSession('copilot')` but 'copilot' is NOT a valid session type
    - Valid types: 'individual', 'group', 'scene', 'assistant', 'interview'
 2. **Session Sharing**: Type 'assistant' sessions are SINGLETON - only one exists
@@ -23,13 +24,13 @@ The previous implementation had a **critical architectural flaw**:
 
 ```typescript
 // Simple local state - no sessions!
-const [messages, setMessages] = useState<Array<{ 
-  id: string; 
-  role: 'user' | 'assistant'; 
-  content: string 
-}>>([
-  { id: '1', role: 'assistant', content: 'Welcome message...' }
-]);
+const [messages, setMessages] = useState<
+  Array<{
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+  }>
+>([{ id: "1", role: "assistant", content: "Welcome message..." }]);
 ```
 
 ### How It Works Now:
@@ -47,7 +48,7 @@ const [messages, setMessages] = useState<Array<{
 
 3. **Simple Message Flow**
    ```
-   User types → handleSendChat() → Add user msg to state → 
+   User types → handleSendChat() → Add user msg to state →
    Call AI service → Add AI response to state → Done
    ```
 
@@ -74,10 +75,10 @@ const [messages, setMessages] = useState<Array<{
 ```typescript
 const [chatDraft, setChatDraft] = useState('');
 const [isResponding, setIsResponding] = useState(false);
-const [messages, setMessages] = useState<Array<{ 
-  id: string; 
-  role: 'user' | 'assistant'; 
-  content: string 
+const [messages, setMessages] = useState<Array<{
+  id: string;
+  role: 'user' | 'assistant';
+  content: string
 }>>([...]);
 ```
 
@@ -86,51 +87,53 @@ const [messages, setMessages] = useState<Array<{
 ```typescript
 const handleSendChat = useCallback(async () => {
   if (!chatDraft.trim() || isResponding) return;
-  
+
   const userMessage = chatDraft.trim();
-  const newUserMsg = { 
-    id: Date.now().toString(), 
-    role: 'user' as const, 
-    content: userMessage 
+  const newUserMsg = {
+    id: Date.now().toString(),
+    role: "user" as const,
+    content: userMessage,
   };
-  
+
   // Add user message immediately
-  setMessages(prev => [...prev, newUserMsg]);
-  setChatDraft('');
+  setMessages((prev) => [...prev, newUserMsg]);
+  setChatDraft("");
   setIsResponding(true);
 
   try {
     // Call AI service
     let reply = "Default fallback message";
-    
-    if (typeof AIService.copilotRespond === 'function') {
-      const conversationHistory = [...messages, newUserMsg].map(msg => ({
+
+    if (typeof AIService.copilotRespond === "function") {
+      const conversationHistory = [...messages, newUserMsg].map((msg) => ({
         role: msg.role,
         content: msg.content,
       }));
-      
+
       reply = await AIService.copilotRespond({
-        threadId: 'wingman-sidebar',
+        threadId: "wingman-sidebar",
         messages: conversationHistory,
-        sessionId: 'wingman-local',
+        sessionId: "wingman-local",
         characters: [],
-        copilotPrompt: selectedCharacter ? `Current focus: ${selectedCharacter.name}` : undefined,
+        copilotPrompt: selectedCharacter
+          ? `Current focus: ${selectedCharacter.name}`
+          : undefined,
         housePrompt: undefined,
         includeHouseContext: false,
-        contextDetail: 'lite',
+        contextDetail: "lite",
       });
     }
-    
+
     // Add assistant response
-    const assistantMsg = { 
-      id: (Date.now() + 1).toString(), 
-      role: 'assistant' as const, 
-      content: reply 
+    const assistantMsg = {
+      id: (Date.now() + 1).toString(),
+      role: "assistant" as const,
+      content: reply,
     };
-    setMessages(prev => [...prev, assistantMsg]);
+    setMessages((prev) => [...prev, assistantMsg]);
   } catch (error) {
-    logger.error('Failed to send copilot message:', error);
-    toast.error('Could not send message to copilot');
+    logger.error("Failed to send copilot message:", error);
+    toast.error("Could not send message to copilot");
   } finally {
     setIsResponding(false);
   }
@@ -165,18 +168,19 @@ const handleSendChat = useCallback(async () => {
 
 ## Comparison: Old vs New
 
-| Feature | Old (Broken) | New (Fixed) |
-|---------|-------------|-------------|
-| Session Type | 'copilot' (invalid) or 'assistant' (shared) | None - no sessions |
-| Session Storage | Yes (database) | No (memory only) |
-| Persistence | Yes (buggy) | No (by design) |
-| Conflicts | Yes (hijacked character chats) | No (isolated) |
-| Complexity | High (session management) | Low (direct state) |
-| Speed | Slower (db operations) | Faster (memory only) |
+| Feature         | Old (Broken)                                | New (Fixed)          |
+| --------------- | ------------------------------------------- | -------------------- |
+| Session Type    | 'copilot' (invalid) or 'assistant' (shared) | None - no sessions   |
+| Session Storage | Yes (database)                              | No (memory only)     |
+| Persistence     | Yes (buggy)                                 | No (by design)       |
+| Conflicts       | Yes (hijacked character chats)              | No (isolated)        |
+| Complexity      | High (session management)                   | Low (direct state)   |
+| Speed           | Slower (db operations)                      | Faster (memory only) |
 
 ## Character Chat System (Unchanged)
 
 The character chat system continues to work as before:
+
 - Uses 'individual' session type
 - Stores in database
 - Persists across page refreshes
@@ -185,6 +189,7 @@ The character chat system continues to work as before:
 ## Future Enhancements (Optional)
 
 If persistence is needed later:
+
 1. Use localStorage for message history
 2. Create custom storage separate from sessions
 3. Implement export/import functionality

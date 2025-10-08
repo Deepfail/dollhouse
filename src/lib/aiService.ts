@@ -17,6 +17,46 @@ export interface LLMOptions {
 }
 
 export class AIService {
+  /**
+   * Strip thinking/reasoning tags from Venice AI responses.
+   * Venice API doesn't honor strip_thinking_response parameter, so we manually remove tags.
+   */
+  private static stripThinkingTags(content: string): string {
+    if (!content) return '';
+    
+    const originalLength = content.length;
+    
+    // Check for various thinking tag formats
+    const patterns = [
+      /<thinking>[\s\S]*?<\/thinking>/gi,
+      /<think>[\s\S]*?<\/think>/gi,
+      /\[thinking\][\s\S]*?\[\/thinking\]/gi,
+      /\[think\][\s\S]*?\[\/think\]/gi,
+      /&lt;thinking&gt;[\s\S]*?&lt;\/thinking&gt;/gi,
+      /&lt;think&gt;[\s\S]*?&lt;\/think&gt;/gi,
+    ];
+    
+    let cleaned = content;
+    patterns.forEach(pattern => {
+      cleaned = cleaned.replace(pattern, '');
+    });
+    cleaned = cleaned.trim();
+    
+    const wasStripped = cleaned.length !== originalLength;
+    if (wasStripped) {
+      logger.log('🧠 STRIPPED THINKING TAGS:', {
+        originalLength,
+        cleanedLength: cleaned.length,
+        removed: originalLength - cleaned.length
+      });
+    }
+    
+    // Always log the first 200 chars to see what we're returning
+    logger.log('📤 Venice response preview:', cleaned.substring(0, 200));
+    
+    return cleaned;
+  }
+
   static async getApiConfig() {
     try {
       const cfg = (await repositoryStorage.get<Record<string, unknown>>('house_config')) as Record<string, unknown> | null;
@@ -250,6 +290,7 @@ export class AIService {
   ): Promise<string> {
     const base = apiUrl || 'https://api.venice.ai/api/v1';
     const url = `${base}/chat/completions`;
+    
     const body = {
       model: model || 'llama-3.3-70b',
       messages: [
@@ -259,6 +300,9 @@ export class AIService {
       temperature: params?.temperature ?? 0.8,
       max_tokens: params?.max_tokens ?? 1000,
       top_p: params?.top_p ?? 0.9,
+      venice_parameters: {
+        strip_thinking_response: true
+      }
     };
 
     const headers2: Record<string, string> = {
@@ -281,7 +325,12 @@ export class AIService {
     }
 
     const data = await res.json();
-    return data.choices?.[0]?.message?.content || '';
+    const rawContent = data.choices?.[0]?.message?.content || '';
+    
+    logger.log('📥 Raw Venice API response length:', rawContent.length);
+    logger.log('📥 Raw Venice API response preview:', rawContent.substring(0, 300));
+    
+    return AIService.stripThinkingTags(rawContent);
   }
 
   // --- Copilot dedicated methods ---
@@ -586,6 +635,9 @@ export class AIService {
         temperature,
         max_tokens: maxTokens,
         top_p: 0.9,
+        venice_parameters: {
+          strip_thinking_response: true
+        }
       };
 
       const baseUrl = apiUrl || 'https://api.venice.ai/api/v1';
@@ -600,8 +652,12 @@ export class AIService {
           throw new Error(`Venice error ${res.status}: ${text.slice(0, 200)}`);
         }
         const data = await res.json();
-        const content = data?.choices?.[0]?.message?.content;
-        return typeof content === 'string' ? content : '';
+        const rawContent = data?.choices?.[0]?.message?.content || '';
+        
+        logger.log('📥 Raw Venice Copilot response length:', rawContent.length);
+        logger.log('📥 Raw Venice Copilot response preview:', rawContent.substring(0, 300));
+        
+        return AIService.stripThinkingTags(rawContent);
       } catch (e) {
         logger.error('copilotRespond Venice call failed; falling back to generateAssistantReply', e);
         return AIService.generateAssistantReply(finalPrompt);

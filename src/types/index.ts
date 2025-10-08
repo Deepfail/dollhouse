@@ -469,7 +469,7 @@ export type AIModel = {
 
 export const AVAILABLE_MODELS: AIModel[] = [
   {
-    id: 'deepseek/deepseek-chat-v3.2-exp',
+    id: 'deepseek/deepseek-v3.2-exp',
     name: 'DeepSeek V3.2 Experimental',
     provider: 'OpenRouter',
     description: 'DeepSeek Chat v3.2 Experimental - Latest experimental model',
