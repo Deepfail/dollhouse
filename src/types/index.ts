@@ -469,6 +469,13 @@ export type AIModel = {
 
 export const AVAILABLE_MODELS: AIModel[] = [
   {
+    id: 'deepseek/deepseek-chat-v3.2-exp',
+    name: 'DeepSeek V3.2 Experimental',
+    provider: 'OpenRouter',
+    description: 'DeepSeek Chat v3.2 Experimental - Latest experimental model',
+    contextLength: 64000
+  },
+  {
     id: 'deepseek/deepseek-chat-v3.1',
     name: 'DeepSeek Chat v3.1',
     provider: 'OpenRouter',
