@@ -242,16 +242,19 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                 </h4>
                 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">
+                  <Label htmlFor="world-prompt" className="text-sm font-medium">
                     World Description / Context
-                    <span className="ml-2 text-xs text-muted-foreground">(house.world.description)</span>
                   </Label>
                   <p className="text-xs text-muted-foreground">
                     Describes the world setting, atmosphere, and rules for your house. Sets the tone and context for all interactions.
                   </p>
-                  <Button variant="outline" size="sm">
-                    Edit in Prompt Library
-                  </Button>
+                  <Textarea
+                    id="world-prompt"
+                    value={localConfig.worldPrompt || ''}
+                    onChange={(e) => updateConfig({ worldPrompt: e.target.value })}
+                    placeholder="e.g., 'The Dollhouse is an exclusive luxury mansion where beautiful companions live. The atmosphere is sophisticated and intimate...'"
+                    className="min-h-[120px] font-mono text-sm"
+                  />
                 </div>
               </div>
 
