@@ -48,6 +48,12 @@ const cleanJsonResponse = (response: string): string => {
   return s;
 };
 
+const normalizeString = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
 const sanitizeList = (value: unknown): string[] => {
   if (!value) return [];
   if (Array.isArray(value)) {
@@ -116,65 +122,29 @@ const tryParseProfileJson = (raw: string): CharacterProfile | null => {
   try {
     const parsed = JSON.parse(raw);
     return {
-      name: typeof parsed.name === "string" ? parsed.name.trim() : undefined,
-      role: typeof parsed.role === "string" ? parsed.role.trim() : undefined,
-      job: typeof parsed.job === "string" ? parsed.job.trim() : undefined,
+      name: normalizeString(parsed.name),
+      role: normalizeString(parsed.role),
+      job: normalizeString(parsed.job),
       age: typeof parsed.age === "number" ? parsed.age : undefined,
-      gender:
-        typeof parsed.gender === "string" ? parsed.gender.trim() : undefined,
-      description:
-        typeof parsed.description === "string"
-          ? parsed.description.trim()
-          : undefined,
+      gender: normalizeString(parsed.gender),
+      description: normalizeString(parsed.description),
       personalitySummary:
-        typeof parsed.personalitySummary === "string"
-          ? parsed.personalitySummary.trim()
-          : undefined,
+        normalizeString(parsed.personalitySummary),
       personalityTraits: sanitizeList(parsed.personalityTraits),
-      appearance:
-        typeof parsed.appearance === "string"
-          ? parsed.appearance.trim()
-          : undefined,
+      appearance: normalizeString(parsed.appearance),
       features: sanitizeList(parsed.features),
-      backstory:
-        typeof parsed.backstory === "string"
-          ? parsed.backstory.trim()
-          : undefined,
-      imagePrompt:
-        typeof parsed.imagePrompt === "string"
-          ? parsed.imagePrompt.trim()
-          : undefined,
+      backstory: normalizeString(parsed.backstory),
+      imagePrompt: normalizeString(parsed.imagePrompt),
       prompts:
         parsed.prompts && typeof parsed.prompts === "object"
           ? {
-              system:
-                typeof parsed.prompts.system === "string"
-                  ? parsed.prompts.system.trim()
-                  : undefined,
-              description:
-                typeof parsed.prompts.description === "string"
-                  ? parsed.prompts.description.trim()
-                  : undefined,
-              personality:
-                typeof parsed.prompts.personality === "string"
-                  ? parsed.prompts.personality.trim()
-                  : undefined,
-              background:
-                typeof parsed.prompts.background === "string"
-                  ? parsed.prompts.background.trim()
-                  : undefined,
-              appearance:
-                typeof parsed.prompts.appearance === "string"
-                  ? parsed.prompts.appearance.trim()
-                  : undefined,
-              responseStyle:
-                typeof parsed.prompts.responseStyle === "string"
-                  ? parsed.prompts.responseStyle.trim()
-                  : undefined,
-              originScenario:
-                typeof parsed.prompts.originScenario === "string"
-                  ? parsed.prompts.originScenario.trim()
-                  : undefined,
+              system: normalizeString(parsed.prompts.system),
+              description: normalizeString(parsed.prompts.description),
+              personality: normalizeString(parsed.prompts.personality),
+              background: normalizeString(parsed.prompts.background),
+              appearance: normalizeString(parsed.prompts.appearance),
+              responseStyle: normalizeString(parsed.prompts.responseStyle),
+              originScenario: normalizeString(parsed.prompts.originScenario),
             }
           : undefined,
       likes: sanitizeList(parsed.likes),
