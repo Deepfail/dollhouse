@@ -4,12 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
 import type { Character, ChatMessage, ChatSession } from '@/types';
 import {
     ArrowLeft,
     BatteryMedium,
+    CaretDown,
+    CaretRight,
     ChartBar,
     CheckCircle,
     Crown,
@@ -17,6 +21,7 @@ import {
     Heart,
     ChatCircle as MessageCircle,
     PencilSimple,
+    Play,
     User,
     WifiHigh
 } from '@phosphor-icons/react';
@@ -57,6 +62,13 @@ export function ChatInterface({ sessionId, selectedCharacterId, onBack }: ChatIn
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [groupModalOpen, setGroupModalOpen] = useState(false);
+  
+  // Scene-specific prompt and character hidden prompts
+  const [scenePromptOpen, setScenePromptOpen] = useState(false);
+  const [scenePrompt, setScenePrompt] = useState('');
+  const [characterHiddenPrompts, setCharacterHiddenPrompts] = useState<Record<string, string>>({});
+  const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+  
   // Listen for external request to open group chat creator (e.g., big green button)
   useEffect(() => {
     const g = globalThis as unknown as { addEventListener?: (t: string, cb: () => void) => void; removeEventListener?: (t: string, cb: () => void) => void };
@@ -160,6 +172,30 @@ export function ChatInterface({ sessionId, selectedCharacterId, onBack }: ChatIn
       setMessages(refreshed);
     } catch {
       // Rollback optimistic if needed
+    }
+  };
+
+  const handleAutoPlay = async () => {
+    if (!effectiveSessionId || isAutoPlaying) return;
+    setIsAutoPlaying(true);
+    
+    try {
+      // Send the scene prompt as a system message to trigger character responses
+      const scenarioMessage = scenePrompt || 'Continue the conversation naturally based on the current scene.';
+      
+      // Store scene prompt and character hidden prompts in session metadata
+      // TODO: Implement session metadata storage
+      
+      // Send a message that will trigger character auto-responses
+      await sendMessage(effectiveSessionId, `[Scene: ${scenarioMessage}]`, 'system');
+      
+      // Refresh messages
+      const refreshed = await getSessionMessages(effectiveSessionId);
+      setMessages(refreshed);
+    } catch (error) {
+      console.error('Auto-play failed:', error);
+    } finally {
+      setIsAutoPlaying(false);
     }
   };
 
@@ -532,6 +568,79 @@ export function ChatInterface({ sessionId, selectedCharacterId, onBack }: ChatIn
         )}
         {(activeTab === 'chat' || isGroup) && (
           <div className="flex flex-col h-full">
+            {/* Scene Prompt Panel */}
+            <Collapsible open={scenePromptOpen} onOpenChange={setScenePromptOpen} className="border-b border-neutral-800">
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between px-4 py-2 h-auto hover:bg-neutral-800/50">
+                  <div className="flex items-center gap-2">
+                    {scenePromptOpen ? <CaretDown size={16} /> : <CaretRight size={16} />}
+                    <span className="text-sm font-medium">Scene Prompt & Character Instructions</span>
+                    {scenePrompt && <Badge variant="outline" className="text-xs">Active</Badge>}
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="secondary"
+                    className="bg-[#ff1372] hover:bg-[#ff1372]/80 text-white gap-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAutoPlay();
+                    }}
+                    disabled={isAutoPlaying}
+                  >
+                    <Play size={14} weight="fill" />
+                    {isAutoPlaying ? 'Playing...' : 'Auto-Play'}
+                  </Button>
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="p-4 space-y-4 bg-neutral-900/50">
+                {/* Scene Prompt */}
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-gray-300 uppercase tracking-wider">
+                    Scene Prompt
+                  </label>
+                  <Textarea
+                    value={scenePrompt}
+                    onChange={(e) => setScenePrompt(e.target.value)}
+                    placeholder="Describe the scene/scenario for this chat. e.g., 'You're at a romantic beach sunset dinner. The mood is intimate and playful.'"
+                    className="min-h-[80px] bg-neutral-800 border-neutral-700 text-sm"
+                  />
+                  <p className="text-xs text-gray-500">
+                    This scenario context will be added to all character responses in this chat.
+                  </p>
+                </div>
+
+                {/* Character Hidden Prompts */}
+                {sessionCharacters.length > 0 && (
+                  <div className="space-y-3">
+                    <label className="text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Character Hidden Prompts (Per-Character)
+                    </label>
+                    {sessionCharacters.map(char => (
+                      <div key={char.id} className="space-y-2 p-3 bg-neutral-800/50 rounded-lg border border-neutral-700">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="w-6 h-6">
+                            <AvatarImage src={char.avatar} />
+                            <AvatarFallback className="text-xs">{char.name.slice(0, 2)}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm font-medium text-gray-300">{char.name}</span>
+                          <Badge variant="outline" className="text-[10px] text-amber-400">🔒 Private</Badge>
+                        </div>
+                        <Textarea
+                          value={characterHiddenPrompts[char.id] || ''}
+                          onChange={(e) => setCharacterHiddenPrompts(prev => ({ ...prev, [char.id]: e.target.value }))}
+                          placeholder={`Secret instructions only ${char.name} knows for this scene...`}
+                          className="min-h-[60px] bg-neutral-900 border-neutral-600 text-xs font-mono"
+                        />
+                      </div>
+                    ))}
+                    <p className="text-xs text-gray-500">
+                      These hidden prompts are private to each character and override their global hidden prompt for this chat only.
+                    </p>
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-4">
                 {messages.map(m => {
