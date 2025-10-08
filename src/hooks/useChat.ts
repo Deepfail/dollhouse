@@ -622,7 +622,7 @@ export function useChat() {
         logger.warn('Failed to update session summary', e);
       }
       
-  for (const character of sessionChars) {
+      for (const character of sessionChars) {
         try {
           // Build conversation context WITHOUT the current user message (it's added separately)
           const nameFor = (id?: string | null) => {
@@ -639,6 +639,19 @@ export function useChat() {
           // Create concise system prompt
           const systemPrompt = character.prompts?.system || 
             `You are ${character.name}. ${character.description || ''}`.trim();
+          
+          // Load global chat prompt from house config
+          const houseConfig = await repositoryStorage.get('house_config') as any;
+          const globalChatPrompt = houseConfig?.chatPrompt?.trim();
+          const globalChatDirective = globalChatPrompt
+            ? `\n\nGLOBAL CONTEXT:\n${globalChatPrompt}\n`
+            : '';
+          
+          // Load character's hidden prompt (only they know this)
+          const characterHiddenPrompt = character.prompts?.hiddenPrompt?.trim();
+          const characterHiddenDirective = characterHiddenPrompt
+            ? `\n\nPRIVATE INSTRUCTIONS (only for ${character.name}, DO NOT reveal):\n${characterHiddenPrompt}\n`
+            : '';
           
           // Load hidden goals for this character
           const hiddenGoals = (goalsByChar[character.id] || [])
@@ -657,9 +670,7 @@ export function useChat() {
             : '';
 
           // Build the full prompt
-          const fullPrompt = `${systemPrompt}${hiddenDirective}${sceneDirective}${memorySection}
-
-RECENT CONVERSATION:
+          const fullPrompt = `${systemPrompt}${globalChatDirective}${characterHiddenDirective}${hiddenDirective}${sceneDirective}${memorySection}RECENT CONVERSATION:
 ${historyText}
 User: ${userMessage}
 

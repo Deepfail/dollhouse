@@ -93,6 +93,7 @@ export function CharacterCard({
       backstory: character.prompts?.background ?? '',
       keywords: (character.features ?? []).join(', '),
       avatar: character.avatar ?? '',
+      hiddenPrompt: character.prompts?.hiddenPrompt ?? '',
     }),
     [character],
   );
@@ -143,6 +144,7 @@ export function CharacterCard({
       appearance: '',
       responseStyle: '',
       originScenario: '',
+      hiddenPrompt: '',
     };
     const updates: Partial<Character> = {
       name: profileDraft.name.trim(),
@@ -153,6 +155,7 @@ export function CharacterCard({
       prompts: {
         ...prompts,
         background: profileDraft.backstory.trim(),
+        hiddenPrompt: profileDraft.hiddenPrompt.trim(),
       },
     };
 
@@ -308,6 +311,23 @@ export function CharacterCard({
               className="mt-1 h-24 rounded-2xl border-white/15 bg-white/5 text-sm"
               placeholder="comma or newline separated"
             />
+          </div>
+
+          <div>
+            <Label htmlFor={`${character.id}-hidden-prompt`} className="text-xs uppercase tracking-[0.25em] text-white/50 flex items-center gap-2">
+              Hidden Prompt
+              <span className="text-[10px] text-amber-400">🔒 Private</span>
+            </Label>
+            <Textarea
+              id={`${character.id}-hidden-prompt`}
+              value={profileDraft.hiddenPrompt}
+              onChange={(event) => handleDraftChange('hiddenPrompt', event.target.value)}
+              className="mt-1 h-24 rounded-2xl border-white/15 bg-white/5 text-sm font-mono"
+              placeholder="Secret instructions only this character knows. Not visible to other characters or in global context."
+            />
+            <p className="text-[10px] text-white/40 mt-1">
+              Use this for secret goals, hidden traits, or private motivations.
+            </p>
           </div>
         </div>
       </div>

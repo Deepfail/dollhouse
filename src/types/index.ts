@@ -65,6 +65,7 @@ export interface Character {
     appearance: string;
     responseStyle: string;
     originScenario: string;
+    hiddenPrompt?: string; // Private instructions only this character knows
   };
   
   // Relationship Dynamics (consolidated into progression)

@@ -45,6 +45,7 @@ interface AISettingsConfig {
 interface HouseConfig {
   name: string;
   worldPrompt?: string;
+  chatPrompt?: string; // Global chat context/instructions
   copilotPrompt?: string;
   copilotMaxTokens?: number;
   copilotUseHouseContext?: boolean;
@@ -64,6 +65,7 @@ interface HouseConfig {
 const DEFAULT_CONFIG: HouseConfig = {
   name: "The Dollhouse",
   worldPrompt: "",
+  chatPrompt: "", // Global chat instructions
   copilotPrompt: "",
   copilotMaxTokens: 500,
   copilotUseHouseContext: true,
@@ -208,6 +210,29 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                 <p className="text-sm text-muted-foreground">
                   Configure how your house behaves, tells stories, and maintains the world setting.
                 </p>
+              </div>
+
+              {/* Global Chat Prompt */}
+              <div className="space-y-4 p-4 rounded-lg border border-white/10 bg-white/5">
+                <h4 className="font-medium flex items-center gap-2">
+                  <span className="text-green-400">●</span> Global Chat Context
+                </h4>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="chat-prompt" className="text-sm font-medium">
+                    Global Chat Prompt
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Additional instructions or context added to ALL character chats. Use this to set global rules, tone, or scenarios that affect every conversation.
+                  </p>
+                  <Textarea
+                    id="chat-prompt"
+                    value={localConfig.chatPrompt || ''}
+                    onChange={(e) => updateConfig({ chatPrompt: e.target.value })}
+                    placeholder="e.g., 'All characters are in a beach vacation setting. Keep responses flirty and playful.'"
+                    className="min-h-[100px] font-mono text-sm"
+                  />
+                </div>
               </div>
 
               {/* World & Setting */}
