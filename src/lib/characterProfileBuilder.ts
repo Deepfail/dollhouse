@@ -72,6 +72,17 @@ const sanitizeList = (value: unknown): string[] => {
 
 const buildPrompt = (spec: CharacterProfileSpec): string => {
   const existing = spec.existing || {};
+  
+  // Get the response style and origin scenario guides
+  const responseStyleGuide = getPromptValue("character.generator.responseStyleGuide");
+  const originScenarioGuide = getPromptValue("character.generator.originScenarioGuide");
+  
+  // Get the schema and replace the guide placeholders
+  const rawSchema = getPromptValue("character.architect.schema");
+  const schema = rawSchema
+    .replace(/\{\{responseStyleGuide\}\}/g, responseStyleGuide)
+    .replace(/\{\{originScenarioGuide\}\}/g, originScenarioGuide);
+  
   return formatPrompt("character.architect.template", {
     themeLine: spec.theme
       ? formatPrompt("character.architect.themeLine", { theme: spec.theme })
@@ -108,12 +119,12 @@ const buildPrompt = (spec: CharacterProfileSpec): string => {
           })
         : "",
     request: spec.request,
-    schema: getPromptValue("character.architect.schema"),
+    schema: schema,
     backstoryWarning: getPromptValue("character.architect.backstoryWarning"),
     scenarioReminder: getPromptValue("character.architect.scenarioReminder"),
     escapeInstruction: getPromptValue("character.architect.escapeInstruction"),
-    responseStyleGuide: getPromptValue("character.generator.responseStyleGuide"),
-    originScenarioGuide: getPromptValue("character.generator.originScenarioGuide"),
+    responseStyleGuide: responseStyleGuide,
+    originScenarioGuide: originScenarioGuide,
   });
 };
 
