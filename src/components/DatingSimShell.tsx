@@ -10,6 +10,7 @@ import { useQuickActions } from "@/hooks/useQuickActions";
 import { repositoryStorage } from "@/hooks/useRepositoryStorage";
 import { AIService } from "@/lib/aiService";
 import { logger } from "@/lib/logger";
+import { WingmanSceneDirector, type SceneSetup } from "@/lib/wingmanSceneDirector";
 import type { Character, ChatMessage, ChatSession } from "@/types";
 import {
   Barbell,
@@ -794,6 +795,7 @@ interface WingmanPanelProps {
   onOpenSettings: () => void;
   onOpenManager: () => void;
   onStartChat?: (character: Character) => void;
+  onStartScene?: (scene: SceneSetup) => void; // New callback for starting scenes
 }
 
 function WingmanPanel({
@@ -803,14 +805,25 @@ function WingmanPanel({
   onOpenSettings,
   onOpenManager,
   onStartChat,
+  onStartScene,
 }: WingmanPanelProps) {
   const [activeTab, setActiveTab] = useState<"chat" | "tools">("chat");
   const [chatDraft, setChatDraft] = useState("");
   const [isResponding, setIsResponding] = useState(false);
-  const [houseConfig, setHouseConfig] = useState<any>(null);
+  const [houseConfig, setHouseConfig] = useState<{ worldPrompt?: string; copilotPersonality?: string; copilotMainPrompt?: string; copilotResponseLength?: string; copilotUseHouseContext?: boolean; copilotContextDetail?: string; copilotMaxTokens?: number } | null>(null);
   const [messages, setMessages] = useState<
     Array<{ id: string; role: "user" | "assistant"; content: string }>
   >([]);
+  
+  // Scene director instance
+  const [sceneDirector, setSceneDirector] = useState<WingmanSceneDirector | null>(null);
+
+  // Initialize scene director when characters or config change
+  useEffect(() => {
+    if (characters.length > 0) {
+      setSceneDirector(new WingmanSceneDirector(characters, houseConfig || undefined));
+    }
+  }, [characters, houseConfig]);
 
   // Load house config on mount
   useEffect(() => {
@@ -927,7 +940,7 @@ function WingmanPanel({
     toast.success("Chat cleared");
   }, [houseConfig]);
 
-  // Send chat message with enhanced context and quick action detection
+  // Send chat message with enhanced context, scene director, and quick action detection
   const handleSendChat = useCallback(async () => {
     if (!chatDraft.trim() || isResponding) return;
 
@@ -944,7 +957,48 @@ function WingmanPanel({
     setIsResponding(true);
 
     try {
-      // Detect quick actions
+      // Check if scene director should handle this (natural language scene commands)
+      if (sceneDirector) {
+        const sceneKeywords = /send|bring|tell|setup|create|start|scene|arrange|introduce/i;
+        
+        if (sceneKeywords.test(userMessage)) {
+          try {
+            const result = await sceneDirector.processInput(userMessage);
+            
+            if (result.type === 'question') {
+              // Wingman is asking a follow-up question
+              const assistantMsg = {
+                id: (Date.now() + 1).toString(),
+                role: "assistant" as const,
+                content: result.message,
+              };
+              setMessages((prev) => [...prev, assistantMsg]);
+              setIsResponding(false);
+              return;
+            }
+            
+            if (result.type === 'scene' && result.scene && onStartScene) {
+              // Scene is ready! Display it in Wingman chat and launch it
+              const sceneMsg = {
+                id: (Date.now() + 1).toString(),
+                role: "assistant" as const,
+                content: `**Scene Set:**\n\n${result.message}\n\n*Opening in main chat now...*`,
+              };
+              setMessages((prev) => [...prev, sceneMsg]);
+              setIsResponding(false);
+              
+              // Start the scene in main chat
+              setTimeout(() => onStartScene(result.scene!), 800);
+              return;
+            }
+          } catch (sceneError) {
+            logger.warn("Scene director failed, falling through to normal AI", sceneError);
+            // Fall through to normal AI response
+          }
+        }
+      }
+
+      // Detect quick actions (legacy fallback)
       const bringMatch = userMessage.match(/bring\s+(\w+)\s+to\s+(my\s+)?room/i);
       const setupMatch = userMessage.match(/(?:set\s*up|start|create)\s+(?:a\s+)?(?:scene|scenario)\s+(?:with\s+)?(\w+)/i);
       
@@ -1029,7 +1083,7 @@ function WingmanPanel({
     } finally {
       setIsResponding(false);
     }
-  }, [chatDraft, isResponding, messages, selectedCharacter, characters, houseConfig, onStartChat]);
+  }, [chatDraft, isResponding, messages, selectedCharacter, characters, houseConfig, onStartChat, sceneDirector, onStartScene]);
 
   return (
     <div className="hidden lg:flex min-w-0 flex-col overflow-hidden border-l border-white/5 bg-[#0d0e17] text-white">
@@ -1270,7 +1324,18 @@ export function DatingSimShell({
     setActiveSessionId: setChatActiveId,
     clearSessionMessages,
     analyzeAndEndSession,
-  } = useChat();
+    createSession,
+  } = useChat() as {
+    sessions: ChatSession[];
+    getSessionMessages: (id: string) => Promise<ChatMessage[]>;
+    sendMessage: (sessionId: string, content: string, senderId: string) => Promise<void>;
+    ensureIndividualSession: (characterId: string) => Promise<string>;
+    switchToSession: (id: string) => Promise<void>;
+    setActiveSessionId: (id: string) => void;
+    clearSessionMessages: (id: string) => Promise<void>;
+    analyzeAndEndSession: (id: string) => Promise<void>;
+    createSession: (type: 'individual' | 'group' | 'scene' | 'assistant' | 'interview', participantIds: string[]) => Promise<string>;
+  };
   const { executeAction } = useQuickActions();
 
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(
@@ -1434,6 +1499,52 @@ export function DatingSimShell({
     [executeAction]
   );
 
+  const handleStartScene = useCallback(
+    async (scene: SceneSetup) => {
+      try {
+        // Create a new session with all participants
+        const sessionId = await createSession('scene', scene.participantIds);
+        
+        setActiveSessionId(sessionId);
+        setChatActiveId(sessionId);
+        
+        // Load the session
+        await loadMessages(sessionId);
+        
+        // Send the scene description as a system/narrator message
+        await sendMessage(sessionId, `**Scene Start:**\n\n${scene.scenePrompt}`, 'system');
+        
+        // If there's an initial message, send it from the character
+        if (scene.initialMessage && scene.participantIds.length > 0) {
+          const firstCharacterId = scene.participantIds[0];
+          await sendMessage(sessionId, scene.initialMessage, firstCharacterId);
+        }
+        
+        // Store character hidden prompts - update each character's prompts
+        for (const [charId, hiddenPrompt] of Object.entries(scene.characterHiddenPrompts)) {
+          const character = characters.find(c => c.id === charId);
+          if (character) {
+            await updateCharacter(charId, {
+              prompts: {
+                ...character.prompts,
+                hiddenPrompt,
+              },
+            });
+          }
+        }
+        
+        // Reload messages to show the scene
+        await loadMessages(sessionId);
+        
+        toast.success("Scene started! Characters are ready.");
+      } catch (error) {
+        logger.error("Failed to start scene", error);
+        toast.error("Could not start the scene");
+      }
+    },
+    [characters, updateCharacter, sendMessage, setChatActiveId, loadMessages, createSession]
+  );
+
   const handleWingmanShortcut = useCallback(
     async (shortcut: WingmanShortcut) => {
       if (!selectedCharacter) {
@@ -1573,6 +1684,9 @@ export function DatingSimShell({
             onOpenManager={() => setIsManagerOpen(true)}
             onStartChat={(character) => {
               void handleStartChat(character.id);
+            }}
+            onStartScene={(scene) => {
+              void handleStartScene(scene);
             }}
           />
         </div>
