@@ -591,6 +591,13 @@ function ChatPanel({
                   );
                 }
                 const isUser = !message.characterId;
+                
+                // For group chats, find the specific character who sent this message
+                const messageCharacter = message.characterId 
+                  ? characters.find(c => c.id === message.characterId) 
+                  : null;
+                const displayCharacter = messageCharacter || character;
+                
                 const imageUrl =
                   (typeof message.metadata?.imageUrl === "string" &&
                     message.metadata.imageUrl) ||
@@ -606,22 +613,29 @@ function ChatPanel({
                     >
                       <Avatar className="h-9 w-9 border border-white/10">
                         <AvatarImage
-                          src={isUser ? undefined : character?.avatar}
-                          alt={character?.name}
+                          src={isUser ? undefined : displayCharacter?.avatar}
+                          alt={displayCharacter?.name}
                         />
                         <AvatarFallback>
                           {isUser
                             ? "You"
-                            : character?.name?.slice(0, 2).toUpperCase()}
+                            : displayCharacter?.name?.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <div
-                        className={`max-w-[70%] rounded-2xl border px-4 py-3 text-sm leading-relaxed shadow transition ${
-                          isUser
-                            ? "border-[#ff54a6]/60 bg-[#ff54a6]/25 text-white"
-                            : "border-white/10 bg-white/5 text-white/85"
-                        }`}
-                      >
+                      <div className="flex-1 max-w-[70%]">
+                        {/* Show character name in group chats */}
+                        {!isUser && sessionParticipants.length > 1 && displayCharacter && (
+                          <div className="mb-1 text-xs font-semibold text-white/60">
+                            {displayCharacter.name}
+                          </div>
+                        )}
+                        <div
+                          className={`rounded-2xl border px-4 py-3 text-sm leading-relaxed shadow transition ${
+                            isUser
+                              ? "border-[#ff54a6]/60 bg-[#ff54a6]/25 text-white"
+                              : "border-white/10 bg-white/5 text-white/85"
+                          }`}
+                        >
                         {textContent && (
                           <p className="whitespace-pre-wrap">{textContent}</p>
                         )}
@@ -629,11 +643,12 @@ function ChatPanel({
                           <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
                             <img
                               src={imageUrl}
-                              alt={`${character?.name ?? "Character"} attachment`}
+                              alt={`${displayCharacter?.name ?? "Character"} attachment`}
                               className="h-auto w-full object-cover"
                             />
                           </div>
                         )}
+                        </div>
                       </div>
                     </div>
                     <div
@@ -1411,9 +1426,11 @@ export function DatingSimShell({
 
   const loadMessages = useCallback(
     async (sessionId: string) => {
+      console.log('📥 Loading messages for session:', sessionId);
       setIsLoadingMessages(true);
       try {
         const data = await getSessionMessages(sessionId);
+        console.log('📨 Loaded messages:', data.length, 'messages');
         setMessages(data);
       } finally {
         setIsLoadingMessages(false);
@@ -1463,9 +1480,16 @@ export function DatingSimShell({
 
   const handleSendMessage = useCallback(
     async (text: string) => {
-      if (!activeSessionId) return;
+      console.log('📤 handleSendMessage called:', { activeSessionId, text });
+      if (!activeSessionId) {
+        console.warn('❌ No active session ID!');
+        return;
+      }
+      console.log('⏳ Sending message...');
       await sendMessage(activeSessionId, text, "user");
+      console.log('✅ Message sent, reloading messages...');
       await loadMessages(activeSessionId);
+      console.log('✅ Messages reloaded');
     },
     [activeSessionId, sendMessage, loadMessages]
   );

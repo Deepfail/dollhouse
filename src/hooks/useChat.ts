@@ -685,12 +685,24 @@ export function useChat() {
             ? `\n\nPREVIOUS CONVERSATION SUMMARY:\n${sessionSummary}\n`
             : '';
 
-          // Build the full prompt
-          const fullPrompt = `${systemPrompt}${globalChatDirective}${characterHiddenDirective}${hiddenDirective}${sceneDirective}${memorySection}RECENT CONVERSATION:
+          // Build the full prompt with STRICT formatting rules
+          const fullPrompt = `${systemPrompt}${globalChatDirective}${characterHiddenDirective}${hiddenDirective}${sceneDirective}${memorySection}
+
+RECENT CONVERSATION:
 ${historyText}
 User: ${userMessage}
 
-Respond as ${character.name}. Be natural and conversational. Stay in character. Keep response under 3 sentences. Do NOT include your name prefix.`;
+CRITICAL RESPONSE RULES:
+- You are ${character.name}. Respond ONLY as dialogue/speech, like a real person texting or talking
+- DO NOT use action descriptions, stage directions, asterisks, or parentheses for actions
+- DO NOT write like a novel or roleplay (no "*smirks*" or "(leans closer)" or similar)
+- Write ONLY what ${character.name} would actually SAY out loud
+- Be direct, natural, and conversational - like real speech
+- Keep response under 3 sentences
+- Do NOT include your name before the response
+- Each character has their own personality - show it through WORD CHOICE and TONE, not actions
+
+${character.name}'s response:`;
 
           logger.log(`🎭 Generating response for ${character.name}...`);
           
@@ -701,6 +713,27 @@ Respond as ${character.name}. Be natural and conversational. Stay in character. 
           });
 
           if (response && response.trim()) {
+            // Clean up response: remove action text, asterisks, parentheses
+            let cleanedResponse = response.trim();
+            
+            // Remove parenthetical action descriptions like "(smirks)" or "(Her voice drops)"
+            cleanedResponse = cleanedResponse.replace(/\([^)]+\)/g, '');
+            
+            // Remove asterisk actions like *leans in* or *grins*
+            cleanedResponse = cleanedResponse.replace(/\*[^*]+\*/g, '');
+            
+            // Remove character name prefix if present (e.g., "Tilly: ")
+            cleanedResponse = cleanedResponse.replace(/^[A-Z][a-z]+:\s*/i, '');
+            
+            // Clean up extra whitespace
+            cleanedResponse = cleanedResponse.replace(/\s+/g, ' ').trim();
+            
+            // Skip if nothing left after cleaning
+            if (!cleanedResponse || cleanedResponse.length < 3) {
+              logger.warn(`Skipping empty response from ${character.name} after cleaning`);
+              continue;
+            }
+            
             // Store character response
             const { db } = await getDb();
             const responseId = uuid();
@@ -708,7 +741,7 @@ Respond as ${character.name}. Be natural and conversational. Stay in character. 
             
             db.exec({
               sql: 'INSERT INTO messages (id, session_id, sender_id, content, created_at) VALUES (?, ?, ?, ?, ?)',
-              bind: [responseId, sessionId, character.id, response.trim(), responseTime]
+              bind: [responseId, sessionId, character.id, cleanedResponse, responseTime]
             });
 
             // Update session updated_at
