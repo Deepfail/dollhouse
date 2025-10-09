@@ -1001,10 +1001,20 @@ function WingmanPanel({
 
     try {
       // Check if scene director should handle this (natural language scene commands)
+      console.log('Checking scene director:', { 
+        hasDirector: !!sceneDirector, 
+        userMessage,
+        characters: characters.length 
+      });
+      
       if (sceneDirector) {
         const sceneKeywords = /send|bring|tell|setup|create|start|scene|arrange|introduce/i;
+        const matchesKeywords = sceneKeywords.test(userMessage);
         
-        if (sceneKeywords.test(userMessage)) {
+        console.log('Scene keyword check:', { matchesKeywords, userMessage });
+        
+        if (matchesKeywords) {
+          console.log('Processing with scene director...');
           try {
             const result = await sceneDirector.processInput(userMessage);
             
