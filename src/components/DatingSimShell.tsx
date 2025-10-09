@@ -1569,50 +1569,6 @@ export function DatingSimShell({
     },
     [characters, updateCharacter, sendMessage, setChatActiveId, loadMessages, createSession]
   );
-    async (scene: SceneSetup) => {
-      try {
-        // Create a new session with all participants
-        const sessionId = await createSession('scene', scene.participantIds);
-        
-        setActiveSessionId(sessionId);
-        setChatActiveId(sessionId);
-        
-        // Load the session
-        await loadMessages(sessionId);
-        
-        // Send the scene description as a system/narrator message
-        await sendMessage(sessionId, `**Scene Start:**\n\n${scene.scenePrompt}`, 'system');
-        
-        // If there's an initial message, send it from the character
-        if (scene.initialMessage && scene.participantIds.length > 0) {
-          const firstCharacterId = scene.participantIds[0];
-          await sendMessage(sessionId, scene.initialMessage, firstCharacterId);
-        }
-        
-        // Store character hidden prompts - update each character's prompts
-        for (const [charId, hiddenPrompt] of Object.entries(scene.characterHiddenPrompts)) {
-          const character = characters.find(c => c.id === charId);
-          if (character) {
-            await updateCharacter(charId, {
-              prompts: {
-                ...character.prompts,
-                hiddenPrompt,
-              },
-            });
-          }
-        }
-        
-        // Reload messages to show the scene
-        await loadMessages(sessionId);
-        
-        toast.success("Scene started! Characters are ready.");
-      } catch (error) {
-        logger.error("Failed to start scene", error);
-        toast.error("Could not start the scene");
-      }
-    },
-    [characters, updateCharacter, sendMessage, setChatActiveId, loadMessages, createSession]
-  );
 
   const handleDeleteCharacter = useCallback(
     async (characterId: string) => {
