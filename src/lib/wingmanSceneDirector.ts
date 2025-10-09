@@ -173,12 +173,13 @@ ${characterContext}
 ${houseConfig?.worldPrompt ? `WORLD CONTEXT:\n${houseConfig.worldPrompt}\n` : ''}
 
 Generate a JSON response with:
-1. "scenePrompt": A vivid 2-3 sentence scene description from third-person perspective that shows what's happening (like: "Girl1 knocks nervously on Male1's door, her makeup done perfectly. The door opens...")
-2. "characterHiddenPrompts": An object with character IDs as keys and their secret thoughts/motivations as values (what they know/don't know, their private feelings, instructions they received)
-3. "initialMessage": The first line of dialogue or action from the most relevant character to start the scene
+1. "scenePrompt": A vivid 2-3 sentence scene description from third-person perspective using the ACTUAL character names (like: "${participantCharacters[0]?.name || 'The first character'} knocks nervously on ${participantCharacters[1]?.name || "the door"}, ${participantCharacters[0]?.gender === 'female' ? 'her' : 'his'} makeup done perfectly. The door opens...")
+2. "characterHiddenPrompts": An object with character IDs as keys and their secret thoughts/motivations as values (what they know/don't know, their private feelings, instructions they received from the user)
+3. "initialMessage": The first line of dialogue or action from the most relevant character to start the scene, using their actual name
 4. "participantIds": Array of character IDs involved
 
-Make it engaging, slightly dramatic, and ensure each character has realistic private knowledge/motivations.
+Make it engaging, slightly dramatic, and ensure each character has realistic private knowledge/motivations based on the conversation.
+Use the characters' ACTUAL NAMES from the character list above - never use placeholders like "Girl1" or "Male1".
 
 Return ONLY valid JSON, no markdown:`;
 

@@ -7,13 +7,13 @@ The Wingman Scene Director is an intelligent conversational system that allows y
 ## Example Flow
 
 ```
-User: Send girl1 to male1's room
+User: Send Bella to Mike's room
 
 Wingman: Should I tell her why she's being sent, or what she'll be doing?
 
-User: Just tell her I said it will be good for her, and tell her to relax, and that male1 is very important to me.
+User: Just tell her I said it will be good for her, and tell her to relax, and that Mike is very important to me.
 
-Wingman: How should girl1 prepare? Should she dress up, be casual, or anything specific?
+Wingman: How should Bella prepare? Should she dress up, be casual, or anything specific?
 
 User: Tell her to dress up and do her makeup
 
@@ -23,7 +23,7 @@ User: No.
 
 Wingman: **Scene Set:**
 
-Girl1 knocks nervously on male1's door, her makeup done perfectly, dressed to impress. The door opens...
+Bella knocks nervously on Mike's door, her makeup done perfectly, dressed to impress. The door opens...
 
 *Opening in main chat now...*
 ```
@@ -55,20 +55,20 @@ Once enough information is gathered (or user says "no"/"that's it"), Wingman gen
 
 #### Scene Prompt
 A vivid 2-3 sentence third-person description shown in Wingman chat:
-> "Girl1 knocks nervously on male1's door, her makeup done perfectly. The door opens..."
+> "Bella knocks nervously on Mike's door, her makeup done perfectly. The door opens..."
 
 #### Character Hidden Prompts
 Private motivations/knowledge for each character:
 
-**Girl1's hidden prompt:**
+**Bella's hidden prompt:**
 > "I don't know what I'm here for, but user wants me to and thinks it will be good for me. I should try to relax...this guy is really important to user, so I really need to try to make him like me."
 
-**Male1's hidden prompt:**
-> "User sent girl1 to see me. She's been told I'm important to the user, so she'll be trying to impress me."
+**Mike's hidden prompt:**
+> "User sent Bella to see me. She's been told I'm important to the user, so she'll be trying to impress me."
 
 #### Initial Message
 First line of dialogue/action to kick off the scene:
-> "Male1 stands in the doorway looking the girl up and down before smiling: 'You must be girl1...wow, you're even prettier than I've heard...Please...come in.'"
+> "Mike stands in the doorway looking the girl up and down before smiling: 'You must be Bella...wow, you're even prettier than I've heard...Please...come in.'"
 
 ### 4. Scene Launch
 
