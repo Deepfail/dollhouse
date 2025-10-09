@@ -1008,6 +1008,8 @@ function WingmanPanel({
           try {
             const result = await sceneDirector.processInput(userMessage);
             
+            console.log('Scene Director Result:', result);
+            
             if (result.type === 'question') {
               // Wingman is asking a follow-up question
               const assistantMsg = {
@@ -1022,6 +1024,7 @@ function WingmanPanel({
             
             if (result.type === 'scene' && result.scene && onStartScene) {
               // Scene is ready! Display it in Wingman chat and launch it
+              console.log('Launching scene:', result.scene);
               const sceneMsg = {
                 id: (Date.now() + 1).toString(),
                 role: "assistant" as const,
@@ -1031,7 +1034,10 @@ function WingmanPanel({
               setIsResponding(false);
               
               // Start the scene in main chat
-              setTimeout(() => onStartScene(result.scene!), 800);
+              setTimeout(() => {
+                console.log('Calling onStartScene with:', result.scene);
+                onStartScene(result.scene!);
+              }, 800);
               return;
             }
           } catch (sceneError) {
@@ -1555,9 +1561,12 @@ export function DatingSimShell({
 
   const handleStartScene = useCallback(
     async (scene: SceneSetup) => {
+      console.log('handleStartScene called with:', scene);
       try {
         // Create a new session with all participants
+        console.log('Creating scene session with participants:', scene.participantIds);
         const sessionId = await createSession('scene', scene.participantIds);
+        console.log('Session created:', sessionId);
         
         setActiveSessionId(sessionId);
         setChatActiveId(sessionId);
@@ -1566,15 +1575,18 @@ export function DatingSimShell({
         await loadMessages(sessionId);
         
         // Send the scene description as a system/narrator message
+        console.log('Sending scene prompt:', scene.scenePrompt);
         await sendMessage(sessionId, `**Scene Start:**\n\n${scene.scenePrompt}`, 'system');
         
         // If there's an initial message, send it from the character
         if (scene.initialMessage && scene.participantIds.length > 0) {
           const firstCharacterId = scene.participantIds[0];
+          console.log('Sending initial message from:', firstCharacterId);
           await sendMessage(sessionId, scene.initialMessage, firstCharacterId);
         }
         
         // Store character hidden prompts - update each character's prompts
+        console.log('Setting hidden prompts:', scene.characterHiddenPrompts);
         for (const [charId, hiddenPrompt] of Object.entries(scene.characterHiddenPrompts)) {
           const character = characters.find(c => c.id === charId);
           if (character) {
@@ -1592,6 +1604,7 @@ export function DatingSimShell({
         
         toast.success("Scene started! Characters are ready.");
       } catch (error) {
+        console.error('handleStartScene error:', error);
         logger.error("Failed to start scene", error);
         toast.error("Could not start the scene");
       }
