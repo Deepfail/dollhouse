@@ -48,7 +48,7 @@ export function ChatInterface({ sessionId, selectedCharacterId, onBack }: ChatIn
     createSession: (type: 'individual' | 'group' | 'scene' | 'assistant' | 'interview', participantIds: string[]) => Promise<string>;
     createInterviewSession: (characterId: string) => Promise<string>;
   };
-  const [activeTab, setActiveTab] = useState<'profile'|'chat'|'feed'|'stats'|'settings'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile'|'chat'|'feed'|'stats'|'settings'|'director'>('profile');
   const [showSessionList, setShowSessionList] = useState(false);
 
   const effectiveSessionId = sessionId || hookActive || null;
@@ -669,45 +669,52 @@ export function ChatInterface({ sessionId, selectedCharacterId, onBack }: ChatIn
           <div className="w-full max-w-[420px] px-4">
             <div className="bg-[rgba(15,15,15,0.85)] rounded-xl border border-[rgba(255,255,255,0.03)] px-2 py-2">
   <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="w-full">
-          <TabsList className="grid grid-cols-5 bg-transparent h-14 gap-3">
+          <TabsList className="grid grid-cols-6 bg-transparent h-14 gap-2">
             <TabsTrigger 
               value="profile" 
-              className={`flex flex-col items-center gap-1 h-14 rounded-lg px-2 ${
+              className={`flex flex-col items-center gap-1 h-14 rounded-lg px-1 ${
                 activeTab === 'profile' 
                   ? 'bg-[rgba(255,19,145,0.18)] text-[#ff1372]' 
                   : 'text-gray-400'
               }`}
             >
-              <User size={18} />
-              <span className="text-xs">Profile</span>
+              <User size={16} />
+              <span className="text-[10px]">Profile</span>
             </TabsTrigger>
             <TabsTrigger 
               value="chat" 
-              className="flex flex-col items-center gap-1 h-14 rounded-lg px-2 text-gray-400"
+              className="flex flex-col items-center gap-1 h-14 rounded-lg px-1 text-gray-400"
             >
-              <MessageCircle size={18} />
-              <span className="text-xs">Chat</span>
+              <MessageCircle size={16} />
+              <span className="text-[10px]">Chat</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="director" 
+              className="flex flex-col items-center gap-1 h-14 rounded-lg px-1 text-gray-400"
+            >
+              <Play size={16} />
+              <span className="text-[10px]">Director</span>
             </TabsTrigger>
             <TabsTrigger 
               value="feed" 
-              className="flex flex-col items-center gap-1 h-14 rounded-lg px-2 text-gray-400"
+              className="flex flex-col items-center gap-1 h-14 rounded-lg px-1 text-gray-400"
             >
-              <Heart size={18} />
-              <span className="text-xs">Feed</span>
+              <Heart size={16} />
+              <span className="text-[10px]">Feed</span>
             </TabsTrigger>
             <TabsTrigger 
               value="stats" 
-              className="flex flex-col items-center gap-1 h-14 rounded-lg px-2 text-gray-400"
+              className="flex flex-col items-center gap-1 h-14 rounded-lg px-1 text-gray-400"
             >
-              <ChartBar size={18} />
-              <span className="text-xs">Stats</span>
+              <ChartBar size={16} />
+              <span className="text-[10px]">Stats</span>
             </TabsTrigger>
             <TabsTrigger 
               value="settings" 
-              className="flex flex-col items-center gap-1 h-14 rounded-lg px-2 text-gray-400"
+              className="flex flex-col items-center gap-1 h-14 rounded-lg px-1 text-gray-400"
             >
-              <Gear size={18} />
-              <span className="text-xs">Settings</span>
+              <Gear size={16} />
+              <span className="text-[10px]">Settings</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>

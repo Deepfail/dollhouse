@@ -28,6 +28,7 @@ import {
   MagnifyingGlass,
   PaperPlaneTilt,
   Paperclip,
+  PencilSimple,
   Plus,
   Robot,
   Smiley,
@@ -411,10 +412,6 @@ interface ChatPanelProps {
   sessions: ChatSession[];
   onSwitchSession: (sessionId: string) => Promise<void>;
   activeSessionId: string | null;
-  onQuickAction: (
-    actionId: string,
-    context?: { characterId?: string }
-  ) => Promise<void>;
   onOpenManager: () => void;
   onClearChat?: () => Promise<void>;
   onEndConversation?: () => Promise<void>;
@@ -429,7 +426,6 @@ function ChatPanel({
   sessions,
   onSwitchSession,
   activeSessionId,
-  onQuickAction,
   onOpenManager,
   onClearChat,
   onEndConversation,
@@ -473,18 +469,6 @@ function ChatPanel({
         .replace(/\b\w/g, (char) => char.toUpperCase())
     : "Private Room";
 
-  const quickActionButtons: Array<{
-    id: string;
-    label: string;
-    danger?: boolean;
-  }> = [
-    { id: "compliment", label: "Compliment" },
-    { id: "gift", label: "Gift" },
-    { id: "flirt", label: "Flirt" },
-    { id: "ask-question", label: "Ask Question" },
-    { id: "punish", label: "Punish", danger: true },
-  ];
-
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -493,13 +477,6 @@ function ChatPanel({
       void onSend(value).then(() => setDraft(""));
     },
     [draft, canChat, onSend]
-  );
-
-  const handleQuickActionClick = useCallback(
-    (actionId: string) => {
-      void onQuickAction(actionId, { characterId: character?.id ?? undefined });
-    },
-    [character?.id, onQuickAction]
   );
 
   const timeFormatter = useMemo(
@@ -764,20 +741,57 @@ function ChatPanel({
               </Button>
             </form>
             <div className="mt-4 flex flex-wrap gap-2">
-              {quickActionButtons.map((action) => (
-                <button
-                  key={action.id}
-                  type="button"
-                  onClick={() => handleQuickActionClick(action.id)}
-                  className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
-                    action.danger
-                      ? "border-red-500/40 bg-red-500/10 text-red-300 hover:border-red-400/70 hover:bg-red-500/20"
-                      : "border-[#ff54a6]/30 bg-[#ff1372]/10 text-[#ffb6dd] hover:border-[#ff54a6]/60 hover:bg-[#ff1372]/20"
-                  }`}
-                >
-                  {action.label}
-                </button>
-              ))}
+              {/* Scene Director Tool */}
+              <button
+                type="button"
+                onClick={() => {
+                  // TODO: Open scene director dialog
+                  toast.info("Scene Director - Coming soon!");
+                }}
+                className="flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-white/70 transition hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/10 hover:text-white"
+              >
+                <Sparkle size={16} weight="fill" />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">Director</span>
+              </button>
+
+              {/* Scene Prompt Tool */}
+              <button
+                type="button"
+                onClick={() => {
+                  // TODO: Open scene prompt editor
+                  toast.info("Scene Prompt - Coming soon!");
+                }}
+                className="flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-white/70 transition hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/10 hover:text-white"
+              >
+                <PencilSimple size={16} />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">Scene</span>
+              </button>
+
+              {/* Character Hidden Prompts */}
+              <button
+                type="button"
+                onClick={() => {
+                  // TODO: Open character hidden prompts editor
+                  toast.info("Hidden Prompts - Coming soon!");
+                }}
+                className="flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-white/70 transition hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/10 hover:text-white"
+              >
+                <LockSimple size={16} weight="fill" />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">Secrets</span>
+              </button>
+
+              {/* Toolbox - Other actions */}
+              <button
+                type="button"
+                onClick={() => {
+                  // TODO: Open toolbox menu
+                  toast.info("Toolbox - Coming soon!");
+                }}
+                className="flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-white/70 transition hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/10 hover:text-white"
+              >
+                <Gear size={16} weight="fill" />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">Tools</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1493,10 +1507,21 @@ export function DatingSimShell({
     []
   );
 
-  const handleQuickAction = useCallback(
-    (actionId: string, context?: { characterId?: string }) =>
-      executeAction(actionId, context),
-    [executeAction]
+  const handleWingmanShortcut = useCallback(
+    async (shortcut: WingmanShortcut) => {
+      if (!selectedCharacter) {
+        toast.error("Pick a girl to direct the wingman.");
+        return;
+      }
+
+      if (shortcut === "visit") {
+        await handleStartChat(selectedCharacter.id);
+        return;
+      }
+
+      await executeAction(shortcut, { characterId: selectedCharacter.id });
+    },
+    [executeAction, handleStartChat, selectedCharacter]
   );
 
   const handleStartScene = useCallback(
@@ -1544,22 +1569,49 @@ export function DatingSimShell({
     },
     [characters, updateCharacter, sendMessage, setChatActiveId, loadMessages, createSession]
   );
-
-  const handleWingmanShortcut = useCallback(
-    async (shortcut: WingmanShortcut) => {
-      if (!selectedCharacter) {
-        toast.error("Pick a girl to direct the wingman.");
-        return;
+    async (scene: SceneSetup) => {
+      try {
+        // Create a new session with all participants
+        const sessionId = await createSession('scene', scene.participantIds);
+        
+        setActiveSessionId(sessionId);
+        setChatActiveId(sessionId);
+        
+        // Load the session
+        await loadMessages(sessionId);
+        
+        // Send the scene description as a system/narrator message
+        await sendMessage(sessionId, `**Scene Start:**\n\n${scene.scenePrompt}`, 'system');
+        
+        // If there's an initial message, send it from the character
+        if (scene.initialMessage && scene.participantIds.length > 0) {
+          const firstCharacterId = scene.participantIds[0];
+          await sendMessage(sessionId, scene.initialMessage, firstCharacterId);
+        }
+        
+        // Store character hidden prompts - update each character's prompts
+        for (const [charId, hiddenPrompt] of Object.entries(scene.characterHiddenPrompts)) {
+          const character = characters.find(c => c.id === charId);
+          if (character) {
+            await updateCharacter(charId, {
+              prompts: {
+                ...character.prompts,
+                hiddenPrompt,
+              },
+            });
+          }
+        }
+        
+        // Reload messages to show the scene
+        await loadMessages(sessionId);
+        
+        toast.success("Scene started! Characters are ready.");
+      } catch (error) {
+        logger.error("Failed to start scene", error);
+        toast.error("Could not start the scene");
       }
-
-      if (shortcut === "visit") {
-        await handleStartChat(selectedCharacter.id);
-        return;
-      }
-
-      await handleQuickAction(shortcut, { characterId: selectedCharacter.id });
     },
-    [handleQuickAction, handleStartChat, selectedCharacter]
+    [characters, updateCharacter, sendMessage, setChatActiveId, loadMessages, createSession]
   );
 
   const handleDeleteCharacter = useCallback(
@@ -1664,7 +1716,6 @@ export function DatingSimShell({
                   sessions={sessions}
                   onSwitchSession={handleSwitchSession}
                   activeSessionId={activeSessionId}
-                  onQuickAction={handleQuickAction}
                   onOpenManager={() => setIsManagerOpen(true)}
                   onClearChat={handleClearChat}
                   onEndConversation={handleEndConversation}
