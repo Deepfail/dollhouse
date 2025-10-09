@@ -29,6 +29,7 @@ import {
   PaperPlaneTilt,
   Paperclip,
   PencilSimple,
+  Play,
   Plus,
   Robot,
   Smiley,
@@ -50,7 +51,6 @@ import { CharacterAutoCreateInline } from "./CharacterAutoCreateDialog";
 import { CharacterCard } from "./CharacterCard";
 import { GirlManagerSidebar } from "./GirlManagerSidebar";
 import { HouseSettings } from "./HouseSettings";
-import { SceneDirectorDialog } from "./SceneDirectorDialog";
 
 const EMPTY_STATE_TIPS = [
   "Use the Girl Manager to auto-create your first companion.",
@@ -406,7 +406,6 @@ function CharacterRoster({
 
 interface ChatPanelProps {
   character: Character | null;
-  characters: Character[];
   messages: ChatMessage[];
   onSend: (text: string) => Promise<void>;
   onStartChat: () => Promise<void>;
@@ -417,12 +416,10 @@ interface ChatPanelProps {
   onOpenManager: () => void;
   onClearChat?: () => Promise<void>;
   onEndConversation?: () => Promise<void>;
-  onSceneReady?: (scene: SceneSetup) => void;
 }
 
 function ChatPanel({
   character,
-  characters,
   messages,
   onSend,
   onStartChat,
@@ -433,10 +430,13 @@ function ChatPanel({
   onOpenManager,
   onClearChat,
   onEndConversation,
-  onSceneReady,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState("");
-  const [isSceneDirectorOpen, setIsSceneDirectorOpen] = useState(false);
+  const [scenePromptOpen, setScenePromptOpen] = useState(false);
+  const [scenePrompt, setScenePrompt] = useState("");
+  const [hiddenPromptsOpen, setHiddenPromptsOpen] = useState(false);
+  const [characterHiddenPrompts, setCharacterHiddenPrompts] = useState<Record<string, string>>({});
+  const [isAutoPlaying, setIsAutoPlaying] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -747,23 +747,27 @@ function ChatPanel({
               </Button>
             </form>
             <div className="mt-4 flex flex-wrap gap-2">
-              {/* Scene Director Tool */}
+              {/* Auto Play Button */}
               <button
                 type="button"
-                onClick={() => setIsSceneDirectorOpen(true)}
-                className="flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-white/70 transition hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/10 hover:text-white"
+                onClick={() => {
+                  setIsAutoPlaying(!isAutoPlaying);
+                  toast.success(isAutoPlaying ? "Auto-play stopped" : "Auto-play started - characters will interact automatically");
+                }}
+                className={`flex h-9 items-center gap-2 rounded-full border px-4 transition ${
+                  isAutoPlaying
+                    ? 'border-[#ff1372] bg-[#ff1372]/20 text-white'
+                    : 'border-white/10 bg-white/5 text-white/70 hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/10 hover:text-white'
+                }`}
               >
-                <Sparkle size={16} weight="fill" />
-                <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">Director</span>
+                <Play size={16} weight="fill" />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">Auto</span>
               </button>
 
               {/* Scene Prompt Tool */}
               <button
                 type="button"
-                onClick={() => {
-                  // TODO: Open scene prompt editor
-                  toast.info("Scene Prompt - Coming soon!");
-                }}
+                onClick={() => setScenePromptOpen(!scenePromptOpen)}
                 className="flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-white/70 transition hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/10 hover:text-white"
               >
                 <PencilSimple size={16} />
@@ -773,40 +777,54 @@ function ChatPanel({
               {/* Character Hidden Prompts */}
               <button
                 type="button"
-                onClick={() => {
-                  // TODO: Open character hidden prompts editor
-                  toast.info("Hidden Prompts - Coming soon!");
-                }}
+                onClick={() => setHiddenPromptsOpen(!hiddenPromptsOpen)}
                 className="flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-white/70 transition hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/10 hover:text-white"
               >
                 <LockSimple size={16} weight="fill" />
                 <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">Secrets</span>
               </button>
-
-              {/* Toolbox - Other actions */}
-              <button
-                type="button"
-                onClick={() => {
-                  // TODO: Open toolbox menu
-                  toast.info("Toolbox - Coming soon!");
-                }}
-                className="flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-white/70 transition hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/10 hover:text-white"
-              >
-                <Gear size={16} weight="fill" />
-                <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">Tools</span>
-              </button>
             </div>
+
+            {/* Scene Prompt Editor (collapsible) */}
+            {scenePromptOpen && (
+              <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-4">
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/70">
+                  Scene Prompt
+                </label>
+                <textarea
+                  value={scenePrompt}
+                  onChange={(e) => setScenePrompt(e.target.value)}
+                  placeholder="Describe the current scene context... (e.g., 'Late night in a dimly lit bar. Tension in the air.')"
+                  className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/30 focus:border-[#ff1372] focus:outline-none"
+                  rows={3}
+                />
+                <p className="mt-2 text-xs text-white/40">
+                  This prompt sets the mood and context for the current chat session.
+                </p>
+              </div>
+            )}
+
+            {/* Character Hidden Prompts Editor (collapsible) */}
+            {hiddenPromptsOpen && character && (
+              <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-4">
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-white/70">
+                  Secret Instructions for {character.name}
+                </label>
+                <textarea
+                  value={characterHiddenPrompts[character.id] || ''}
+                  onChange={(e) => setCharacterHiddenPrompts(prev => ({ ...prev, [character.id]: e.target.value }))}
+                  placeholder={`Private instructions only ${character.name} knows... (e.g., 'You were told to flirt but act innocent')`}
+                  className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/30 focus:border-[#ff1372] focus:outline-none"
+                  rows={3}
+                />
+                <p className="mt-2 text-xs text-white/40">
+                  This is secret knowledge only this character has - what they were told privately, their hidden agenda, etc.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
-
-      {/* Scene Director Dialog */}
-      <SceneDirectorDialog
-        open={isSceneDirectorOpen}
-        onOpenChange={setIsSceneDirectorOpen}
-        characters={characters}
-        onSceneReady={onSceneReady}
-      />
     </div>
   );
 }
@@ -1672,7 +1690,6 @@ export function DatingSimShell({
               ) : (
                 <ChatPanel
                   character={selectedCharacter}
-                  characters={characters}
                   messages={messages}
                   onSend={handleSendMessage}
                   onStartChat={() =>
@@ -1687,7 +1704,6 @@ export function DatingSimShell({
                   onOpenManager={() => setIsManagerOpen(true)}
                   onClearChat={handleClearChat}
                   onEndConversation={handleEndConversation}
-                  onSceneReady={handleStartScene}
                 />
               )}
             </div>
