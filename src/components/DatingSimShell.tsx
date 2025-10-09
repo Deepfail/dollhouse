@@ -17,7 +17,6 @@ import {
   Camera,
   CaretRight,
   ChatCircle,
-  ChatCircleDots,
   ChatsCircle,
   CheckCircle,
   DoorOpen,
@@ -66,16 +65,19 @@ interface CharacterRosterProps {
   onRequestCreate: (gender: "female" | "male") => void;
   sessions: ChatSession[];
   onViewProfile?: (character: Character) => void;
+  activeSessionId: string | null;
+  onToggleCharacterInChat: (characterId: string) => void;
 }
 
 function CharacterRoster({
   characters,
   selectedId,
   onSelect,
-  onStartChat,
   onRequestCreate,
   sessions,
   onViewProfile,
+  activeSessionId,
+  onToggleCharacterInChat,
 }: CharacterRosterProps) {
   const [activeTab, setActiveTab] = useState<"girls" | "men">("girls");
   const [searchTerm, setSearchTerm] = useState("");
@@ -128,14 +130,6 @@ function CharacterRoster({
       }).length,
     [characters, sessions]
   );
-
-  const toTitleCase = useCallback((value: string) => {
-    return value
-      .replace(/[_-]/g, " ")
-      .trim()
-      .replace(/\s+/g, " ")
-      .replace(/\b\w/g, (char) => char.toUpperCase());
-  }, []);
 
   const handleCreateCharacterClick = useCallback(() => {
     onRequestCreate(activeTab === "men" ? "male" : "female");
@@ -240,51 +234,10 @@ function CharacterRoster({
             const ageLabel = character.age
               ? `${character.age} years old`
               : "Age unknown";
-            const activeSessions = sessions.filter((session) =>
-              session.participantIds.includes(character.id)
-            );
-            const hasActiveChat = activeSessions.length > 0;
-            const isOnline =
-              hasActiveChat || (character.stats?.happiness ?? 0) >= 65;
-
-            const baseChips: Array<{ label: string; className: string }> = [];
-            const statusLabel = hasActiveChat
-              ? "In Use"
-              : isOnline
-                ? "Available"
-                : "Offline";
-            const statusClass = hasActiveChat
-              ? "bg-amber-500/15 text-amber-200 border-amber-400/40"
-              : isOnline
-                ? "bg-emerald-500/15 text-emerald-200 border-emerald-400/40"
-                : "bg-slate-500/10 text-slate-300 border-slate-500/30";
-            baseChips.push({ label: statusLabel, className: statusClass });
-
-            const personalityChips = [
-              character.personalities?.[0],
-              character.personalities?.[1],
-              character.role,
-              character.rarity,
-            ].filter(Boolean) as string[];
-
-            const palette = [
-              "bg-pink-500/15 text-pink-200 border-pink-400/40",
-              "bg-violet-500/15 text-violet-200 border-violet-400/40",
-              "bg-sky-500/15 text-sky-200 border-sky-400/40",
-            ];
-
-            personalityChips
-              .map((label) => toTitleCase(label))
-              .filter(
-                (label, index, array) => label && array.indexOf(label) === index
-              )
-              .slice(0, 2)
-              .forEach((label, index) => {
-                baseChips.push({
-                  label,
-                  className: palette[index % palette.length],
-                });
-              });
+            
+            // Check if character is in the current active session
+            const activeSession = sessions.find(s => s.id === activeSessionId);
+            const isInActiveChat = activeSession?.participantIds.includes(character.id) ?? false;
 
             return (
               <button
@@ -314,16 +267,11 @@ function CharacterRoster({
                         {character.name?.slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span
-                      className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border border-black/70 ${
-                        isOnline ? "bg-emerald-400" : "bg-slate-600"
-                      }`}
-                    />
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-white">
                           {character.name}
                         </p>
@@ -332,46 +280,41 @@ function CharacterRoster({
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
+                        {/* Checkbox toggle for adding to chat */}
                         <button
                           type="button"
-                          className="flex h-8 w-8 items-center justify-center rounded-full border border-[#ff4fa3]/40 bg-[#ff1372]/25 text-[#ffd3ea] shadow-[0_16px_35px_-20px_rgba(255,19,114,0.9)] transition hover:bg-[#ff1372]/40"
+                          className={`flex h-8 w-8 items-center justify-center rounded-full border transition ${
+                            isInActiveChat
+                              ? "border-emerald-400/60 bg-emerald-500/25 text-emerald-300"
+                              : "border-white/20 bg-white/5 text-white/40 hover:border-white/40 hover:text-white/70"
+                          }`}
                           onClick={(event) => {
                             event.stopPropagation();
-                            void onStartChat(character.id);
+                            onToggleCharacterInChat(character.id);
                           }}
-                          aria-label={`Continue chat with ${character.name}`}
+                          aria-label={isInActiveChat ? `Remove ${character.name} from chat` : `Add ${character.name} to chat`}
+                          title={isInActiveChat ? "Remove from chat" : "Add to chat"}
                         >
-                          <ChatCircleDots size={16} weight="fill" />
-                        </button>
-                        <button
-                          type="button"
-                          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white/70 transition hover:text-white"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onViewProfile?.(character);
-                          }}
-                          aria-label={`Open ${character.name}'s profile`}
-                        >
-                          <LockSimple size={16} />
+                          <CheckCircle size={18} weight={isInActiveChat ? "fill" : "regular"} />
                         </button>
                       </div>
                     </div>
 
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {baseChips.map((chip) => (
-                        <span
-                          key={chip.label}
-                          className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-white/85 ${chip.className}`}
-                        >
-                          {chip.label}
+                    {/* Active badge */}
+                    {isInActiveChat && (
+                      <div className="mt-2">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-emerald-200">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                          Active
                         </span>
-                      ))}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </button>
             );
           })}
+
 
           {roster.length === 0 && (
             <div className="space-y-3">
@@ -406,6 +349,7 @@ function CharacterRoster({
 
 interface ChatPanelProps {
   character: Character | null;
+  characters: Character[];
   messages: ChatMessage[];
   onSend: (text: string) => Promise<void>;
   onStartChat: () => Promise<void>;
@@ -420,6 +364,7 @@ interface ChatPanelProps {
 
 function ChatPanel({
   character,
+  characters,
   messages,
   onSend,
   onStartChat,
@@ -461,19 +406,24 @@ function ChatPanel({
       )
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }, [character, sessions]);
+  
+  // Get all participants in the active session
+  const activeSession = useMemo(() => {
+    return sessions.find(s => s.id === activeSessionId);
+  }, [sessions, activeSessionId]);
+  
+  const sessionParticipants = useMemo(() => {
+    if (!activeSession) return [];
+    // Get character objects for all participants
+    const allChars = activeSession.participantIds.map(id => 
+      characters?.find(c => c.id === id)
+    ).filter(Boolean) as Character[];
+    return allChars;
+  }, [activeSession, characters]);
+  
   const affection = character
     ? Math.round(character.progression?.affection ?? character.stats?.love ?? 0)
     : null;
-  const happiness = character?.stats?.happiness ?? 0;
-  const hasActiveSession = character
-    ? characterSessions.some((session) => session.id === activeSessionId)
-    : false;
-  const isOnline = Boolean(character) && (happiness >= 65 || hasActiveSession);
-  const locationLabel = character?.preferredRoomType
-    ? character.preferredRoomType
-        .replace(/[_-]/g, " ")
-        .replace(/\b\w/g, (char) => char.toUpperCase())
-    : "Private Room";
 
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -498,32 +448,34 @@ function ChatPanel({
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-gradient-to-b from-[#121226] via-[#0b0b17] to-[#05040b] text-white">
       <header className="flex flex-shrink-0 items-center justify-between border-b border-white/5 px-5 py-4">
         <div className="flex items-center gap-4">
-          <div className="relative">
-            <Avatar className="h-12 w-12 rounded-full border-2 border-pink-400/60">
-              <AvatarImage src={character?.avatar} alt={character?.name} />
-              <AvatarFallback>
-                {character?.name?.slice(0, 2).toUpperCase() ?? "??"}
-              </AvatarFallback>
-            </Avatar>
-            <span
-              className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border border-black/70 ${
-                isOnline ? "bg-emerald-400" : "bg-slate-500"
-              }`}
-            />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.32em] text-white/40">
-              Tonight's Connection
-            </p>
-            <h1 className="mt-1 truncate text-xl font-semibold">
-              {character ? character.name : "Pick a girl to begin"}
-            </h1>
-            {character && (
-              <p className="mt-1 text-sm text-white/60">
-                {isOnline ? "Online" : "Offline"} • {locationLabel}
+          {/* Show all active participants */}
+          {sessionParticipants.length > 0 ? (
+            <div className="flex items-center gap-3 overflow-x-auto">
+              {sessionParticipants.map((participant) => (
+                <div key={participant.id} className="flex items-center gap-2 flex-shrink-0">
+                  <Avatar className="h-10 w-10 rounded-full border-2 border-pink-400/60">
+                    <AvatarImage src={participant.avatar} alt={participant.name} />
+                    <AvatarFallback>
+                      {participant.name?.slice(0, 2).toUpperCase() ?? "??"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{participant.name}</p>
+                    <p className="text-xs text-white/60">{participant.age} years</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.32em] text-white/40">
+                Tonight's Connection
               </p>
-            )}
-          </div>
+              <h1 className="mt-1 truncate text-xl font-semibold">
+                {character ? character.name : "Pick a girl to begin"}
+              </h1>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {canChat && activeSessionId && (
@@ -1001,15 +953,34 @@ function WingmanPanel({
 
     try {
       // Check if scene director should handle this (natural language scene commands)
+      console.log('Checking scene director:', { 
+        hasDirector: !!sceneDirector, 
+        userMessage,
+        characters: characters.length 
+      });
+      
       if (sceneDirector) {
         const sceneKeywords = /send|bring|tell|setup|create|start|scene|arrange|introduce/i;
+        const matchesKeywords = sceneKeywords.test(userMessage);
+        const isAwaitingAnswer = sceneDirector.getState().awaitingAnswer;
         
-        if (sceneKeywords.test(userMessage)) {
+        console.log('Scene keyword check:', { 
+          matchesKeywords, 
+          isAwaitingAnswer,
+          shouldProcess: matchesKeywords || isAwaitingAnswer,
+          userMessage 
+        });
+        
+        if (matchesKeywords || isAwaitingAnswer) {
+          console.log('Processing with scene director...');
           try {
             const result = await sceneDirector.processInput(userMessage);
             
+            console.log('Scene Director Result:', result);
+            
             if (result.type === 'question') {
               // Wingman is asking a follow-up question
+              console.log('Scene Director asking question:', result.message);
               const assistantMsg = {
                 id: (Date.now() + 1).toString(),
                 role: "assistant" as const,
@@ -1020,8 +991,19 @@ function WingmanPanel({
               return;
             }
             
-            if (result.type === 'scene' && result.scene && onStartScene) {
+            if (result.type === 'scene') {
+              if (!result.scene) {
+                console.error('Scene Director returned type=scene but no scene object!');
+                throw new Error('Scene object missing');
+              }
+              
+              if (!onStartScene) {
+                console.error('onStartScene handler is not provided!');
+                throw new Error('onStartScene handler missing');
+              }
+              
               // Scene is ready! Display it in Wingman chat and launch it
+              console.log('✅ Launching scene:', result.scene);
               const sceneMsg = {
                 id: (Date.now() + 1).toString(),
                 role: "assistant" as const,
@@ -1031,9 +1013,16 @@ function WingmanPanel({
               setIsResponding(false);
               
               // Start the scene in main chat
-              setTimeout(() => onStartScene(result.scene!), 800);
+              setTimeout(() => {
+                console.log('🎬 Calling onStartScene with:', result.scene);
+                onStartScene(result.scene!);
+              }, 800);
               return;
             }
+            
+            // If we get here, scene director returned acknowledgment or unknown type
+            console.warn('Scene Director returned unexpected type:', result.type, result);
+            // Fall through to normal AI
           } catch (sceneError) {
             logger.warn("Scene director failed, falling through to normal AI", sceneError);
             // Fall through to normal AI response
@@ -1548,9 +1537,12 @@ export function DatingSimShell({
 
   const handleStartScene = useCallback(
     async (scene: SceneSetup) => {
+      console.log('handleStartScene called with:', scene);
       try {
         // Create a new session with all participants
+        console.log('Creating scene session with participants:', scene.participantIds);
         const sessionId = await createSession('scene', scene.participantIds);
+        console.log('Session created:', sessionId);
         
         setActiveSessionId(sessionId);
         setChatActiveId(sessionId);
@@ -1559,15 +1551,18 @@ export function DatingSimShell({
         await loadMessages(sessionId);
         
         // Send the scene description as a system/narrator message
+        console.log('Sending scene prompt:', scene.scenePrompt);
         await sendMessage(sessionId, `**Scene Start:**\n\n${scene.scenePrompt}`, 'system');
         
         // If there's an initial message, send it from the character
         if (scene.initialMessage && scene.participantIds.length > 0) {
           const firstCharacterId = scene.participantIds[0];
+          console.log('Sending initial message from:', firstCharacterId);
           await sendMessage(sessionId, scene.initialMessage, firstCharacterId);
         }
         
         // Store character hidden prompts - update each character's prompts
+        console.log('Setting hidden prompts:', scene.characterHiddenPrompts);
         for (const [charId, hiddenPrompt] of Object.entries(scene.characterHiddenPrompts)) {
           const character = characters.find(c => c.id === charId);
           if (character) {
@@ -1585,11 +1580,53 @@ export function DatingSimShell({
         
         toast.success("Scene started! Characters are ready.");
       } catch (error) {
+        console.error('handleStartScene error:', error);
         logger.error("Failed to start scene", error);
         toast.error("Could not start the scene");
       }
     },
     [characters, updateCharacter, sendMessage, setChatActiveId, loadMessages, createSession]
+  );
+
+  const handleToggleCharacterInChat = useCallback(
+    async (characterId: string) => {
+      const activeSession = sessions.find((s) => s.id === activeSessionId);
+      if (!activeSession) {
+        // No active session, start a new one with this character
+        await handleStartChat(characterId);
+        return;
+      }
+
+      const isInChat = activeSession.participantIds.includes(characterId);
+      
+      if (isInChat) {
+        // Remove character from chat
+        const newParticipants = activeSession.participantIds.filter((id) => id !== characterId);
+        if (newParticipants.length === 0) {
+          // If removing the last character, end the session
+          setActiveSessionId(null);
+          setChatActiveId(null);
+          setMessages([]);
+          toast.info("Chat ended");
+        } else {
+          // Update session with remaining participants
+          const newSessionId = await createSession(activeSession.type, newParticipants);
+          setActiveSessionId(newSessionId);
+          setChatActiveId(newSessionId);
+          await loadMessages(newSessionId);
+          toast.info(`Removed from chat`);
+        }
+      } else {
+        // Add character to chat
+        const newParticipants = [...activeSession.participantIds, characterId];
+        const newSessionId = await createSession(activeSession.type, newParticipants);
+        setActiveSessionId(newSessionId);
+        setChatActiveId(newSessionId);
+        await loadMessages(newSessionId);
+        toast.success(`Added to chat`);
+      }
+    },
+    [sessions, activeSessionId, handleStartChat, createSession, setChatActiveId, loadMessages]
   );
 
   const handleDeleteCharacter = useCallback(
@@ -1667,6 +1704,8 @@ export function DatingSimShell({
             onRequestCreate={handleOpenCreateDialog}
             sessions={sessions}
             onViewProfile={handleViewProfile}
+            activeSessionId={activeSessionId}
+            onToggleCharacterInChat={handleToggleCharacterInChat}
           />
           <div
             data-middle-pane-root
@@ -1683,6 +1722,7 @@ export function DatingSimShell({
               ) : (
                 <ChatPanel
                   character={selectedCharacter}
+                  characters={characters}
                   messages={messages}
                   onSend={handleSendMessage}
                   onStartChat={() =>

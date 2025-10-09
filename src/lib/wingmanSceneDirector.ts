@@ -313,10 +313,19 @@ export class WingmanSceneDirector {
     // Check if user says "no", "nothing", "that's it", etc.
     const isDone = /^(no|nothing|nope|that'?s it|done|go ahead|start)\.?$/i.test(input.trim());
     
+    console.log('🎯 Scene Director check:', {
+      isDone,
+      clarificationCount: this.state.clarifications.length,
+      shouldGenerate: isDone || this.state.clarifications.length >= 3,
+      input: input.trim(),
+    });
+    
     if (isDone || this.state.clarifications.length >= 3) {
       // Generate the scene!
+      console.log('🎬 Generating scene with state:', this.state);
       try {
         const scene = await generateSceneSetup(this.state, this.characters, this.houseConfig);
+        console.log('✅ Scene generated successfully:', scene);
         
         // Reset state for next command
         this.state = {
@@ -330,6 +339,7 @@ export class WingmanSceneDirector {
           scene,
         };
       } catch (error) {
+        console.error('❌ Scene generation failed:', error);
         logger.error('Scene generation failed', error);
         return {
           type: 'acknowledgment',
