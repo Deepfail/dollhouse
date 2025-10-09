@@ -66,6 +66,8 @@ interface CharacterRosterProps {
   onRequestCreate: (gender: "female" | "male") => void;
   sessions: ChatSession[];
   onViewProfile?: (character: Character) => void;
+  activeSessionId: string | null;
+  onToggleCharacterInChat: (characterId: string) => void;
 }
 
 function CharacterRoster({
@@ -76,6 +78,8 @@ function CharacterRoster({
   onRequestCreate,
   sessions,
   onViewProfile,
+  activeSessionId,
+  onToggleCharacterInChat,
 }: CharacterRosterProps) {
   const [activeTab, setActiveTab] = useState<"girls" | "men">("girls");
   const [searchTerm, setSearchTerm] = useState("");
@@ -244,47 +248,10 @@ function CharacterRoster({
               session.participantIds.includes(character.id)
             );
             const hasActiveChat = activeSessions.length > 0;
-            const isOnline =
-              hasActiveChat || (character.stats?.happiness ?? 0) >= 65;
-
-            const baseChips: Array<{ label: string; className: string }> = [];
-            const statusLabel = hasActiveChat
-              ? "In Use"
-              : isOnline
-                ? "Available"
-                : "Offline";
-            const statusClass = hasActiveChat
-              ? "bg-amber-500/15 text-amber-200 border-amber-400/40"
-              : isOnline
-                ? "bg-emerald-500/15 text-emerald-200 border-emerald-400/40"
-                : "bg-slate-500/10 text-slate-300 border-slate-500/30";
-            baseChips.push({ label: statusLabel, className: statusClass });
-
-            const personalityChips = [
-              character.personalities?.[0],
-              character.personalities?.[1],
-              character.role,
-              character.rarity,
-            ].filter(Boolean) as string[];
-
-            const palette = [
-              "bg-pink-500/15 text-pink-200 border-pink-400/40",
-              "bg-violet-500/15 text-violet-200 border-violet-400/40",
-              "bg-sky-500/15 text-sky-200 border-sky-400/40",
-            ];
-
-            personalityChips
-              .map((label) => toTitleCase(label))
-              .filter(
-                (label, index, array) => label && array.indexOf(label) === index
-              )
-              .slice(0, 2)
-              .forEach((label, index) => {
-                baseChips.push({
-                  label,
-                  className: palette[index % palette.length],
-                });
-              });
+            
+            // Check if character is in the current active session
+            const activeSession = sessions.find(s => s.id === activeSessionId);
+            const isInActiveChat = activeSession?.participantIds.includes(character.id) ?? false;
 
             return (
               <button
@@ -314,16 +281,11 @@ function CharacterRoster({
                         {character.name?.slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span
-                      className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border border-black/70 ${
-                        isOnline ? "bg-emerald-400" : "bg-slate-600"
-                      }`}
-                    />
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-white">
                           {character.name}
                         </p>
@@ -332,46 +294,41 @@ function CharacterRoster({
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
+                        {/* Checkbox toggle for adding to chat */}
                         <button
                           type="button"
-                          className="flex h-8 w-8 items-center justify-center rounded-full border border-[#ff4fa3]/40 bg-[#ff1372]/25 text-[#ffd3ea] shadow-[0_16px_35px_-20px_rgba(255,19,114,0.9)] transition hover:bg-[#ff1372]/40"
+                          className={`flex h-8 w-8 items-center justify-center rounded-full border transition ${
+                            isInActiveChat
+                              ? "border-emerald-400/60 bg-emerald-500/25 text-emerald-300"
+                              : "border-white/20 bg-white/5 text-white/40 hover:border-white/40 hover:text-white/70"
+                          }`}
                           onClick={(event) => {
                             event.stopPropagation();
-                            void onStartChat(character.id);
+                            onToggleCharacterInChat(character.id);
                           }}
-                          aria-label={`Continue chat with ${character.name}`}
+                          aria-label={isInActiveChat ? `Remove ${character.name} from chat` : `Add ${character.name} to chat`}
+                          title={isInActiveChat ? "Remove from chat" : "Add to chat"}
                         >
-                          <ChatCircleDots size={16} weight="fill" />
-                        </button>
-                        <button
-                          type="button"
-                          className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white/70 transition hover:text-white"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onViewProfile?.(character);
-                          }}
-                          aria-label={`Open ${character.name}'s profile`}
-                        >
-                          <LockSimple size={16} />
+                          <CheckCircle size={18} weight={isInActiveChat ? "fill" : "regular"} />
                         </button>
                       </div>
                     </div>
 
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {baseChips.map((chip) => (
-                        <span
-                          key={chip.label}
-                          className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-white/85 ${chip.className}`}
-                        >
-                          {chip.label}
+                    {/* Active badge */}
+                    {isInActiveChat && (
+                      <div className="mt-2">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-emerald-200">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                          Active
                         </span>
-                      ))}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </button>
             );
           })}
+
 
           {roster.length === 0 && (
             <div className="space-y-3">
@@ -406,6 +363,7 @@ function CharacterRoster({
 
 interface ChatPanelProps {
   character: Character | null;
+  characters: Character[];
   messages: ChatMessage[];
   onSend: (text: string) => Promise<void>;
   onStartChat: () => Promise<void>;
@@ -420,6 +378,7 @@ interface ChatPanelProps {
 
 function ChatPanel({
   character,
+  characters,
   messages,
   onSend,
   onStartChat,
@@ -461,6 +420,21 @@ function ChatPanel({
       )
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }, [character, sessions]);
+  
+  // Get all participants in the active session
+  const activeSession = useMemo(() => {
+    return sessions.find(s => s.id === activeSessionId);
+  }, [sessions, activeSessionId]);
+  
+  const sessionParticipants = useMemo(() => {
+    if (!activeSession) return [];
+    // Get character objects for all participants
+    const allChars = activeSession.participantIds.map(id => 
+      characters?.find(c => c.id === id)
+    ).filter(Boolean) as Character[];
+    return allChars;
+  }, [activeSession, characters]);
+  
   const affection = character
     ? Math.round(character.progression?.affection ?? character.stats?.love ?? 0)
     : null;
