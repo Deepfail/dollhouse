@@ -50,6 +50,7 @@ import { CharacterAutoCreateInline } from "./CharacterAutoCreateDialog";
 import { CharacterCard } from "./CharacterCard";
 import { GirlManagerSidebar } from "./GirlManagerSidebar";
 import { HouseSettings } from "./HouseSettings";
+import { SceneDirectorDialog } from "./SceneDirectorDialog";
 
 const EMPTY_STATE_TIPS = [
   "Use the Girl Manager to auto-create your first companion.",
@@ -405,6 +406,7 @@ function CharacterRoster({
 
 interface ChatPanelProps {
   character: Character | null;
+  characters: Character[];
   messages: ChatMessage[];
   onSend: (text: string) => Promise<void>;
   onStartChat: () => Promise<void>;
@@ -415,10 +417,12 @@ interface ChatPanelProps {
   onOpenManager: () => void;
   onClearChat?: () => Promise<void>;
   onEndConversation?: () => Promise<void>;
+  onSceneReady?: (scene: SceneSetup) => void;
 }
 
 function ChatPanel({
   character,
+  characters,
   messages,
   onSend,
   onStartChat,
@@ -429,8 +433,10 @@ function ChatPanel({
   onOpenManager,
   onClearChat,
   onEndConversation,
+  onSceneReady,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState("");
+  const [isSceneDirectorOpen, setIsSceneDirectorOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -744,10 +750,7 @@ function ChatPanel({
               {/* Scene Director Tool */}
               <button
                 type="button"
-                onClick={() => {
-                  // TODO: Open scene director dialog
-                  toast.info("Scene Director - Coming soon!");
-                }}
+                onClick={() => setIsSceneDirectorOpen(true)}
                 className="flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-white/70 transition hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/10 hover:text-white"
               >
                 <Sparkle size={16} weight="fill" />
@@ -796,6 +799,14 @@ function ChatPanel({
           </div>
         </div>
       </div>
+
+      {/* Scene Director Dialog */}
+      <SceneDirectorDialog
+        open={isSceneDirectorOpen}
+        onOpenChange={setIsSceneDirectorOpen}
+        characters={characters}
+        onSceneReady={onSceneReady}
+      />
     </div>
   );
 }
@@ -1661,6 +1672,7 @@ export function DatingSimShell({
               ) : (
                 <ChatPanel
                   character={selectedCharacter}
+                  characters={characters}
                   messages={messages}
                   onSend={handleSendMessage}
                   onStartChat={() =>
@@ -1675,6 +1687,7 @@ export function DatingSimShell({
                   onOpenManager={() => setIsManagerOpen(true)}
                   onClearChat={handleClearChat}
                   onEndConversation={handleEndConversation}
+                  onSceneReady={handleStartScene}
                 />
               )}
             </div>
