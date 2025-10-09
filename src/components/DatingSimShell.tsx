@@ -962,10 +962,16 @@ function WingmanPanel({
       if (sceneDirector) {
         const sceneKeywords = /send|bring|tell|setup|create|start|scene|arrange|introduce/i;
         const matchesKeywords = sceneKeywords.test(userMessage);
+        const isAwaitingAnswer = sceneDirector.getState().awaitingAnswer;
         
-        console.log('Scene keyword check:', { matchesKeywords, userMessage });
+        console.log('Scene keyword check:', { 
+          matchesKeywords, 
+          isAwaitingAnswer,
+          shouldProcess: matchesKeywords || isAwaitingAnswer,
+          userMessage 
+        });
         
-        if (matchesKeywords) {
+        if (matchesKeywords || isAwaitingAnswer) {
           console.log('Processing with scene director...');
           try {
             const result = await sceneDirector.processInput(userMessage);
@@ -974,6 +980,7 @@ function WingmanPanel({
             
             if (result.type === 'question') {
               // Wingman is asking a follow-up question
+              console.log('Scene Director asking question:', result.message);
               const assistantMsg = {
                 id: (Date.now() + 1).toString(),
                 role: "assistant" as const,
@@ -984,9 +991,19 @@ function WingmanPanel({
               return;
             }
             
-            if (result.type === 'scene' && result.scene && onStartScene) {
+            if (result.type === 'scene') {
+              if (!result.scene) {
+                console.error('Scene Director returned type=scene but no scene object!');
+                throw new Error('Scene object missing');
+              }
+              
+              if (!onStartScene) {
+                console.error('onStartScene handler is not provided!');
+                throw new Error('onStartScene handler missing');
+              }
+              
               // Scene is ready! Display it in Wingman chat and launch it
-              console.log('Launching scene:', result.scene);
+              console.log('✅ Launching scene:', result.scene);
               const sceneMsg = {
                 id: (Date.now() + 1).toString(),
                 role: "assistant" as const,
@@ -997,11 +1014,15 @@ function WingmanPanel({
               
               // Start the scene in main chat
               setTimeout(() => {
-                console.log('Calling onStartScene with:', result.scene);
+                console.log('🎬 Calling onStartScene with:', result.scene);
                 onStartScene(result.scene!);
               }, 800);
               return;
             }
+            
+            // If we get here, scene director returned acknowledgment or unknown type
+            console.warn('Scene Director returned unexpected type:', result.type, result);
+            // Fall through to normal AI
           } catch (sceneError) {
             logger.warn("Scene director failed, falling through to normal AI", sceneError);
             // Fall through to normal AI response
