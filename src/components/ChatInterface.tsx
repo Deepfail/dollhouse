@@ -566,6 +566,108 @@ export function ChatInterface({ sessionId, selectedCharacterId, onBack }: ChatIn
           </div>
         </ScrollArea>
         )}
+        
+        {/* Director Tab - Scene Director Interface */}
+        {activeTab === 'director' && (
+          <ScrollArea className="h-full p-4">
+            <div className="space-y-6 max-w-2xl mx-auto">
+              {/* Header */}
+              <div className="text-center space-y-2">
+                <div className="mx-auto w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mb-3">
+                  <Play size={32} weight="fill" className="text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-white">Scene Director</h2>
+                <p className="text-sm text-gray-400">
+                  Tell Wingman what scene to set up. He'll ask follow-up questions and create it for you.
+                </p>
+              </div>
+
+              {/* Coming Soon Message */}
+              <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-500/30 rounded-xl p-6 text-center space-y-4">
+                <div className="text-4xl">🎬</div>
+                <h3 className="text-xl font-semibold text-white">Scene Director Coming Soon</h3>
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  The Scene Director feature is currently available in the <strong>Wingman sidebar</strong> on desktop (screens 1024px+).
+                </p>
+                <div className="bg-black/30 rounded-lg p-4 text-left space-y-3">
+                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">How it works:</p>
+                  <ol className="text-sm text-gray-300 space-y-2 list-decimal list-inside">
+                    <li>Tell Wingman: <span className="text-purple-400 font-mono">"Send Bella to Mike's room"</span></li>
+                    <li>Wingman asks: <span className="text-gray-400 italic">"Should I tell her why?"</span></li>
+                    <li>You answer, Wingman follows up with more questions</li>
+                    <li>When ready, Wingman generates the scene and starts it in chat</li>
+                  </ol>
+                </div>
+                <div className="pt-2">
+                  <Badge variant="outline" className="text-xs text-purple-400 border-purple-500/50">
+                    Mobile version in development
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Quick Access to Scene Prompts */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-white">Scene Tools</h3>
+                <div className="grid gap-3">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start h-auto py-4 px-4 border-neutral-700 hover:border-purple-500/50 hover:bg-purple-500/10"
+                    onClick={() => setActiveTab('chat')}
+                  >
+                    <div className="flex items-start gap-3 text-left">
+                      <div className="mt-1">
+                        <CaretRight size={20} className="text-purple-400" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-white">Scene Prompt Panel</div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          Set custom scene prompts and character-specific hidden instructions in the chat tab
+                        </div>
+                      </div>
+                    </div>
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start h-auto py-4 px-4 border-neutral-700 hover:border-pink-500/50 hover:bg-pink-500/10"
+                    onClick={() => setIsAutoPlaying(!isAutoPlaying)}
+                  >
+                    <div className="flex items-start gap-3 text-left">
+                      <div className="mt-1">
+                        <Play size={20} weight="fill" className="text-pink-400" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-semibold text-white">Auto-Play Mode</div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          Let characters respond autonomously based on the scene
+                        </div>
+                      </div>
+                    </div>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Example Commands */}
+              <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-4 space-y-3">
+                <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Example Commands (Desktop Wingman)</h4>
+                <div className="space-y-2">
+                  {[
+                    '"Send Aria to meet the new neighbor"',
+                    '"Setup a romantic dinner with Bella"',
+                    '"Bring Lily to my office for a private chat"',
+                    '"Create a scene with Sam and Mike at the gym"'
+                  ].map((cmd, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm">
+                      <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                      <code className="text-purple-300 font-mono text-xs">{cmd}</code>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+        )}
+        
         {(activeTab === 'chat' || isGroup) && (
           <div className="flex flex-col h-full">
             {/* Scene Prompt Panel */}
