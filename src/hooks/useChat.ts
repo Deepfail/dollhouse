@@ -685,22 +685,26 @@ export function useChat() {
             ? `\n\nPREVIOUS CONVERSATION SUMMARY:\n${sessionSummary}\n`
             : '';
 
-          // Build the full prompt with STRICT formatting rules
+          // Build the full prompt with proper narrative roleplay format
           const fullPrompt = `${systemPrompt}${globalChatDirective}${characterHiddenDirective}${hiddenDirective}${sceneDirective}${memorySection}
 
 RECENT CONVERSATION:
 ${historyText}
 User: ${userMessage}
 
-CRITICAL RESPONSE RULES:
-- You are ${character.name}. Respond ONLY as dialogue/speech, like a real person texting or talking
-- DO NOT use action descriptions, stage directions, asterisks, or parentheses for actions
-- DO NOT write like a novel or roleplay (no "*smirks*" or "(leans closer)" or similar)
-- Write ONLY what ${character.name} would actually SAY out loud
-- Be direct, natural, and conversational - like real speech
-- Keep response under 3 sentences
-- Do NOT include your name before the response
-- Each character has their own personality - show it through WORD CHOICE and TONE, not actions
+RESPONSE FORMAT RULES:
+- Write in third-person narrative style (like a novel/story)
+- Describe ${character.name}'s actions, movements, expressions, and body language
+- Describe how they look, what they're wearing, their physical reactions
+- Put spoken dialogue in quotes: "Like this"
+- Balance narration and dialogue - show what they DO and what they SAY
+- Make it vivid and sensory - describe sounds, touches, looks, atmosphere
+- Keep responses 2-4 paragraphs maximum
+- Each character should have unique mannerisms and physical traits
+- DO NOT include the character's name as a prefix before the response
+
+Example format:
+She moves closer, her hips swaying with deliberate slowness. The dim light catches the curves hugging her tight dress as she drops gracefully to her knees in front of you, looking up through dark lashes. "You've been waiting for this, haven't you?" Her fingers trail up your thigh, voice dropping to barely a whisper.
 
 ${character.name}'s response:`;
 
@@ -709,28 +713,17 @@ ${character.name}'s response:`;
           // Generate AI response with optimized settings
           const response = await AIService.generateResponse(fullPrompt, undefined, undefined, {
             temperature: 0.85,
-            max_tokens: 150
+            max_tokens: 300  // Increased for narrative descriptions
           });
 
           if (response && response.trim()) {
-            // Clean up response: remove action text, asterisks, parentheses
+            // Light cleanup: remove character name prefix if present
             let cleanedResponse = response.trim();
-            
-            // Remove parenthetical action descriptions like "(smirks)" or "(Her voice drops)"
-            cleanedResponse = cleanedResponse.replace(/\([^)]+\)/g, '');
-            
-            // Remove asterisk actions like *leans in* or *grins*
-            cleanedResponse = cleanedResponse.replace(/\*[^*]+\*/g, '');
-            
-            // Remove character name prefix if present (e.g., "Tilly: ")
             cleanedResponse = cleanedResponse.replace(/^[A-Z][a-z]+:\s*/i, '');
             
-            // Clean up extra whitespace
-            cleanedResponse = cleanedResponse.replace(/\s+/g, ' ').trim();
-            
-            // Skip if nothing left after cleaning
-            if (!cleanedResponse || cleanedResponse.length < 3) {
-              logger.warn(`Skipping empty response from ${character.name} after cleaning`);
+            // Skip if empty
+            if (!cleanedResponse || cleanedResponse.length < 10) {
+              logger.warn(`Skipping empty response from ${character.name}`);
               continue;
             }
             
