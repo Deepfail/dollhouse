@@ -403,8 +403,25 @@ export function useChat() {
       // Generate AI responses (skip for copilot or assistant sessions)
       if (senderId === 'user' && !options?.copilot) {
         const session = sessions.find(s => s.id === sessionId);
+        console.log('🔍 Checking if should generate responses:', {
+          hasSender: senderId === 'user',
+          notCopilot: !options?.copilot,
+          session: session?.id,
+          sessionType: session?.type,
+          participantCount: session?.participantIds.length,
+          participants: session?.participantIds,
+        });
+        
         if (session && !session.assistantOnly && session.type !== 'assistant' && session.participantIds.length > 0) {
+          console.log('✅ Generating responses for participants:', session.participantIds);
           await generateCharacterResponses(sessionId, session.participantIds, content);
+        } else {
+          console.warn('❌ Skipping response generation:', {
+            hasSession: !!session,
+            assistantOnly: session?.assistantOnly,
+            type: session?.type,
+            participantCount: session?.participantIds.length,
+          });
         }
       }
 
