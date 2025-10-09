@@ -17,7 +17,6 @@ import {
   Camera,
   CaretRight,
   ChatCircle,
-  ChatCircleDots,
   ChatsCircle,
   CheckCircle,
   DoorOpen,
@@ -74,7 +73,6 @@ function CharacterRoster({
   characters,
   selectedId,
   onSelect,
-  onStartChat,
   onRequestCreate,
   sessions,
   onViewProfile,
@@ -132,14 +130,6 @@ function CharacterRoster({
       }).length,
     [characters, sessions]
   );
-
-  const toTitleCase = useCallback((value: string) => {
-    return value
-      .replace(/[_-]/g, " ")
-      .trim()
-      .replace(/\s+/g, " ")
-      .replace(/\b\w/g, (char) => char.toUpperCase());
-  }, []);
 
   const handleCreateCharacterClick = useCallback(() => {
     onRequestCreate(activeTab === "men" ? "male" : "female");
@@ -244,10 +234,6 @@ function CharacterRoster({
             const ageLabel = character.age
               ? `${character.age} years old`
               : "Age unknown";
-            const activeSessions = sessions.filter((session) =>
-              session.participantIds.includes(character.id)
-            );
-            const hasActiveChat = activeSessions.length > 0;
             
             // Check if character is in the current active session
             const activeSession = sessions.find(s => s.id === activeSessionId);
@@ -438,16 +424,6 @@ function ChatPanel({
   const affection = character
     ? Math.round(character.progression?.affection ?? character.stats?.love ?? 0)
     : null;
-  const happiness = character?.stats?.happiness ?? 0;
-  const hasActiveSession = character
-    ? characterSessions.some((session) => session.id === activeSessionId)
-    : false;
-  const isOnline = Boolean(character) && (happiness >= 65 || hasActiveSession);
-  const locationLabel = character?.preferredRoomType
-    ? character.preferredRoomType
-        .replace(/[_-]/g, " ")
-        .replace(/\b\w/g, (char) => char.toUpperCase())
-    : "Private Room";
 
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -472,32 +448,34 @@ function ChatPanel({
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-gradient-to-b from-[#121226] via-[#0b0b17] to-[#05040b] text-white">
       <header className="flex flex-shrink-0 items-center justify-between border-b border-white/5 px-5 py-4">
         <div className="flex items-center gap-4">
-          <div className="relative">
-            <Avatar className="h-12 w-12 rounded-full border-2 border-pink-400/60">
-              <AvatarImage src={character?.avatar} alt={character?.name} />
-              <AvatarFallback>
-                {character?.name?.slice(0, 2).toUpperCase() ?? "??"}
-              </AvatarFallback>
-            </Avatar>
-            <span
-              className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border border-black/70 ${
-                isOnline ? "bg-emerald-400" : "bg-slate-500"
-              }`}
-            />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.32em] text-white/40">
-              Tonight's Connection
-            </p>
-            <h1 className="mt-1 truncate text-xl font-semibold">
-              {character ? character.name : "Pick a girl to begin"}
-            </h1>
-            {character && (
-              <p className="mt-1 text-sm text-white/60">
-                {isOnline ? "Online" : "Offline"} • {locationLabel}
+          {/* Show all active participants */}
+          {sessionParticipants.length > 0 ? (
+            <div className="flex items-center gap-3 overflow-x-auto">
+              {sessionParticipants.map((participant) => (
+                <div key={participant.id} className="flex items-center gap-2 flex-shrink-0">
+                  <Avatar className="h-10 w-10 rounded-full border-2 border-pink-400/60">
+                    <AvatarImage src={participant.avatar} alt={participant.name} />
+                    <AvatarFallback>
+                      {participant.name?.slice(0, 2).toUpperCase() ?? "??"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{participant.name}</p>
+                    <p className="text-xs text-white/60">{participant.age} years</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.32em] text-white/40">
+                Tonight's Connection
               </p>
-            )}
-          </div>
+              <h1 className="mt-1 truncate text-xl font-semibold">
+                {character ? character.name : "Pick a girl to begin"}
+              </h1>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {canChat && activeSessionId && (
@@ -1596,6 +1574,47 @@ export function DatingSimShell({
     [characters, updateCharacter, sendMessage, setChatActiveId, loadMessages, createSession]
   );
 
+  const handleToggleCharacterInChat = useCallback(
+    async (characterId: string) => {
+      const activeSession = sessions.find((s) => s.id === activeSessionId);
+      if (!activeSession) {
+        // No active session, start a new one with this character
+        await handleStartChat(characterId);
+        return;
+      }
+
+      const isInChat = activeSession.participantIds.includes(characterId);
+      
+      if (isInChat) {
+        // Remove character from chat
+        const newParticipants = activeSession.participantIds.filter((id) => id !== characterId);
+        if (newParticipants.length === 0) {
+          // If removing the last character, end the session
+          setActiveSessionId(null);
+          setChatActiveId(null);
+          setMessages([]);
+          toast.info("Chat ended");
+        } else {
+          // Update session with remaining participants
+          const newSessionId = await createSession(activeSession.type, newParticipants);
+          setActiveSessionId(newSessionId);
+          setChatActiveId(newSessionId);
+          await loadMessages(newSessionId);
+          toast.info(`Removed from chat`);
+        }
+      } else {
+        // Add character to chat
+        const newParticipants = [...activeSession.participantIds, characterId];
+        const newSessionId = await createSession(activeSession.type, newParticipants);
+        setActiveSessionId(newSessionId);
+        setChatActiveId(newSessionId);
+        await loadMessages(newSessionId);
+        toast.success(`Added to chat`);
+      }
+    },
+    [sessions, activeSessionId, handleStartChat, createSession, setChatActiveId, loadMessages]
+  );
+
   const handleDeleteCharacter = useCallback(
     async (characterId: string) => {
       try {
@@ -1671,6 +1690,8 @@ export function DatingSimShell({
             onRequestCreate={handleOpenCreateDialog}
             sessions={sessions}
             onViewProfile={handleViewProfile}
+            activeSessionId={activeSessionId}
+            onToggleCharacterInChat={handleToggleCharacterInChat}
           />
           <div
             data-middle-pane-root
@@ -1687,6 +1708,7 @@ export function DatingSimShell({
               ) : (
                 <ChatPanel
                   character={selectedCharacter}
+                  characters={characters}
                   messages={messages}
                   onSend={handleSendMessage}
                   onStartChat={() =>
