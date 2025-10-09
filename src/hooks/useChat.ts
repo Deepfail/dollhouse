@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { repositoryStorage } from '@/hooks/useRepositoryStorage';
 import { AIService } from '../lib/aiService';
 import { analyzeBehavior, buildMemoryEntries, createBehaviorProfile } from '../lib/behaviorAnalysis';
 import { getDb, saveDatabase } from '../lib/db';
@@ -378,9 +380,6 @@ export function useChat() {
                 memories,
                 lastInteraction: new Date()
               } as Partial<Character>);
-
-              summarySegments.push(`${fullChar.name}: ${adjustment.behavior} (${Math.round(adjustment.confidence * 100)}% confidence) - ${adjustment.summary}`);
-
                 for (const tag of adjustment.tags) {
                   await aliProfileService.addPreference({
                     category: 'behavior',
@@ -521,7 +520,7 @@ export function useChat() {
               }
               break;
             }
-          } catch (e) {
+          } catch {
             // Skip invalid scene session data
           }
         }
@@ -1041,12 +1040,52 @@ Respond as ${character.name}. Be natural and conversational. Stay in character. 
     }
   }, [loadSessions]);
 
-  const analyzeAndEndSession = useCallback(async (sessionId: string) => {
+  const analyzeAndEndSession = useCallback(async (sessionId: string): Promise<boolean> => {
     try {
-      logger.log('📊 Analyzing and ending session:', sessionId);
-      
-      const messages = await getSessionMessages(sessionId);
       const { db } = await getDb();
+      const sessionMeta: Array<{ ended_at?: string | number | null }> = [];
+      db.exec({
+        sql: 'SELECT ended_at FROM chat_sessions WHERE id = ?',
+        bind: [sessionId],
+        rowMode: 'object',
+        callback: (r: unknown) => {
+          sessionMeta.push(r as { ended_at?: string | number | null });
+        }
+      });
+
+      const summaryRows: Array<{ summary_text?: string | null; covered_until?: string | number | null }> = [];
+      db.exec({
+        sql: 'SELECT summary_text, covered_until FROM session_summaries WHERE session_id = ?',
+        bind: [sessionId],
+        rowMode: 'object',
+        callback: (r: unknown) => {
+          summaryRows.push(r as { summary_text?: string | null; covered_until?: string | number | null });
+        }
+      });
+
+      const endedAtValue = sessionMeta[0]?.ended_at ? Number(sessionMeta[0].ended_at) : 0;
+      const existingSummary = summaryRows[0]?.summary_text?.trim();
+      const coveredUntil = summaryRows[0]?.covered_until ? Number(summaryRows[0].covered_until) : 0;
+
+      const messages = await getSessionMessages(sessionId);
+
+      const latestMessageTimestamp = messages.reduce((latest, msg) => {
+        const rawTimestamp = msg.timestamp;
+        const ts = rawTimestamp instanceof Date
+          ? rawTimestamp.getTime()
+          : typeof rawTimestamp === 'number'
+            ? rawTimestamp
+            : new Date(rawTimestamp as string).getTime();
+        return Number.isFinite(ts) ? Math.max(latest, ts) : latest;
+      }, 0);
+
+      if (endedAtValue && existingSummary && coveredUntil >= latestMessageTimestamp) {
+        logger.log('ℹ️ Session already analyzed; skipping duplicate run for', sessionId);
+        toast.info('Conversation already analyzed.');
+        return false;
+      }
+
+      logger.log('📊 Analyzing and ending session:', sessionId);
       
       // Get session participants
       const participantRows: Array<{ character_id: string }> = [];
@@ -1155,10 +1194,12 @@ Respond as ${character.name}. Be natural and conversational. Stay in character. 
       await closeSession(sessionId);
       
       logger.log('✅ Session analyzed and ended');
-      toast.success('Conversation ended and analyzed');
+      toast.success('ANALYSIS COMPLETE. STORY AND STATS UPDATED');
+      return true;
     } catch (e) {
       logger.error('Failed to analyze and end session', e);
       toast.error('Failed to end conversation');
+      return false;
     }
   }, [getSessionMessages, characters, updateCharacter, closeSession]);
 

@@ -415,7 +415,7 @@ interface ChatPanelProps {
   activeSessionId: string | null;
   onOpenManager: () => void;
   onClearChat?: () => Promise<void>;
-  onEndConversation?: () => Promise<void>;
+  onAnalyzeConversation?: () => Promise<void>;
 }
 
 function ChatPanel({
@@ -429,7 +429,7 @@ function ChatPanel({
   activeSessionId,
   onOpenManager,
   onClearChat,
-  onEndConversation,
+  onAnalyzeConversation,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState("");
   const [scenePromptOpen, setScenePromptOpen] = useState(false);
@@ -541,12 +541,12 @@ function ChatPanel({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onEndConversation?.()}
+                onClick={() => onAnalyzeConversation?.()}
                 className="inline-flex items-center gap-2 rounded-full border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-purple-300 hover:border-purple-500/60 hover:bg-purple-500/20"
-                title="Analyze and save conversation to profile"
+                title="Analyze this conversation and update her profile"
               >
                 <CheckCircle size={14} weight="bold" />
-                End
+                Analyze
               </Button>
             </>
           )}
@@ -1104,7 +1104,7 @@ function WingmanPanel({
               ? `Currently viewing: ${selectedCharacter.name}`
               : "House overview",
             includeHouseContext: houseConfig?.copilotUseHouseContext !== false,
-            contextDetail: houseConfig?.copilotContextDetail || "balanced",
+            contextDetail: (houseConfig?.copilotContextDetail ?? "balanced") as "lite" | "balanced" | "detailed",
             maxTokens: houseConfig?.copilotMaxTokens || 500,
           });
         }
@@ -1368,17 +1368,7 @@ export function DatingSimShell({
     clearSessionMessages,
     analyzeAndEndSession,
     createSession,
-  } = useChat() as {
-    sessions: ChatSession[];
-    getSessionMessages: (id: string) => Promise<ChatMessage[]>;
-    sendMessage: (sessionId: string, content: string, senderId: string) => Promise<void>;
-    ensureIndividualSession: (characterId: string) => Promise<string>;
-    switchToSession: (id: string) => Promise<void>;
-    setActiveSessionId: (id: string) => void;
-    clearSessionMessages: (id: string) => Promise<void>;
-    analyzeAndEndSession: (id: string) => Promise<void>;
-    createSession: (type: 'individual' | 'group' | 'scene' | 'assistant' | 'interview', participantIds: string[]) => Promise<string>;
-  };
+  } = useChat();
   const { executeAction } = useQuickActions();
 
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(
@@ -1512,9 +1502,12 @@ export function DatingSimShell({
     await loadMessages(activeSessionId);
   }, [activeSessionId, clearSessionMessages, loadMessages]);
 
-  const handleEndConversation = useCallback(async () => {
+  const handleAnalyzeConversation = useCallback(async () => {
     if (!activeSessionId) return;
-    await analyzeAndEndSession(activeSessionId);
+    const didAnalyze = await analyzeAndEndSession(activeSessionId);
+    if (!didAnalyze) {
+      return;
+    }
     setMessages([]);
     setActiveSessionId(null);
     setChatActiveId(null);
@@ -1703,7 +1696,7 @@ export function DatingSimShell({
                   activeSessionId={activeSessionId}
                   onOpenManager={() => setIsManagerOpen(true)}
                   onClearChat={handleClearChat}
-                  onEndConversation={handleEndConversation}
+                  onAnalyzeConversation={handleAnalyzeConversation}
                 />
               )}
             </div>
