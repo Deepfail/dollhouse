@@ -1,5 +1,5 @@
 import type { Character } from '@/types';
-import { AIService } from './ai';
+import { AIService } from './aiService';
 import { logger } from './logger';
 
 /**
