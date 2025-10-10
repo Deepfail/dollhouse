@@ -48,7 +48,7 @@ import {
 import { toast } from "sonner";
 import { CharacterAutoCreateInline } from "./CharacterAutoCreateDialog";
 import { CharacterCard } from "./CharacterCard";
-import { GirlManagerSidebar } from "./GirlManagerSidebar";
+import { GirlsView } from "./GirlsView";
 import { HouseSettings } from "./HouseSettings";
 
 const EMPTY_STATE_TIPS = [
@@ -394,6 +394,44 @@ function ChatPanel({
       block: "end",
     });
   }, [messages]);
+
+  useEffect(() => {
+    type SceneMetaDetail = {
+      sessionId: string;
+      scenePrompt?: string;
+      hiddenPrompts?: Record<string, string>;
+    };
+  const listener = (event: Event) => {
+      const custom = event as CustomEvent<SceneMetaDetail>;
+      const detail = custom.detail;
+      if (!detail || detail.sessionId !== activeSessionId) return;
+      if (typeof detail.scenePrompt === "string") {
+        setScenePrompt(detail.scenePrompt);
+        if (detail.scenePrompt.trim()) {
+          setScenePromptOpen(true);
+        }
+      }
+      if (detail.hiddenPrompts) {
+        setCharacterHiddenPrompts(detail.hiddenPrompts);
+        if (Object.keys(detail.hiddenPrompts).length > 0) {
+          setHiddenPromptsOpen(true);
+        }
+      }
+    };
+
+    try {
+      globalThis.addEventListener?.("scene-metadata-updated", listener);
+    } catch {
+      /* ignore */
+    }
+    return () => {
+      try {
+        globalThis.removeEventListener?.("scene-metadata-updated", listener);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [activeSessionId]);
 
   const canChat = Boolean(activeSessionId && character);
   const characterSessions = useMemo(() => {
@@ -1357,6 +1395,7 @@ export function DatingSimShell({
     clearSessionMessages,
     analyzeAndEndSession,
     createSession,
+    updateSessionGoal,
   } = useChat();
   const { executeAction } = useQuickActions();
 
@@ -1371,11 +1410,29 @@ export function DatingSimShell({
   );
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isManagerOpen, setIsManagerOpen] = useState(false);
+  const [isRosterOpen, setIsRosterOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [createDialogGender, setCreateDialogGender] = useState<
     "female" | "male"
   >("female");
+
+  useEffect(() => {
+    type GlobalListener = {
+      addEventListener?: (type: string, handler: () => void) => void;
+      removeEventListener?: (type: string, handler: () => void) => void;
+    };
+    const globalLike: GlobalListener = globalThis as unknown as GlobalListener;
+    if (!globalLike.addEventListener) return;
+    const handleOpenRoster = () => setIsRosterOpen(true);
+    globalLike.addEventListener("open-girls-view", handleOpenRoster);
+    return () => {
+      try {
+        globalLike.removeEventListener?.("open-girls-view", handleOpenRoster);
+      } catch {
+        // ignore cleanup failures
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (characters.length > 0 && !selectedCharacterId) {
@@ -1551,8 +1608,9 @@ export function DatingSimShell({
         await loadMessages(sessionId);
         
         // Send the scene description as a system/narrator message
-        console.log('Sending scene prompt:', scene.scenePrompt);
-        await sendMessage(sessionId, `**Scene Start:**\n\n${scene.scenePrompt}`, 'system');
+  const promptText = scene.scenePrompt?.trim() ?? "";
+  console.log('Sending scene prompt:', promptText);
+  await sendMessage(sessionId, `**Scene Start:**\n\n${promptText}`, 'system');
         
         // If there's an initial message, send it from the character
         if (scene.initialMessage && scene.participantIds.length > 0) {
@@ -1561,18 +1619,36 @@ export function DatingSimShell({
           await sendMessage(sessionId, scene.initialMessage, firstCharacterId);
         }
         
-        // Store character hidden prompts - update each character's prompts
+        // Store character hidden prompts as session-scoped secret goals
         console.log('Setting hidden prompts:', scene.characterHiddenPrompts);
-        for (const [charId, hiddenPrompt] of Object.entries(scene.characterHiddenPrompts)) {
-          const character = characters.find(c => c.id === charId);
-          if (character) {
-            await updateCharacter(charId, {
-              prompts: {
-                ...character.prompts,
-                hiddenPrompt,
+        const hiddenEntries = Object.entries(scene.characterHiddenPrompts ?? {}).filter(([charId, hiddenPrompt]) => {
+          if (!hiddenPrompt?.trim()) return false;
+          return scene.participantIds.includes(charId);
+        });
+        const hiddenPromptMap = Object.fromEntries(
+          hiddenEntries.map(([charId, hiddenPrompt]) => [charId, hiddenPrompt.trim()])
+        );
+        if (hiddenEntries.length > 0) {
+          await Promise.all(
+            hiddenEntries.map(([charId, hiddenPrompt]) =>
+              updateSessionGoal(sessionId, charId, hiddenPrompt.trim(), 'high')
+            )
+          );
+        }
+
+        // Broadcast scene metadata so interested panels can reflect the update
+        try {
+          globalThis.dispatchEvent?.(
+            new CustomEvent('scene-metadata-updated', {
+              detail: {
+                sessionId,
+                scenePrompt: promptText,
+                hiddenPrompts: hiddenPromptMap,
               },
-            });
-          }
+            })
+          );
+        } catch (eventError) {
+          logger.warn('Failed to dispatch scene metadata event', eventError);
         }
         
         // Reload messages to show the scene
@@ -1585,7 +1661,7 @@ export function DatingSimShell({
         toast.error("Could not start the scene");
       }
     },
-    [characters, updateCharacter, sendMessage, setChatActiveId, loadMessages, createSession]
+    [characters, sendMessage, setChatActiveId, loadMessages, createSession, updateSessionGoal]
   );
 
   const handleToggleCharacterInChat = useCallback(
@@ -1648,16 +1724,6 @@ export function DatingSimShell({
       }
     },
     [characters, removeCharacter, selectedCharacterId]
-  );
-
-  const handleSidebarSessionActivated = useCallback(
-    async (sessionId: string, characterId?: string) => {
-      setActiveSessionId(sessionId);
-      setChatActiveId(sessionId);
-      if (characterId) setSelectedCharacterId(characterId);
-      await loadMessages(sessionId);
-    },
-    [loadMessages, setChatActiveId]
   );
 
   useEffect(() => {
@@ -1734,7 +1800,7 @@ export function DatingSimShell({
                   sessions={sessions}
                   onSwitchSession={handleSwitchSession}
                   activeSessionId={activeSessionId}
-                  onOpenManager={() => setIsManagerOpen(true)}
+                  onOpenManager={() => setIsRosterOpen(true)}
                   onClearChat={handleClearChat}
                   onAnalyzeConversation={handleAnalyzeConversation}
                 />
@@ -1750,7 +1816,7 @@ export function DatingSimShell({
             characters={characters}
             onShortcut={handleWingmanShortcut}
             onOpenSettings={() => setIsSettingsOpen(true)}
-            onOpenManager={() => setIsManagerOpen(true)}
+            onOpenManager={() => setIsRosterOpen(true)}
             onStartChat={(character) => {
               void handleStartChat(character.id);
             }}
@@ -1786,20 +1852,10 @@ export function DatingSimShell({
           />
         )}
 
-        <Dialog open={isManagerOpen} onOpenChange={setIsManagerOpen}>
-          <DialogContent className="max-w-5xl w-[92vw] overflow-hidden border border-white/10 bg-[#080811] p-0 text-white">
-            <div className="h-[80vh] min-h-[540px]">
-              <GirlManagerSidebar
-                onFocusCharacter={(characterId: string) => {
-                  setSelectedCharacterId(characterId);
-                  setIsManagerOpen(false);
-                }}
-                onSessionActivated={handleSidebarSessionActivated}
-                onOpenSettings={() => {
-                  setIsSettingsOpen(true);
-                  setIsManagerOpen(false);
-                }}
-              />
+        <Dialog open={isRosterOpen} onOpenChange={setIsRosterOpen}>
+          <DialogContent className="max-w-6xl w-[96vw] overflow-hidden border border-white/10 bg-[#080811] p-0 text-white">
+            <div className="h-[82vh] min-h-[560px]">
+              <GirlsView />
             </div>
           </DialogContent>
         </Dialog>

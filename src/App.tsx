@@ -81,7 +81,7 @@ export default function App() {
 
   return (
     <>
-  <DatingSimShell />
+      <DatingSimShell />
       <Toaster />
     </>
   );

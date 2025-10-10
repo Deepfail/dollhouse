@@ -3,6 +3,7 @@ import { AIService } from "./aiService";
 import { aliProfileService } from "./aliProfile";
 import { populateCharacterProfile } from "./characterProfileBuilder";
 import { logger } from "./logger";
+import { formatPrompt } from "./prompts";
 
 // Clean, minimal character generator that the app can use during runtime.
 // Purposefully small to avoid large prompt blobs and to be resilient when AI fails.
@@ -198,6 +199,20 @@ export interface CharacterGenerationOptions {
 
 const createBaseCharacter = (overrides: Partial<Character>): Character => {
   const now = new Date();
+  const defaultPrompts = {
+    system: "",
+    description: "",
+    background: "",
+    personality: "",
+    appearance: "",
+    responseStyle: "",
+    originScenario: "",
+  } as const;
+
+  const prompts = overrides.prompts
+    ? { ...defaultPrompts, ...overrides.prompts }
+    : { ...defaultPrompts };
+
   return {
     id: overrides.id || generateUniqueCharacterId(),
     name: overrides.name || "Unnamed",
@@ -238,26 +253,7 @@ const createBaseCharacter = (overrides: Partial<Character>): Character => {
     rarity: overrides.rarity || "common",
     specialAbility: overrides.specialAbility,
     preferredRoomType: overrides.preferredRoomType || "standard",
-    prompts: overrides.prompts
-      ? {
-          system: "",
-          description: "",
-          background: "",
-          personality: "",
-          appearance: "",
-          responseStyle: "",
-          originScenario: "",
-          ...overrides.prompts,
-        }
-      : {
-          system: "",
-          description: "",
-          background: "",
-          personality: "",
-          appearance: "",
-          responseStyle: "",
-          originScenario: "",
-        },
+    prompts,
     physicalStats: overrides.physicalStats || {
       hairColor: "",
       eyeColor: "",

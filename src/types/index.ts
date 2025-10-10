@@ -115,6 +115,7 @@ export interface Character {
     storyChronicle: StoryEntry[];
     currentStoryArc?: string;
     memorableEvents: MemorableEvent[];
+  narrativeSummary?: CharacterNarrativeSummary;
 
     // Special bonds and compatibility
     bonds: Record<string, CharacterBond>; // characterId -> bond details
@@ -294,6 +295,13 @@ export interface StoryEntry {
   significance: 'low' | 'medium' | 'high' | 'pivotal'; // How important this event is
   tags: string[]; // For filtering and searching
   relatedEvents?: string[]; // IDs of related story entries
+}
+
+export interface CharacterNarrativeSummary {
+  sessionOverview?: string;
+  coreStats?: string;
+  sexStats?: string;
+  lastUpdatedAt?: string;
 }
 
 export interface MemorableEvent {

@@ -125,6 +125,31 @@ export class AIService {
     }
   }
 
+  static async generateText({
+    prompt,
+    temperature,
+    maxTokens,
+    model,
+    apiKey,
+    top_p,
+    top_k,
+  }: {
+    prompt: string;
+    temperature?: number;
+    maxTokens?: number;
+    model?: string;
+    apiKey?: string;
+    top_p?: number;
+    top_k?: number;
+  }): Promise<string> {
+    const options: LLMOptions = {};
+    if (typeof temperature === 'number') options.temperature = temperature;
+    if (typeof maxTokens === 'number') options.max_tokens = maxTokens;
+    if (typeof top_p === 'number') options.top_p = top_p;
+    if (typeof top_k === 'number') options.top_k = top_k;
+    return AIService.generateResponse(prompt, apiKey, model, options);
+  }
+
   static async generateImage(prompt: string, _options?: Record<string, unknown>): Promise<string> {
     void _options; // Keep parameter referenced
     logger.log('AIService.generateImage called with prompt:', prompt.slice(0, 50) + '...');

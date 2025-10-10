@@ -1,12 +1,7 @@
 import { AISettings } from "@/components/AISettings";
 import { PromptLibrary } from "@/components/PromptLibrary";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -162,13 +157,6 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
     setLocalConfig((prev) => ({ ...prev, ...updates }));
   };
 
-  const updateAutoCreator = (updates: Partial<HouseConfig["autoCreator"]>) => {
-    setLocalConfig((prev) => ({
-      ...prev,
-      autoCreator: { ...prev.autoCreator, ...updates },
-    }));
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -176,10 +164,10 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
         style={{ backgroundColor: "#1a1a1a", color: "#ffffff" }}
       >
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-white">
+          <div className="flex items-center gap-2 text-white text-lg font-semibold">
             <Gear size={20} />
             House Settings
-          </DialogTitle>
+          </div>
         </DialogHeader>
 
         <Tabs defaultValue="general" className="flex-1 overflow-hidden">

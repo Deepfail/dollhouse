@@ -1081,7 +1081,8 @@ export async function setPromptOverride(
   if (value && value.trim().length > 0) {
     overrides = { ...overrides, [key]: value };
   } else if (overrides[key] != null) {
-    const { [key]: _, ...rest } = overrides;
+    const rest = { ...overrides };
+    delete rest[key];
     overrides = rest;
   }
   persistLocal();
@@ -1093,7 +1094,8 @@ export async function resetPromptOverride(
   key: PromptKey
 ): Promise<PromptOverrideMap> {
   if (overrides[key] != null) {
-    const { [key]: _, ...rest } = overrides;
+    const rest = { ...overrides };
+    delete rest[key];
     overrides = rest;
     persistLocal();
     await persistRemote();

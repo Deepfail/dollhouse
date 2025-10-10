@@ -11,7 +11,7 @@ import { aliProfileService } from '@/lib/aliProfile';
 import { legacyStorage } from '@/lib/legacyStorage';
 import { logger } from '@/lib/logger';
 import { formatPrompt } from '@/lib/prompts';
-import { Character, ChatMessage, ChatSession } from '../types';
+import { Character, CharacterMemory, ChatMessage, ChatSession, StoryEntry } from '../types';
 import { useHouseFileStorage } from './useHouseFileStorage';
 
 const clampNumber = (value: number, min = 0, max = 100): number => {
@@ -32,6 +32,216 @@ const SUMMARY_CONFIG = {
   MIN_CHUNK_MESSAGES: 12,
   MIN_CHUNK_CHARS: 1400
 } as const;
+
+const STORY_CHRONICLE_LIMIT = 24;
+const MAX_MEMORY_ENTRIES = 120;
+
+const SEXUAL_ACTION_PATTERNS: RegExp[] = [
+  /\bkiss(?:ed|ing)?\b/i,
+  /\bcaress(?:ed|ing)?\b/i,
+  /\bspank(?:ed|ing)?\b/i,
+  /\b(?:went|go) down\b/i,
+  /\b(?:handjob|fingering|fingered)\b/i,
+  /\b(?:suck|lick)(?:ed|ing)?\b/i,
+  /\b(?:thrust|ride)(?:s|ing|ed)?\b/i,
+  /\b(?:penetrat|inside)\b/i,
+  /\borgasm(?:ed)?\b/i,
+  /\bcum(?:shot)?\b/i,
+  /\bstrip(?:ped|ping)?\b/i
+];
+
+const STOP_WORDS = new Set([
+  'about', 'after', 'again', 'being', 'because', 'before', 'could', 'did', 'does', 'doing', 'down', 'each', 'from',
+  'have', 'having', 'into', 'just', 'like', 'make', 'maybe', 'other', 'over', 'really', 'some', 'still', 'than',
+  'that', 'their', 'there', 'these', 'they', 'thing', 'this', 'those', 'very', 'want', 'were', 'what', 'when',
+  'where', 'which', 'while', 'with', 'would', 'your', 'yours', 'mine', 'ours', 'hers', 'himself', 'herself', 'myself',
+  'ourselves', 'themselves', 'through', 'first', 'second', 'third', 'afterwards', 'tonight', 'today', 'tomorrow'
+]);
+
+const KEYWORD_REGEX = /[a-zA-Z][a-zA-Z'-]{3,}/g;
+
+const sanitizeWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
+
+const truncateText = (value: string, maxLength = 160): string => {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
+};
+
+const extractRecentKeywords = (messages: ChatMessage[], limit = 5): string[] => {
+  const keywordCounts = new Map<string, number>();
+  for (const message of messages.slice(-24)) {
+    const matches = message.content.match(KEYWORD_REGEX);
+    if (!matches) continue;
+    for (const raw of matches) {
+      const keyword = raw.toLowerCase();
+      if (keyword.length > 18 || STOP_WORDS.has(keyword)) continue;
+      keywordCounts.set(keyword, (keywordCounts.get(keyword) ?? 0) + 1);
+    }
+  }
+  return [...keywordCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([keyword]) => keyword)
+    .slice(0, limit);
+};
+
+const buildSessionOverview = (characterName: string, messages: ChatMessage[], keywords: string[]): string => {
+  if (!messages.length) return '';
+  const focus = keywords.length ? keywords.join(', ') : 'a blend of moments';
+  const recent = messages.slice(-6);
+  const latestUserLine = [...recent].reverse().find(msg => !msg.characterId)?.content;
+  const latestCharacterLine = [...recent].reverse().find(msg => msg.characterId)?.content;
+  const userSnippet = latestUserLine ? ` You shared: "${truncateText(sanitizeWhitespace(latestUserLine), 120)}".` : '';
+  const characterSnippet = latestCharacterLine
+    ? ` ${characterName} replied: "${truncateText(sanitizeWhitespace(latestCharacterLine), 120)}".`
+    : '';
+  return `Your latest exchange with ${characterName} revolved around ${focus}.${userSnippet}${characterSnippet}`.trim();
+};
+
+const extractSexualHighlights = (messages: ChatMessage[], characterId: string): string[] => {
+  const highlights: string[] = [];
+  for (const message of messages.slice(-30)) {
+    const normalized = sanitizeWhitespace(message.content);
+    if (normalized && SEXUAL_ACTION_PATTERNS.some(pattern => pattern.test(normalized))) {
+      const speaker = message.characterId === characterId ? 'She' : message.characterId ? 'They' : 'You';
+      highlights.push(`${speaker} ${normalized}`);
+    }
+  }
+  return highlights.slice(-3).map(item => truncateText(item, 140));
+};
+
+const describeDelta = (label: string, previous?: number, current?: number): string | null => {
+  if (typeof current !== 'number') return null;
+  if (typeof previous !== 'number') {
+    return `${label} sits at ${Math.round(current)}%.`;
+  }
+  const delta = Math.round(current - previous);
+  if (delta >= 3) return `${label} rose to ${Math.round(current)}% (+${delta}).`;
+  if (delta <= -3) return `${label} dipped to ${Math.round(current)}% (${delta}).`;
+  return null;
+};
+
+const buildCoreStatSummary = (
+  characterName: string,
+  previous: Partial<Character['progression']> | undefined,
+  current: Partial<Character['progression']> | undefined
+): string => {
+  if (!current) return '';
+  const lines: string[] = [];
+  for (const key of NUMERIC_PROGRESSION_KEYS) {
+    const label = key;
+    const line = describeDelta(label, previous?.[key], current[key]);
+    if (line) lines.push(line);
+  }
+  if (lines.length) {
+    return `${characterName}'s relationship climate shifted: ${lines.join(' ')}`;
+  }
+  const sorted = NUMERIC_PROGRESSION_KEYS
+    .map(key => ({ key, value: Number(current[key] ?? 0) }))
+    .sort((a, b) => b.value - a.value);
+  if (!sorted.length) return '';
+  const strongest = sorted[0];
+  const weakest = sorted[sorted.length - 1];
+  return `${characterName}'s relationship tone held steady. Strongest: ${strongest.key} at ${Math.round(strongest.value)}%. Watch ${weakest.key} at ${Math.round(weakest.value)}%.`;
+};
+
+const buildSexStatSummary = (
+  characterName: string,
+  previousStats: Partial<Character['stats']> | undefined,
+  currentStats: Partial<Character['stats']>,
+  highlights: string[]
+): string => {
+  const parts: string[] = [];
+  const desire = describeDelta('Desire', previousStats?.wet, currentStats.wet);
+  if (desire) parts.push(desire.replace('%', '%')); // keep percent wording
+  const willingness = describeDelta('Willingness', previousStats?.willing, currentStats.willing);
+  if (willingness) parts.push(willingness);
+  const stamina = describeDelta('Stamina', previousStats?.stamina, currentStats.stamina);
+  if (stamina) parts.push(stamina);
+  if (!parts.length && typeof currentStats?.wet === 'number') {
+    parts.push(`${characterName}'s desire is at ${Math.round(currentStats.wet)}%, willingness around ${Math.round(currentStats.willing ?? 0)}%.`);
+  }
+  if (highlights.length) {
+    parts.push(`Intimate beats: ${highlights.join('; ')}`);
+  }
+  return parts.join(' ');
+};
+
+const buildFallbackMemoryNote = (
+  characterName: string,
+  sessionOverview: string,
+  coreSummary: string,
+  sexSummary: string
+): string => {
+  const pieces = [sessionOverview, coreSummary, sexSummary].map(section => sanitizeWhitespace(section)).filter(Boolean);
+  if (!pieces.length) return '';
+  return `${characterName}'s latest session recap: ${pieces.join(' ')}`;
+};
+
+type StoryEntryInput = {
+  character: Character;
+  sessionId: string;
+  sessionOverview: string;
+  coreSummary: string;
+  sexSummary: string;
+  previousProgression: Partial<Character['progression']> | undefined;
+  updatedProgression: Partial<Character['progression']>;
+  keywords: string[];
+};
+
+const createStoryEntryForSession = ({
+  character,
+  sessionId,
+  sessionOverview,
+  coreSummary,
+  sexSummary,
+  previousProgression,
+  updatedProgression,
+  keywords
+}: StoryEntryInput): StoryEntry => {
+  const emotionalKeys: NumericProgressionKey[] = ['affection', 'trust', 'intimacy', 'dominance'];
+  const timestamp = new Date();
+  const titleKeywords = keywords.slice(0, 2);
+  const title = titleKeywords.length
+    ? `${character.name}: ${titleKeywords.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' & ')}`
+    : `Session with ${character.name}`;
+  const summary = sessionOverview || `Latest session with ${character.name}.`;
+  const details = [sessionOverview, coreSummary, sexSummary].map(section => sanitizeWhitespace(section)).filter(Boolean).join('\n\n');
+  const emotionsBefore = emotionalKeys.reduce<Record<string, number>>((acc, key) => {
+    const value = previousProgression?.[key];
+    if (typeof value === 'number') acc[key] = Math.round(value);
+    return acc;
+  }, {});
+  const emotionsAfter = emotionalKeys.reduce<Record<string, number>>((acc, key) => {
+    const value = updatedProgression?.[key];
+    if (typeof value === 'number') acc[key] = Math.round(value);
+    return acc;
+  }, {});
+  const deltaMagnitude = emotionalKeys.reduce((maxDelta, key) => {
+    const before = typeof previousProgression?.[key] === 'number' ? Number(previousProgression?.[key]) : undefined;
+    const after = typeof updatedProgression?.[key] === 'number' ? Number(updatedProgression?.[key]) : undefined;
+    if (before == null || after == null) return maxDelta;
+    return Math.max(maxDelta, Math.abs(after - before));
+  }, 0);
+  const significance: StoryEntry['significance'] = deltaMagnitude >= 8 ? 'pivotal' : deltaMagnitude >= 5 ? 'high' : deltaMagnitude >= 3 ? 'medium' : 'low';
+  return {
+    id: uuid(),
+    timestamp,
+    eventType: 'interaction',
+    title,
+    summary,
+    details: details || summary,
+    participants: [character.id],
+    location: undefined,
+    emotions: {
+      before: emotionsBefore,
+      after: emotionsAfter
+    },
+    storyArc: updatedProgression?.currentStoryArc,
+    significance,
+    tags: Array.from(new Set([...keywords, 'session', 'analysis'])),
+    relatedEvents: [sessionId]
+  };
+};
 
 type GlobalEventTargetLike = {
   dispatchEvent?: (event: unknown) => void;
@@ -1107,7 +1317,7 @@ Respond as ${character.name}. Be natural and conversational. Stay in character. 
       // Run full behavior analysis
       if (participantCharacters.length && messages.length > 0) {
         const lastUserMessage = messages.filter(m => !m.characterId).pop();
-        
+        const sessionKeywords = extractRecentKeywords(messages, 6);
         const analysis = await analyzeBehavior({
           sessionId,
           messages,
@@ -1122,6 +1332,8 @@ Respond as ${character.name}. Be natural and conversational. Stay in character. 
           
           const updatedStats = { ...fullChar.stats };
           const updatedProgression = { ...fullChar.progression };
+          const previousStats = { ...updatedStats };
+          const previousProgression = { ...updatedProgression };
           
           if (adjustment.statAdjustments.stats) {
             for (const [statKey, delta] of Object.entries(adjustment.statAdjustments.stats)) {
@@ -1162,7 +1374,54 @@ Respond as ${character.name}. Be natural and conversational. Stay in character. 
           }
           
           const behaviorProfile = createBehaviorProfile(adjustment, fullChar.behaviorProfile);
-          const memories = buildMemoryEntries(fullChar, adjustment.memories);
+          let memories = buildMemoryEntries(fullChar, adjustment.memories);
+
+          const sessionOverview = buildSessionOverview(fullChar.name, messages, sessionKeywords);
+          const sexualHighlights = extractSexualHighlights(messages, fullChar.id);
+          const coreSummary = buildCoreStatSummary(fullChar.name, previousProgression, updatedProgression);
+          const sexSummary = buildSexStatSummary(fullChar.name, previousStats, updatedStats, sexualHighlights);
+
+          const existingChronicle = Array.isArray(updatedProgression?.storyChronicle)
+            ? [...(updatedProgression?.storyChronicle as StoryEntry[])]
+            : [];
+          const storyEntry = createStoryEntryForSession({
+            character: fullChar,
+            sessionId,
+            sessionOverview,
+            coreSummary,
+            sexSummary,
+            previousProgression,
+            updatedProgression,
+            keywords: sessionKeywords
+          });
+
+          const nextChronicle = [...existingChronicle, storyEntry];
+          if (nextChronicle.length > STORY_CHRONICLE_LIMIT) {
+            nextChronicle.splice(0, nextChronicle.length - STORY_CHRONICLE_LIMIT);
+          }
+          updatedProgression.storyChronicle = nextChronicle;
+          updatedProgression.narrativeSummary = {
+            sessionOverview,
+            coreStats: coreSummary,
+            sexStats: sexSummary,
+            lastUpdatedAt: new Date().toISOString()
+          };
+
+          const fallbackMemory = buildFallbackMemoryNote(fullChar.name, sessionOverview, coreSummary, sexSummary);
+          if (fallbackMemory) {
+            const memoryEntry: CharacterMemory = {
+              id: uuid(),
+              category: 'events',
+              content: fallbackMemory,
+              importance: 'medium',
+              timestamp: new Date(),
+              conversationId: sessionId
+            };
+            memories = [...memories, memoryEntry];
+            if (memories.length > MAX_MEMORY_ENTRIES) {
+              memories = memories.slice(-MAX_MEMORY_ENTRIES);
+            }
+          }
           
           await updateCharacter(fullChar.id, {
             stats: updatedStats,

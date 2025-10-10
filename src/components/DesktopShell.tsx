@@ -11,6 +11,34 @@ import { ChatCircle, Gear, Plus, User } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
+function parseStringArray(value: unknown): string[] {
+  if (!value) return [];
+  try {
+    const parsed =
+      typeof value === 'string' ? JSON.parse(value) : value;
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is string => typeof item === 'string');
+    }
+  } catch {
+    // Ignore malformed JSON, return empty array instead.
+  }
+  return [];
+}
+
+function parseRecord(value: unknown): Record<string, unknown> {
+  if (!value) return {};
+  try {
+    const parsed =
+      typeof value === 'string' ? JSON.parse(value) : value;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Ignore malformed JSON, fall back to empty object.
+  }
+  return {};
+}
+
 type StoredCharacter = Character & {
   bio?: string;
   avatar_path?: string;
@@ -24,6 +52,8 @@ export function DesktopShell() {
   const { setSetting } = useSettings();
   const [showCharacterCreator, setShowCharacterCreator] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<StoredCharacter | null>(null);
+  const selectedTags = parseStringArray(selectedCharacter?.tags_json);
+  const selectedTraits = parseRecord(selectedCharacter?.traits_json);
 
   // Handle panel resize to persist sizes
   const handleLayout = (sizes: number[]) => {
@@ -75,63 +105,66 @@ export function DesktopShell() {
                   </Button>
                 </div>
               ) : (
-                characters.map((character: StoredCharacter) => (
-                  <Card 
-                    key={character.id} 
-                    className={`cursor-pointer transition-colors hover:bg-muted/50 ${
-                      selectedCharacter?.id === character.id ? 'bg-muted' : ''
-                    }`}
-                    onClick={() => setSelectedCharacter(character)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-10 h-10">
-                          <AvatarImage 
-                            src={character.avatar_path} 
-                            alt={character.name} 
-                          />
-                          <AvatarFallback>
-                            {character.name?.charAt(0)?.toUpperCase() || '?'}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium truncate">{character.name}</h3>
-                          <p className="text-sm text-muted-foreground truncate">
-                            {character.bio?.substring(0, 50) || 'No bio'}
-                            {character.bio?.length > 50 ? '...' : ''}
-                          </p>
-                          <div className="flex gap-1 mt-1">
-                            {character.tags_json &&
-                              JSON.parse(String(character.tags_json))
-                                .slice(0, 2)
-                                .map((tag: string) => (
-                              <Badge key={tag} variant="secondary" className="text-xs">
-                                {tag}
-                              </Badge>
+                characters.map((character: StoredCharacter) => {
+                  const bio = character.bio ?? '';
+                  const tags = parseStringArray(character.tags_json).slice(0, 2);
+                  return (
+                    <Card 
+                      key={character.id} 
+                      className={`cursor-pointer transition-colors hover:bg-muted/50 ${
+                        selectedCharacter?.id === character.id ? 'bg-muted' : ''
+                      }`}
+                      onClick={() => setSelectedCharacter(character)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-10 h-10">
+                            <AvatarImage 
+                              src={character.avatar_path} 
+                              alt={character.name} 
+                            />
+                            <AvatarFallback>
+                              {character.name?.charAt(0)?.toUpperCase() || '?'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium truncate">{character.name}</h3>
+                            <p className="text-sm text-muted-foreground truncate">
+                              {bio.substring(0, 50) || 'No bio'}
+                              {bio.length > 50 ? '...' : ''}
+                            </p>
+                            {tags.length > 0 && (
+                              <div className="flex gap-1 mt-1">
+                                {tags.map((tag) => (
+                                  <Badge key={tag} variant="secondary" className="text-xs">
+                                    {tag}
+                                  </Badge>
                                 ))}
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </div>
-                      <div className="flex gap-1 mt-3">
-                        <Button size="sm" variant="outline" className="flex-1">
-                          <ChatCircle className="w-3 h-3 mr-1" />
-                          Chat
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedCharacter(character);
-                            setShowCharacterCreator(true);
-                          }}
-                        >
-                          <Gear className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                        <div className="flex gap-1 mt-3">
+                          <Button size="sm" variant="outline" className="flex-1">
+                            <ChatCircle className="w-3 h-3 mr-1" />
+                            Chat
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCharacter(character);
+                              setShowCharacterCreator(true);
+                            }}
+                          >
+                            <Gear className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
               )}
             </div>
           </div>
@@ -168,14 +201,15 @@ export function DesktopShell() {
                         </Avatar>
                         <div className="flex-1">
                           <CardTitle className="text-xl">{selectedCharacter.name}</CardTitle>
-                          <div className="flex gap-2 mt-2">
-                            {selectedCharacter.tags_json &&
-                              JSON.parse(String(selectedCharacter.tags_json)).map((tag: string) => (
+                          {selectedTags.length > 0 && (
+                            <div className="flex gap-2 mt-2">
+                              {selectedTags.map((tag) => (
                                 <Badge key={tag} variant="outline">
                                   {tag}
                                 </Badge>
                               ))}
-                          </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </CardHeader>
@@ -185,19 +219,15 @@ export function DesktopShell() {
                         <p className="text-muted-foreground">{selectedCharacter.bio}</p>
                       </div>
 
-                      {selectedCharacter.traits_json && (
+                      {Object.keys(selectedTraits).length > 0 && (
                         <div>
                           <h4 className="font-medium mb-2">Traits</h4>
                           <div className="grid grid-cols-2 gap-2">
-                            {Object.entries(
-                              JSON.parse(String(selectedCharacter.traits_json)),
-                            ).map(
-                              ([key, value]) => (
-                                <div key={key} className="text-sm">
-                                  <span className="font-medium">{key}:</span> {String(value)}
-                                </div>
-                              ),
-                            )}
+                            {Object.entries(selectedTraits).map(([key, value]) => (
+                              <div key={key} className="text-sm">
+                                <span className="font-medium">{key}:</span> {String(value ?? '')}
+                              </div>
+                            ))}
                           </div>
                         </div>
                       )}

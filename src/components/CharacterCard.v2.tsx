@@ -477,6 +477,7 @@ export function CharacterCard({
       sexualCompatibility: base.sexualCompatibility ?? { overall: 0, kinkAlignment: 0, stylePreference: 0 },
       userPreferences: base.userPreferences ?? { likes: [], dislikes: [], turnOns: [], turnOffs: [] },
       storyChronicle: base.storyChronicle ?? [],
+      narrativeSummary: base.narrativeSummary ?? {},
     };
   }, [character.progression]);
 
@@ -545,6 +546,20 @@ export function CharacterCard({
     const entries = (progression.storyChronicle as StoryEntry[]) ?? [];
     return entries.slice().sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, 8);
   }, [progression.storyChronicle]);
+
+  const narrativeSummary = useMemo(() => {
+    const summary = progression.narrativeSummary ?? {};
+    const sanitize = (value?: unknown) => (typeof value === 'string' ? value.trim() : '');
+    const rawTimestamp = typeof summary.lastUpdatedAt === 'string' ? summary.lastUpdatedAt.trim() : '';
+    const parsedDate = rawTimestamp ? new Date(rawTimestamp) : undefined;
+    const lastUpdatedAt = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : undefined;
+    return {
+      sessionOverview: sanitize(summary.sessionOverview),
+      coreStats: sanitize(summary.coreStats),
+      sexStats: sanitize(summary.sexStats),
+      lastUpdatedAt,
+    };
+  }, [progression.narrativeSummary]);
 
   const primaryActions = (
     <div className="grid gap-2 sm:grid-cols-2">
@@ -992,6 +1007,47 @@ export function CharacterCard({
                     </div>
                   </div>
                 ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold text-white">Session Overview</h3>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm leading-relaxed text-white/80">
+              {narrativeSummary.sessionOverview ? (
+                <>
+                  <p>{narrativeSummary.sessionOverview}</p>
+                  {narrativeSummary.lastUpdatedAt && (
+                    <div className="pt-3 text-xs uppercase tracking-wide text-white/40">
+                      Updated {formatDate(narrativeSummary.lastUpdatedAt)}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="italic text-white/50">Run Analyze to capture the latest story beats.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-3">
+              <h3 className="text-base font-semibold text-white">Relationship Pulse</h3>
+              <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm leading-relaxed text-white/80">
+                {narrativeSummary.coreStats ? (
+                  <p>{narrativeSummary.coreStats}</p>
+                ) : (
+                  <p className="italic text-white/50">No relationship summary yet.</p>
+                )}
+              </div>
+            </div>
+            <div className="space-y-3">
+              <h3 className="text-base font-semibold text-white">Intimate Highlights</h3>
+              <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm leading-relaxed text-white/80">
+                {narrativeSummary.sexStats ? (
+                  <p>{narrativeSummary.sexStats}</p>
+                ) : (
+                  <p className="italic text-white/50">No intimate summary yet.</p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1688,74 +1744,80 @@ export function CharacterCard({
       </TabsContent>
     );
 
+  const panelContent = (
+    <>
+      <DialogHeader className="border-b border-white/10 px-6 py-4">
+        <DialogTitle className="text-lg font-semibold">{character.name}</DialogTitle>
+      </DialogHeader>
+      <Tabs defaultValue="overview" className="flex h-full flex-col">
+        <TabsList className="flex w-full flex-wrap justify-start gap-1 border-b border-white/10 bg-[#080814] px-6 py-3">
+          <TabsTrigger
+            value="overview"
+            className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
+          >
+            <Star className="h-4 w-4" />
+            Profile
+          </TabsTrigger>
+          <TabsTrigger
+            value="stats"
+            className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
+          >
+            <TrendUp className="h-4 w-4" />
+            Stats
+          </TabsTrigger>
+          <TabsTrigger
+            value="physical"
+            className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
+          >
+            <User className="h-4 w-4" />
+            Physical
+          </TabsTrigger>
+          <TabsTrigger
+            value="value"
+            className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
+          >
+            <CurrencyDollar className="h-4 w-4" />
+            Value
+          </TabsTrigger>
+          <TabsTrigger
+            value="feed"
+            className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
+          >
+            <ImageIcon className="h-4 w-4" />
+            Feed
+          </TabsTrigger>
+          <TabsTrigger
+            value="memories"
+            className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
+          >
+            <BookOpen className="h-4 w-4" />
+            Memories
+          </TabsTrigger>
+          <TabsTrigger
+            value="prompts"
+            className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
+          >
+            <Code className="h-4 w-4" />
+            Prompts
+          </TabsTrigger>
+        </TabsList>
+        <div className="flex-1 overflow-hidden">
+          {overviewTab}
+          {statsTab}
+          {physicalTab}
+          {valueTab}
+          {feedTab}
+          {memoriesTab}
+          {promptsTab}
+        </div>
+      </Tabs>
+    </>
+  );
+
   const dialogContent = (
     <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="flex w-full max-w-[1100px] max-h-[90vh] flex-col overflow-hidden border border-white/10 bg-[#05050c] p-0 text-white">
-        <DialogHeader className="border-b border-white/10 px-6 py-4">
-          <DialogTitle className="text-lg font-semibold">{character.name}</DialogTitle>
-        </DialogHeader>
-        <Tabs defaultValue="overview" className="flex h-full flex-col">
-          <TabsList className="flex w-full flex-wrap justify-start gap-1 border-b border-white/10 bg-[#080814] px-6 py-3">
-            <TabsTrigger 
-              value="overview" 
-              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
-            >
-              <Star className="h-4 w-4" />
-              Profile
-            </TabsTrigger>
-            <TabsTrigger 
-              value="stats" 
-              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
-            >
-              <TrendUp className="h-4 w-4" />
-              Stats
-            </TabsTrigger>
-            <TabsTrigger 
-              value="physical" 
-              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
-            >
-              <User className="h-4 w-4" />
-              Physical
-            </TabsTrigger>
-            <TabsTrigger 
-              value="value" 
-              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
-            >
-              <CurrencyDollar className="h-4 w-4" />
-              Value
-            </TabsTrigger>
-            <TabsTrigger 
-              value="feed" 
-              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
-            >
-              <ImageIcon className="h-4 w-4" />
-              Feed
-            </TabsTrigger>
-            <TabsTrigger 
-              value="memories" 
-              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
-            >
-              <BookOpen className="h-4 w-4" />
-              Memories
-            </TabsTrigger>
-            <TabsTrigger 
-              value="prompts" 
-              className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white/60 transition-all data-[state=active]:bg-white/15 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-white/5 hover:text-white/80"
-            >
-              <Code className="h-4 w-4" />
-              Prompts
-            </TabsTrigger>
-          </TabsList>
-          <div className="flex-1 overflow-hidden">
-            {overviewTab}
-            {statsTab}
-            {physicalTab}
-            {valueTab}
-            {feedTab}
-            {memoriesTab}
-            {promptsTab}
-          </div>
-        </Tabs>
+        {panelContent}
       </DialogContent>
     </Dialog>
   );
@@ -1804,6 +1866,19 @@ export function CharacterCard({
   ) : null;
 
   if (compact) {
+    const inlineMode = hideTrigger;
+    if (inlineMode) {
+      return (
+        <>
+          {isDialogOpen ? (
+            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#05050c]/95 text-white">
+              {panelContent}
+            </div>
+          ) : null}
+          {selectedImageDialog}
+        </>
+      );
+    }
     return (
       <>
         {!hideTrigger && compactCard}

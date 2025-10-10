@@ -258,23 +258,27 @@ function CharacterRoster({
 
 interface ChatPanelProps {
   character: Character | null;
+  allCharacters: Character[];
   messages: ChatMessage[];
   onSend: (text: string) => Promise<void>;
   onStartChat: () => Promise<void>;
   isLoadingMessages: boolean;
   sessions: ChatSession[];
   onSwitchSession: (sessionId: string) => Promise<void>;
+  onDeleteSession: (sessionId: string) => Promise<void>;
   activeSessionId: string | null;
 }
 
 function ChatPanel({
   character,
+  allCharacters,
   messages,
   onSend,
   onStartChat,
   isLoadingMessages,
   sessions,
   onSwitchSession,
+  onDeleteSession,
   activeSessionId,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState('');
@@ -296,6 +300,51 @@ function ChatPanel({
       .filter((session) => session.type !== 'assistant' && session.participantIds.includes(character.id))
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }, [character, sessions]);
+
+  const activeSession = useMemo(() => {
+    if (!activeSessionId) return null;
+    return characterSessions.find((session) => session.id === activeSessionId) ?? null;
+  }, [activeSessionId, characterSessions]);
+
+  const lookupCharacterName = useCallback(
+    (characterId: string) => allCharacters.find((entry) => entry.id === characterId)?.name ?? 'Unknown',
+    [allCharacters],
+  );
+
+  const formatRelativeTime = useCallback((value: Date | string | undefined | null) => {
+    if (!value) return 'Unknown';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Unknown';
+    const now = Date.now();
+    const diffMs = now - date.getTime();
+    if (diffMs < 60_000) return 'Just now';
+    const minutes = Math.floor(diffMs / 60_000);
+    if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
+    return date.toLocaleDateString();
+  }, []);
+
+  const getSessionPreview = useCallback(
+    (session: ChatSession) => {
+      const lastMessage = [...(session.messages ?? [])]
+        .slice()
+        .reverse()
+        .find((message) => message.content?.trim());
+      if (lastMessage?.content) {
+        const trimmed = lastMessage.content.trim();
+        return trimmed.length > 120 ? `${trimmed.slice(0, 117)}…` : trimmed;
+      }
+      if (session.context?.trim()) {
+        const trimmed = session.context.trim();
+        return trimmed.length > 120 ? `${trimmed.slice(0, 117)}…` : trimmed;
+      }
+      return 'No conversation yet.';
+    },
+    [],
+  );
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-[rgba(11,11,22,0.92)]">
@@ -329,20 +378,88 @@ function ChatPanel({
         <div className="absolute inset-0 z-0 flex flex-col">
           <div className="flex-shrink-0 border-b border-white/5 px-5 py-3">
             {characterSessions.length > 0 ? (
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 text-[11px] text-white/70">
-                <ChatsCircle size={14} className="text-[#ff1372]" />
-                <span className="text-white/50">Sessions</span>
-                {characterSessions.map((session) => (
-                  <button
-                    key={session.id}
-                    onClick={() => void onSwitchSession(session.id)}
-                    className={`rounded-full border px-3 py-1 transition-colors ${
-                      activeSessionId === session.id ? 'border-[#ff1372] bg-[#ff1372]/20 text-white' : 'border-white/10 text-white/60 hover:border-[#ff1372]/35 hover:text-white'
-                    }`}
-                  >
-                    {session.type === 'group' ? 'Group scene' : 'Private chat'}
-                  </button>
-                ))}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2 text-[11px] uppercase tracking-[0.3em] text-white/40">
+                  <ChatsCircle size={14} className="text-[#ff1372]" />
+                  <span>Sessions</span>
+                  <span className="text-[10px] tracking-wider text-white/30">Tap to switch between private chats</span>
+                </div>
+                <div className="flex gap-3 overflow-x-auto pb-2">
+                  {characterSessions.map((session) => {
+                    const sessionKind =
+                      session.type === 'group'
+                        ? 'Group scene'
+                        : session.type === 'scene'
+                            ? 'Story scene'
+                            : session.type === 'interview'
+                                ? 'Interview'
+                                : 'Private chat';
+                    const messageCount = session.messageCount ?? session.messages?.length ?? 0;
+                    const partnerNames = session.participantIds
+                      .filter((id) => id !== character?.id)
+                      .map((id) => lookupCharacterName(id))
+                      .filter((name) => Boolean(name));
+                    const partnerSummary = partnerNames.length > 0 ? `With ${partnerNames.join(', ')}` : character ? `You & ${character.name}` : 'Direct chat';
+                    const isActive = activeSessionId === session.id;
+                    return (
+                      <button
+                        key={session.id}
+                        onClick={() => void onSwitchSession(session.id)}
+                        className={`min-w-[220px] flex-1 rounded-2xl border px-4 py-3 text-left transition-all ${
+                          isActive
+                            ? 'border-[#ff1372] bg-[#ff1372]/25 text-white shadow-[0_20px_45px_-30px_rgba(255,19,114,0.9)]'
+                            : 'border-white/10 bg-white/5 text-white/70 hover:border-[#ff1372]/35 hover:text-white'
+                        }`}
+                        aria-pressed={isActive}
+                      >
+                        <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.25em] text-white/50">
+                          <span>{sessionKind}</span>
+                          <span>{messageCount} msgs</span>
+                        </div>
+                        <div className="mt-1 text-xs text-white/80 line-clamp-2">{getSessionPreview(session)}</div>
+                        <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-wide text-white/40">
+                          <span>{partnerSummary}</span>
+                          <span>{formatRelativeTime(session.updatedAt ?? session.createdAt)}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {activeSession ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[11px] text-white/70">
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Active Session</div>
+                      <div className="text-sm text-white">{activeSession.type === 'group' ? 'Group Scene' : 'Private Chat'}</div>
+                      <div>
+                        Participants: <span className="text-white/90">{activeSession.participantIds.map((id) => lookupCharacterName(id)).join(', ')}</span>
+                      </div>
+                      <div>Last activity: {formatRelativeTime(activeSession.updatedAt ?? activeSession.createdAt)}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm" className="rounded-full border-white/20 text-white/70 hover:text-white">
+                            Delete Session
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete this chat?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Removing a session clears every message inside it. This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction className="bg-red-500 hover:bg-red-600" onClick={() => void onDeleteSession(activeSession.id)}>
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="flex items-center gap-3 text-xs text-white/50">
@@ -415,7 +532,7 @@ function ChatPanel({
 export function GirlsView() {
   const { characters, isLoading, removeCharacter, updateCharacter } = useHouseFileStorage();
   const { createRandomCharacter } = useAutoCharacterCreator();
-  const { sessions, getSessionMessages, sendMessage, ensureIndividualSession, switchToSession, setActiveSessionId: setChatActiveId } = useChat();
+  const { sessions, getSessionMessages, sendMessage, ensureIndividualSession, switchToSession, deleteSession, setActiveSessionId: setChatActiveId } = useChat();
 
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -472,6 +589,30 @@ export function GirlsView() {
       }
     };
   }, [activeSessionId, loadMessages]);
+
+  useEffect(() => {
+    if (!selectedCharacterId) {
+      return;
+    }
+
+    const sessionsForCharacter = sessions
+      .filter((session) => session.type !== 'assistant' && session.participantIds.includes(selectedCharacterId))
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+
+    if (sessionsForCharacter.length === 0) {
+      return;
+    }
+
+    const alreadyActive = activeSessionId && sessionsForCharacter.some((session) => session.id === activeSessionId);
+    if (!alreadyActive) {
+      const nextSessionId = sessionsForCharacter[0]?.id;
+      if (nextSessionId) {
+        setActiveSessionId(nextSessionId);
+        setChatActiveId(nextSessionId);
+        void loadMessages(nextSessionId);
+      }
+    }
+  }, [activeSessionId, selectedCharacterId, sessions, setActiveSessionId, setChatActiveId, loadMessages]);
 
   const handleStartChat = useCallback(
     async (characterId: string) => {
@@ -556,6 +697,11 @@ export function GirlsView() {
     }
   }, [profileCharacter, isProfileOpen]);
 
+  const handleSaveCharacterProfile = useCallback(
+    (characterId: string, updates: Partial<Character>) => updateCharacter(characterId, updates),
+    [updateCharacter],
+  );
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -566,11 +712,6 @@ export function GirlsView() {
       </div>
     );
   }
-
-  const handleSaveCharacterProfile = useCallback(
-    (characterId: string, updates: Partial<Character>) => updateCharacter(characterId, updates),
-    [updateCharacter],
-  );
 
   return (
     <div className="mx-auto grid h-full min-h-0 w-full max-w-[1600px] grid-cols-[minmax(260px,340px)_minmax(0,1fr)] gap-6 overflow-hidden px-6 lg:px-12">
@@ -586,12 +727,21 @@ export function GirlsView() {
       />
       <ChatPanel
         character={selectedCharacter}
+        allCharacters={characters}
         messages={messages}
         onSend={handleSendMessage}
         onStartChat={() => (selectedCharacter ? handleStartChat(selectedCharacter.id) : Promise.resolve())}
         isLoadingMessages={isLoadingMessages}
         sessions={sessions}
         onSwitchSession={handleSwitchSession}
+        onDeleteSession={async (sessionId) => {
+          await deleteSession(sessionId);
+          if (activeSessionId === sessionId) {
+            setActiveSessionId(null);
+            setMessages([]);
+          }
+          toast.success('Chat session deleted');
+        }}
         activeSessionId={activeSessionId}
       />
       {profileCharacter && (
