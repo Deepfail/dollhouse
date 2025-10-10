@@ -613,8 +613,25 @@ export function useChat() {
       // Generate AI responses (skip for copilot or assistant sessions)
       if (senderId === 'user' && !options?.copilot) {
         const session = sessions.find(s => s.id === sessionId);
+        console.log('🔍 Checking if should generate responses:', {
+          hasSender: senderId === 'user',
+          notCopilot: !options?.copilot,
+          session: session?.id,
+          sessionType: session?.type,
+          participantCount: session?.participantIds.length,
+          participants: session?.participantIds,
+        });
+        
         if (session && !session.assistantOnly && session.type !== 'assistant' && session.participantIds.length > 0) {
+          console.log('✅ Generating responses for participants:', session.participantIds);
           await generateCharacterResponses(sessionId, session.participantIds, content);
+        } else {
+          console.warn('❌ Skipping response generation:', {
+            hasSession: !!session,
+            assistantOnly: session?.assistantOnly,
+            type: session?.type,
+            participantCount: session?.participantIds.length,
+          });
         }
       }
 
@@ -878,22 +895,48 @@ export function useChat() {
             ? `\n\nPREVIOUS CONVERSATION SUMMARY:\n${sessionSummary}\n`
             : '';
 
-          // Build the full prompt
-          const fullPrompt = `${systemPrompt}${globalChatDirective}${characterHiddenDirective}${hiddenDirective}${sceneDirective}${memorySection}RECENT CONVERSATION:
+          // Build the full prompt with proper narrative roleplay format
+          const fullPrompt = `${systemPrompt}${globalChatDirective}${characterHiddenDirective}${hiddenDirective}${sceneDirective}${memorySection}
+
+RECENT CONVERSATION:
 ${historyText}
 User: ${userMessage}
 
-Respond as ${character.name}. Be natural and conversational. Stay in character. Keep response under 3 sentences. Do NOT include your name prefix.`;
+RESPONSE FORMAT RULES:
+- Write in third-person narrative style (like a novel/story)
+- Describe ${character.name}'s actions, movements, expressions, and body language
+- Describe how they look, what they're wearing, their physical reactions
+- Put spoken dialogue in quotes: "Like this"
+- Balance narration and dialogue - show what they DO and what they SAY
+- Make it vivid and sensory - describe sounds, touches, looks, atmosphere
+- Keep responses 2-4 paragraphs maximum
+- Each character should have unique mannerisms and physical traits
+- DO NOT include the character's name as a prefix before the response
+
+Example format:
+She moves closer, her hips swaying with deliberate slowness. The dim light catches the curves hugging her tight dress as she drops gracefully to her knees in front of you, looking up through dark lashes. "You've been waiting for this, haven't you?" Her fingers trail up your thigh, voice dropping to barely a whisper.
+
+${character.name}'s response:`;
 
           logger.log(`🎭 Generating response for ${character.name}...`);
           
           // Generate AI response with optimized settings
           const response = await AIService.generateResponse(fullPrompt, undefined, undefined, {
             temperature: 0.85,
-            max_tokens: 150
+            max_tokens: 300  // Increased for narrative descriptions
           });
 
           if (response && response.trim()) {
+            // Light cleanup: remove character name prefix if present
+            let cleanedResponse = response.trim();
+            cleanedResponse = cleanedResponse.replace(/^[A-Z][a-z]+:\s*/i, '');
+            
+            // Skip if empty
+            if (!cleanedResponse || cleanedResponse.length < 10) {
+              logger.warn(`Skipping empty response from ${character.name}`);
+              continue;
+            }
+            
             // Store character response
             const { db } = await getDb();
             const responseId = uuid();
@@ -901,7 +944,7 @@ Respond as ${character.name}. Be natural and conversational. Stay in character. 
             
             db.exec({
               sql: 'INSERT INTO messages (id, session_id, sender_id, content, created_at) VALUES (?, ?, ?, ?, ?)',
-              bind: [responseId, sessionId, character.id, response.trim(), responseTime]
+              bind: [responseId, sessionId, character.id, cleanedResponse, responseTime]
             });
 
             // Update session updated_at
