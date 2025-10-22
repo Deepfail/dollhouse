@@ -72,17 +72,21 @@ const sanitizeList = (value: unknown): string[] => {
 
 const buildPrompt = (spec: CharacterProfileSpec): string => {
   const existing = spec.existing || {};
-  
+
   // Get the response style and origin scenario guides
-  const responseStyleGuide = getPromptValue("character.generator.responseStyleGuide");
-  const originScenarioGuide = getPromptValue("character.generator.originScenarioGuide");
-  
+  const responseStyleGuide = getPromptValue(
+    "character.generator.responseStyleGuide"
+  );
+  const originScenarioGuide = getPromptValue(
+    "character.generator.originScenarioGuide"
+  );
+
   // Get the schema and replace the guide placeholders
   const rawSchema = getPromptValue("character.architect.schema");
   const schema = rawSchema
     .replace(/\{\{responseStyleGuide\}\}/g, responseStyleGuide)
     .replace(/\{\{originScenarioGuide\}\}/g, originScenarioGuide);
-  
+
   return formatPrompt("character.architect.template", {
     themeLine: spec.theme
       ? formatPrompt("character.architect.themeLine", { theme: spec.theme })
@@ -139,8 +143,7 @@ const tryParseProfileJson = (raw: string): CharacterProfile | null => {
       age: typeof parsed.age === "number" ? parsed.age : undefined,
       gender: normalizeString(parsed.gender),
       description: normalizeString(parsed.description),
-      personalitySummary:
-        normalizeString(parsed.personalitySummary),
+      personalitySummary: normalizeString(parsed.personalitySummary),
       personalityTraits: sanitizeList(parsed.personalityTraits),
       appearance: normalizeString(parsed.appearance),
       features: sanitizeList(parsed.features),

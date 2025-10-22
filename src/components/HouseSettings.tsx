@@ -67,7 +67,8 @@ const DEFAULT_CONFIG: HouseConfig = {
   copilotContextDetail: "balanced",
   copilotResponseLength: "normal",
   copilotPersonality: "friendly and helpful, casual but knowledgeable",
-  copilotMainPrompt: "You are Wingman, the Dollhouse assistant. Help manage the house, introduce girls, set up scenarios, and provide tips. Keep responses conversational and engaging. Remember context from our ongoing conversation.",
+  copilotMainPrompt:
+    "You are Wingman, the Dollhouse assistant. Help manage the house, introduce girls, set up scenarios, and provide tips. Keep responses conversational and engaging. Remember context from our ongoing conversation.",
   aiSettings: {
     textProvider: "openrouter",
     textModel: "deepseek/deepseek-chat",
@@ -196,7 +197,8 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
               <div className="space-y-1">
                 <h3 className="text-lg font-semibold">House Prompts</h3>
                 <p className="text-sm text-muted-foreground">
-                  Configure how your house behaves, tells stories, and maintains the world setting.
+                  Configure how your house behaves, tells stories, and maintains
+                  the world setting.
                 </p>
               </div>
 
@@ -205,18 +207,22 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                 <h4 className="font-medium flex items-center gap-2">
                   <span className="text-green-400">●</span> Global Chat Context
                 </h4>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="chat-prompt" className="text-sm font-medium">
                     Global Chat Prompt
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Additional instructions or context added to ALL character chats. Use this to set global rules, tone, or scenarios that affect every conversation.
+                    Additional instructions or context added to ALL character
+                    chats. Use this to set global rules, tone, or scenarios that
+                    affect every conversation.
                   </p>
                   <Textarea
                     id="chat-prompt"
-                    value={localConfig.chatPrompt || ''}
-                    onChange={(e) => updateConfig({ chatPrompt: e.target.value })}
+                    value={localConfig.chatPrompt || ""}
+                    onChange={(e) =>
+                      updateConfig({ chatPrompt: e.target.value })
+                    }
                     placeholder="e.g., 'All characters are in a beach vacation setting. Keep responses flirty and playful.'"
                     className="min-h-[100px] font-mono text-sm"
                   />
@@ -228,18 +234,21 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                 <h4 className="font-medium flex items-center gap-2">
                   <span className="text-blue-400">●</span> World & Setting
                 </h4>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="world-prompt" className="text-sm font-medium">
                     World Description / Context
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Describes the world setting, atmosphere, and rules for your house. Sets the tone and context for all interactions.
+                    Describes the world setting, atmosphere, and rules for your
+                    house. Sets the tone and context for all interactions.
                   </p>
                   <Textarea
                     id="world-prompt"
-                    value={localConfig.worldPrompt || ''}
-                    onChange={(e) => updateConfig({ worldPrompt: e.target.value })}
+                    value={localConfig.worldPrompt || ""}
+                    onChange={(e) =>
+                      updateConfig({ worldPrompt: e.target.value })
+                    }
                     placeholder="e.g., 'The Dollhouse is an exclusive luxury mansion where beautiful companions live. The atmosphere is sophisticated and intimate...'"
                     className="min-h-[120px] font-mono text-sm"
                   />
@@ -249,20 +258,25 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
               {/* Story System */}
               <div className="space-y-4 p-4 rounded-lg border border-white/10 bg-white/5">
                 <h4 className="font-medium flex items-center gap-2">
-                  <span className="text-purple-400">●</span> Story & Memory System
+                  <span className="text-purple-400">●</span> Story & Memory
+                  System
                 </h4>
                 <p className="text-xs text-muted-foreground">
-                  Prompts that create and maintain story continuity and character memories
+                  Prompts that create and maintain story continuity and
+                  character memories
                 </p>
 
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Story Entry Generator
-                      <span className="ml-2 text-xs text-muted-foreground">(house.story.entryPrompt)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (house.story.entryPrompt)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Creates story entries for the chronicle: summary, narrative, emotional changes, significance level, and tags
+                      Creates story entries for the chronicle: summary,
+                      narrative, emotional changes, significance level, and tags
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -272,10 +286,14 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Story Mode Prompt
-                      <span className="ml-2 text-xs text-muted-foreground">(house.story.modeTemplate)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (house.story.modeTemplate)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Base prompt for story mode that maintains continuity, relationship status, trust/affection levels, and shared history
+                      Base prompt for story mode that maintains continuity,
+                      relationship status, trust/affection levels, and shared
+                      history
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -285,10 +303,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Significant Moments Intro
-                      <span className="ml-2 text-xs text-muted-foreground">(house.story.significantIntro)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (house.story.significantIntro)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Headline text for introducing significant shared moments (e.g., "Important moments between you:")
+                      Headline text for introducing significant shared moments
+                      (e.g., "Important moments between you:")
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -298,10 +319,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Significant Moment Line
-                      <span className="ml-2 text-xs text-muted-foreground">(house.story.significantLine)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (house.story.significantLine)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Template for each significant moment bullet (uses: title, summary)
+                      Template for each significant moment bullet (uses: title,
+                      summary)
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -311,10 +335,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Story Mode Footer
-                      <span className="ml-2 text-xs text-muted-foreground">(house.story.modeFooter)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (house.story.modeFooter)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Footer appended when there are no significant moments to display
+                      Footer appended when there are no significant moments to
+                      display
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -324,10 +351,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Fallback Story Summary
-                      <span className="ml-2 text-xs text-muted-foreground">(house.story.fallbackSummary)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (house.story.fallbackSummary)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Simple fallback when AI story generation fails (e.g., "Character and user had a conversation")
+                      Simple fallback when AI story generation fails (e.g.,
+                      "Character and user had a conversation")
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -337,10 +367,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       No History Introduction
-                      <span className="ml-2 text-xs text-muted-foreground">(house.story.noHistoryIntro)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (house.story.noHistoryIntro)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Introduction text used for first interactions when there's no shared history
+                      Introduction text used for first interactions when there's
+                      no shared history
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -354,14 +387,17 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                 <h4 className="font-medium flex items-center gap-2">
                   <span className="text-green-400">●</span> Behavior Analysis
                 </h4>
-                
+
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">
                     Behavior Analysis Prompt
-                    <span className="ml-2 text-xs text-muted-foreground">(house.behavior.analysisPrompt)</span>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      (house.behavior.analysisPrompt)
+                    </span>
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Analyzes recent chat behavior to assign behavior states, confidence levels, emotional deltas, and actionable notes
+                    Analyzes recent chat behavior to assign behavior states,
+                    confidence levels, emotional deltas, and actionable notes
                   </p>
                   <Button variant="outline" size="sm">
                     Edit in Prompt Library
@@ -372,16 +408,21 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
               {/* Scene & Scenario System */}
               <div className="space-y-4 p-4 rounded-lg border border-white/10 bg-white/5">
                 <h4 className="font-medium flex items-center gap-2">
-                  <span className="text-orange-400">●</span> Scene & Scenario System
+                  <span className="text-orange-400">●</span> Scene & Scenario
+                  System
                 </h4>
-                
+
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">
                     Scene Context Prompt
-                    <span className="ml-2 text-xs text-muted-foreground">(house.scene.contextPrompt)</span>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      (house.scene.contextPrompt)
+                    </span>
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Controls how characters respond to scenarios created by Wingman. Ensures characters match the mood and tone (scary, romantic, tense, etc.) when entering a scene.
+                    Controls how characters respond to scenarios created by
+                    Wingman. Ensures characters match the mood and tone (scary,
+                    romantic, tense, etc.) when entering a scene.
                   </p>
                   <Button variant="outline" size="sm">
                     Edit in Prompt Library
@@ -409,7 +450,10 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                 <Label htmlFor="copilot-main-prompt">Main System Prompt</Label>
                 <Textarea
                   id="copilot-main-prompt"
-                  value={localConfig.copilotMainPrompt || DEFAULT_CONFIG.copilotMainPrompt}
+                  value={
+                    localConfig.copilotMainPrompt ||
+                    DEFAULT_CONFIG.copilotMainPrompt
+                  }
                   onChange={(e) =>
                     updateConfig({ copilotMainPrompt: e.target.value })
                   }
@@ -418,7 +462,8 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   className="bg-zinc-900 border-zinc-700 text-white"
                 />
                 <p className="text-sm text-muted-foreground">
-                  This is the core personality and instruction set for your Copilot/Wingman.
+                  This is the core personality and instruction set for your
+                  Copilot/Wingman.
                 </p>
               </div>
 
@@ -426,7 +471,10 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                 <Label htmlFor="copilot-personality">Personality</Label>
                 <Input
                   id="copilot-personality"
-                  value={localConfig.copilotPersonality || DEFAULT_CONFIG.copilotPersonality}
+                  value={
+                    localConfig.copilotPersonality ||
+                    DEFAULT_CONFIG.copilotPersonality
+                  }
                   onChange={(e) =>
                     updateConfig({ copilotPersonality: e.target.value })
                   }
@@ -444,7 +492,10 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   value={localConfig.copilotResponseLength || "normal"}
                   onValueChange={(value) =>
                     updateConfig({
-                      copilotResponseLength: value as "brief" | "normal" | "detailed",
+                      copilotResponseLength: value as
+                        | "brief"
+                        | "normal"
+                        | "detailed",
                     })
                   }
                 >
@@ -505,7 +556,8 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                 <div className="space-y-1">
                   <Label>Include House Context</Label>
                   <p className="text-sm text-muted-foreground">
-                    Copilot can see all girls in the house and their current status.
+                    Copilot can see all girls in the house and their current
+                    status.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -549,43 +601,53 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
             </TabsContent>
 
             {/* Auto Creator Settings */}
-                        {/* Character Options */}
+            {/* Character Options */}
             <TabsContent value="character" className="space-y-6 mt-0">
               <div className="space-y-1">
                 <h3 className="text-lg font-semibold">Character Prompts</h3>
                 <p className="text-sm text-muted-foreground">
-                  Configure how characters are generated and how they respond. These prompts control character creation, personality, and communication style.
+                  Configure how characters are generated and how they respond.
+                  These prompts control character creation, personality, and
+                  communication style.
                 </p>
               </div>
 
               {/* Character Generation Section */}
               <div className="space-y-4 p-4 rounded-lg border border-white/10 bg-white/5">
                 <h4 className="font-medium flex items-center gap-2">
-                  <span className="text-purple-400">●</span> Character Generation
+                  <span className="text-purple-400">●</span> Character
+                  Generation
                 </h4>
                 <p className="text-xs text-muted-foreground">
                   Core prompts used when creating new characters
                 </p>
-                
+
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Character Architect Core
-                      <span className="ml-2 text-xs text-muted-foreground">(character.architect.template)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.architect.template)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Main prompt that designs the full character profile including stats, personality, and background
+                      Main prompt that designs the full character profile
+                      including stats, personality, and background
                     </p>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => {
-                        const promptLib = document.querySelector('[data-prompt-library]');
+                        const promptLib = document.querySelector(
+                          "[data-prompt-library]"
+                        );
                         if (promptLib) {
                           // Switch to prompts tab and filter to this prompt
-                          const tabsList = document.querySelector('[role="tablist"]');
-                          const promptsTab = Array.from(tabsList?.querySelectorAll('[role="tab"]') || [])
-                            .find((tab) => tab.textContent?.includes('Prompts'));
+                          const tabsList =
+                            document.querySelector('[role="tablist"]');
+                          const promptsTab = Array.from(
+                            tabsList?.querySelectorAll('[role="tab"]') || []
+                          ).find((tab) => tab.textContent?.includes("Prompts"));
                           if (promptsTab) (promptsTab as HTMLElement).click();
                         }
                       }}
@@ -597,10 +659,14 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Prompt Alignment Reminder
-                      <span className="ml-2 text-xs text-muted-foreground">(character.generator.promptAlignment)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.generator.promptAlignment)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Ensures all generated prompts (system, description, personality, etc.) align with the character's established facts
+                      Ensures all generated prompts (system, description,
+                      personality, etc.) align with the character's established
+                      facts
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -610,10 +676,14 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Response Style Guide
-                      <span className="ml-2 text-xs text-muted-foreground">(character.generator.responseStyleGuide)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.generator.responseStyleGuide)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Teaches AI how to craft unique communication patterns: verbal quirks, pacing, emotional tells, and signature habits
+                      Teaches AI how to craft unique communication patterns:
+                      verbal quirks, pacing, emotional tells, and signature
+                      habits
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -623,10 +693,14 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Origin Scenario Guide
-                      <span className="ml-2 text-xs text-muted-foreground">(character.generator.originScenarioGuide)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.generator.originScenarioGuide)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Guides creation of compelling first-meeting stories: where they met, what sparked chemistry, why she chose the Dollhouse
+                      Guides creation of compelling first-meeting stories: where
+                      they met, what sparked chemistry, why she chose the
+                      Dollhouse
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -648,10 +722,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Fallback System Prompt
-                      <span className="ml-2 text-xs text-muted-foreground">(character.prompts.fallbackSystem)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.prompts.fallbackSystem)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      System instructions applied when a character has no custom system prompt. Uses: name, personality, background
+                      System instructions applied when a character has no custom
+                      system prompt. Uses: name, personality, background
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -661,10 +738,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Fallback Response Style
-                      <span className="ml-2 text-xs text-muted-foreground">(character.prompts.fallbackResponseStyle)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.prompts.fallbackResponseStyle)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Default response style when none is provided. Currently: "warm, teasing, balanced confidence with vulnerability"
+                      Default response style when none is provided. Currently:
+                      "warm, teasing, balanced confidence with vulnerability"
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -674,10 +754,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Fallback Origin Scenario
-                      <span className="ml-2 text-xs text-muted-foreground">(character.prompts.defaultOriginScenario)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.prompts.defaultOriginScenario)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Origin scenario used when character lacks one. Template describes first meeting in Dollhouse orbit
+                      Origin scenario used when character lacks one. Template
+                      describes first meeting in Dollhouse orbit
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -689,20 +772,25 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
               {/* Manual Creator Prompts */}
               <div className="space-y-4 p-4 rounded-lg border border-white/10 bg-white/5">
                 <h4 className="font-medium flex items-center gap-2">
-                  <span className="text-green-400">●</span> Manual Creator Helpers
+                  <span className="text-green-400">●</span> Manual Creator
+                  Helpers
                 </h4>
                 <p className="text-xs text-muted-foreground">
-                  Prompts used when manually creating characters to generate suggestions
+                  Prompts used when manually creating characters to generate
+                  suggestions
                 </p>
 
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Personality Generator
-                      <span className="ml-2 text-xs text-muted-foreground">(character.creator.personalityPrompt)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.creator.personalityPrompt)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Generates 3-5 personality trait suggestions (e.g., "shy, kind, intelligent, playful")
+                      Generates 3-5 personality trait suggestions (e.g., "shy,
+                      kind, intelligent, playful")
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -712,10 +800,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Physical Features Generator
-                      <span className="ml-2 text-xs text-muted-foreground">(character.creator.featuresPrompt)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.creator.featuresPrompt)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Generates 4-6 physical feature suggestions (e.g., "long brown hair, green eyes, athletic build")
+                      Generates 4-6 physical feature suggestions (e.g., "long
+                      brown hair, green eyes, athletic build")
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -725,10 +816,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Background Generator
-                      <span className="ml-2 text-xs text-muted-foreground">(character.creator.backgroundPrompt)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.creator.backgroundPrompt)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Creates 2-3 sentence background based on personality and features
+                      Creates 2-3 sentence background based on personality and
+                      features
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -738,10 +832,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Image Prompt Generator
-                      <span className="ml-2 text-xs text-muted-foreground">(character.creator.imagePrompt)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.creator.imagePrompt)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Generates image generation prompt from character details (name, role, features, personality)
+                      Generates image generation prompt from character details
+                      (name, role, features, personality)
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -753,20 +850,25 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
               {/* Character Card Prompts */}
               <div className="space-y-4 p-4 rounded-lg border border-white/10 bg-white/5">
                 <h4 className="font-medium flex items-center gap-2">
-                  <span className="text-pink-400">●</span> Character Card Features
+                  <span className="text-pink-400">●</span> Character Card
+                  Features
                 </h4>
                 <p className="text-xs text-muted-foreground">
-                  Prompts used within character profile cards for generating descriptions
+                  Prompts used within character profile cards for generating
+                  descriptions
                 </p>
 
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Physical Description Generator
-                      <span className="ml-2 text-xs text-muted-foreground">(character.card.physicalDescriptionPrompt)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.card.physicalDescriptionPrompt)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Creates vivid 2-3 sentence physical description from hair, eyes, skin tone, height, body type, and traits
+                      Creates vivid 2-3 sentence physical description from hair,
+                      eyes, skin tone, height, body type, and traits
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -788,10 +890,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Ali Profile Generator
-                      <span className="ml-2 text-xs text-muted-foreground">(character.ali.profilePrompt)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.ali.profilePrompt)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Generates character profile from user assessment including name, age, appearance, personality, background
+                      Generates character profile from user assessment including
+                      name, age, appearance, personality, background
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -801,10 +906,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       Ali Scenario Generator
-                      <span className="ml-2 text-xs text-muted-foreground">(character.ali.scenarioPrompt)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.ali.scenarioPrompt)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Creates scenario descriptions based on user assessment with setting, activities, and dynamics
+                      Creates scenario descriptions based on user assessment
+                      with setting, activities, and dynamics
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -814,10 +922,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       LLM Enhancement System
-                      <span className="ml-2 text-xs text-muted-foreground">(character.llm.systemPrompt)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.llm.systemPrompt)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      System prompt for external LLM character enhancement service
+                      System prompt for external LLM character enhancement
+                      service
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library
@@ -827,10 +938,13 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">
                       LLM Enhancement User Prompt
-                      <span className="ml-2 text-xs text-muted-foreground">(character.llm.enhancePrompt)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (character.llm.enhancePrompt)
+                      </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Prompt for requesting enhanced character details (bio, traits, tags, system_prompt)
+                      Prompt for requesting enhanced character details (bio,
+                      traits, tags, system_prompt)
                     </p>
                     <Button variant="outline" size="sm">
                       Edit in Prompt Library

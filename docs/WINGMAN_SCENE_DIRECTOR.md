@@ -33,6 +33,7 @@ Bella knocks nervously on Mike's door, her makeup done perfectly, dressed to imp
 ### 1. Natural Language Parsing
 
 The system detects scene-related keywords:
+
 - **send/bring/tell/ask** - Sending a character somewhere
 - **setup/create/start/begin** - Creating a new scene
 - **arrange/organize** - Organizing characters
@@ -43,6 +44,7 @@ It automatically identifies mentioned character names and locations.
 ### 2. Intelligent Follow-Up Questions
 
 Based on what's missing, Wingman asks contextual questions:
+
 - Who should be involved?
 - Where should they go?
 - What should they know/not know?
@@ -54,25 +56,33 @@ Based on what's missing, Wingman asks contextual questions:
 Once enough information is gathered (or user says "no"/"that's it"), Wingman generates:
 
 #### Scene Prompt
+
 A vivid 2-3 sentence third-person description shown in Wingman chat:
+
 > "Bella knocks nervously on Mike's door, her makeup done perfectly. The door opens..."
 
 #### Character Hidden Prompts
+
 Private motivations/knowledge for each character:
 
 **Bella's hidden prompt:**
+
 > "I don't know what I'm here for, but user wants me to and thinks it will be good for me. I should try to relax...this guy is really important to user, so I really need to try to make him like me."
 
 **Mike's hidden prompt:**
+
 > "User sent Bella to see me. She's been told I'm important to the user, so she'll be trying to impress me."
 
 #### Initial Message
+
 First line of dialogue/action to kick off the scene:
+
 > "Mike stands in the doorway looking the girl up and down before smiling: 'You must be Bella...wow, you're even prettier than I've heard...Please...come in.'"
 
 ### 4. Scene Launch
 
 The scene is automatically:
+
 1. Created as a new chat session with all participants
 2. Scene description posted in Wingman chat
 3. Character hidden prompts saved to each character
@@ -116,10 +126,10 @@ Main chat opens with scene active
 
 ```typescript
 interface SceneSetup {
-  scenePrompt: string;                    // Narrative scene description
+  scenePrompt: string; // Narrative scene description
   characterHiddenPrompts: Record<string, string>; // charId -> secret knowledge
-  initialMessage?: string;                // First message to send
-  participantIds: string[];               // Characters involved
+  initialMessage?: string; // First message to send
+  participantIds: string[]; // Characters involved
 }
 ```
 
@@ -142,6 +152,7 @@ interface SceneSetup {
 ### Character Hidden Prompts
 
 These are **secret instructions** that only the character "knows":
+
 - What they were told by the user
 - What they DON'T know about the situation
 - Their emotional state/motivations

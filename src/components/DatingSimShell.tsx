@@ -10,7 +10,11 @@ import { useQuickActions } from "@/hooks/useQuickActions";
 import { repositoryStorage } from "@/hooks/useRepositoryStorage";
 import { AIService } from "@/lib/aiService";
 import { logger } from "@/lib/logger";
-import { WingmanSceneDirector, type SceneSetup } from "@/lib/wingmanSceneDirector";
+import {
+  WingmanSceneDirector,
+  CharacterWorkshop,
+  type SceneSetup,
+} from "@/lib/wingmanSceneDirector";
 import type { Character, ChatMessage, ChatSession } from "@/types";
 import {
   Barbell,
@@ -234,10 +238,13 @@ function CharacterRoster({
             const ageLabel = character.age
               ? `${character.age} years old`
               : "Age unknown";
-            
+
             // Check if character is in the current active session
-            const activeSession = sessions.find(s => s.id === activeSessionId);
-            const isInActiveChat = activeSession?.participantIds.includes(character.id) ?? false;
+            const activeSession = sessions.find(
+              (s) => s.id === activeSessionId
+            );
+            const isInActiveChat =
+              activeSession?.participantIds.includes(character.id) ?? false;
 
             return (
               <button
@@ -292,10 +299,19 @@ function CharacterRoster({
                             event.stopPropagation();
                             onToggleCharacterInChat(character.id);
                           }}
-                          aria-label={isInActiveChat ? `Remove ${character.name} from chat` : `Add ${character.name} to chat`}
-                          title={isInActiveChat ? "Remove from chat" : "Add to chat"}
+                          aria-label={
+                            isInActiveChat
+                              ? `Remove ${character.name} from chat`
+                              : `Add ${character.name} to chat`
+                          }
+                          title={
+                            isInActiveChat ? "Remove from chat" : "Add to chat"
+                          }
                         >
-                          <CheckCircle size={18} weight={isInActiveChat ? "fill" : "regular"} />
+                          <CheckCircle
+                            size={18}
+                            weight={isInActiveChat ? "fill" : "regular"}
+                          />
                         </button>
                       </div>
                     </div>
@@ -314,7 +330,6 @@ function CharacterRoster({
               </button>
             );
           })}
-
 
           {roster.length === 0 && (
             <div className="space-y-3">
@@ -380,7 +395,9 @@ function ChatPanel({
   const [scenePromptOpen, setScenePromptOpen] = useState(false);
   const [scenePrompt, setScenePrompt] = useState("");
   const [hiddenPromptsOpen, setHiddenPromptsOpen] = useState(false);
-  const [characterHiddenPrompts, setCharacterHiddenPrompts] = useState<Record<string, string>>({});
+  const [characterHiddenPrompts, setCharacterHiddenPrompts] = useState<
+    Record<string, string>
+  >({});
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -401,7 +418,7 @@ function ChatPanel({
       scenePrompt?: string;
       hiddenPrompts?: Record<string, string>;
     };
-  const listener = (event: Event) => {
+    const listener = (event: Event) => {
       const custom = event as CustomEvent<SceneMetaDetail>;
       const detail = custom.detail;
       if (!detail || detail.sessionId !== activeSessionId) return;
@@ -444,21 +461,21 @@ function ChatPanel({
       )
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }, [character, sessions]);
-  
+
   // Get all participants in the active session
   const activeSession = useMemo(() => {
-    return sessions.find(s => s.id === activeSessionId);
+    return sessions.find((s) => s.id === activeSessionId);
   }, [sessions, activeSessionId]);
-  
+
   const sessionParticipants = useMemo(() => {
     if (!activeSession) return [];
     // Get character objects for all participants
-    const allChars = activeSession.participantIds.map(id => 
-      characters?.find(c => c.id === id)
-    ).filter(Boolean) as Character[];
+    const allChars = activeSession.participantIds
+      .map((id) => characters?.find((c) => c.id === id))
+      .filter(Boolean) as Character[];
     return allChars;
   }, [activeSession, characters]);
-  
+
   const affection = character
     ? Math.round(character.progression?.affection ?? character.stats?.love ?? 0)
     : null;
@@ -490,16 +507,26 @@ function ChatPanel({
           {sessionParticipants.length > 0 ? (
             <div className="flex items-center gap-3 overflow-x-auto">
               {sessionParticipants.map((participant) => (
-                <div key={participant.id} className="flex items-center gap-2 flex-shrink-0">
+                <div
+                  key={participant.id}
+                  className="flex items-center gap-2 flex-shrink-0"
+                >
                   <Avatar className="h-10 w-10 rounded-full border-2 border-pink-400/60">
-                    <AvatarImage src={participant.avatar} alt={participant.name} />
+                    <AvatarImage
+                      src={participant.avatar}
+                      alt={participant.name}
+                    />
                     <AvatarFallback>
                       {participant.name?.slice(0, 2).toUpperCase() ?? "??"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate">{participant.name}</p>
-                    <p className="text-xs text-white/60">{participant.age} years</p>
+                    <p className="text-sm font-semibold truncate">
+                      {participant.name}
+                    </p>
+                    <p className="text-xs text-white/60">
+                      {participant.age} years
+                    </p>
                   </div>
                 </div>
               ))}
@@ -629,13 +656,13 @@ function ChatPanel({
                   );
                 }
                 const isUser = !message.characterId;
-                
+
                 // For group chats, find the specific character who sent this message
-                const messageCharacter = message.characterId 
-                  ? characters.find(c => c.id === message.characterId) 
+                const messageCharacter = message.characterId
+                  ? characters.find((c) => c.id === message.characterId)
                   : null;
                 const displayCharacter = messageCharacter || character;
-                
+
                 const imageUrl =
                   (typeof message.metadata?.imageUrl === "string" &&
                     message.metadata.imageUrl) ||
@@ -662,11 +689,13 @@ function ChatPanel({
                       </Avatar>
                       <div className="flex-1 max-w-[70%]">
                         {/* Show character name in group chats */}
-                        {!isUser && sessionParticipants.length > 1 && displayCharacter && (
-                          <div className="mb-1 text-xs font-semibold text-white/60">
-                            {displayCharacter.name}
-                          </div>
-                        )}
+                        {!isUser &&
+                          sessionParticipants.length > 1 &&
+                          displayCharacter && (
+                            <div className="mb-1 text-xs font-semibold text-white/60">
+                              {displayCharacter.name}
+                            </div>
+                          )}
                         <div
                           className={`rounded-2xl border px-4 py-3 text-sm leading-relaxed shadow transition ${
                             isUser
@@ -674,18 +703,18 @@ function ChatPanel({
                               : "border-white/10 bg-white/5 text-white/85"
                           }`}
                         >
-                        {textContent && (
-                          <p className="whitespace-pre-wrap">{textContent}</p>
-                        )}
-                        {imageUrl && (
-                          <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
-                            <img
-                              src={imageUrl}
-                              alt={`${displayCharacter?.name ?? "Character"} attachment`}
-                              className="h-auto w-full object-cover"
-                            />
-                          </div>
-                        )}
+                          {textContent && (
+                            <p className="whitespace-pre-wrap">{textContent}</p>
+                          )}
+                          {imageUrl && (
+                            <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
+                              <img
+                                src={imageUrl}
+                                alt={`${displayCharacter?.name ?? "Character"} attachment`}
+                                className="h-auto w-full object-cover"
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -757,16 +786,22 @@ function ChatPanel({
                 type="button"
                 onClick={() => {
                   setIsAutoPlaying(!isAutoPlaying);
-                  toast.success(isAutoPlaying ? "Auto-play stopped" : "Auto-play started - characters will interact automatically");
+                  toast.success(
+                    isAutoPlaying
+                      ? "Auto-play stopped"
+                      : "Auto-play started - characters will interact automatically"
+                  );
                 }}
                 className={`flex h-9 items-center gap-2 rounded-full border px-4 transition ${
                   isAutoPlaying
-                    ? 'border-[#ff1372] bg-[#ff1372]/20 text-white'
-                    : 'border-white/10 bg-white/5 text-white/70 hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/10 hover:text-white'
+                    ? "border-[#ff1372] bg-[#ff1372]/20 text-white"
+                    : "border-white/10 bg-white/5 text-white/70 hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/10 hover:text-white"
                 }`}
               >
                 <Play size={16} weight="fill" />
-                <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">Auto</span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">
+                  Auto
+                </span>
               </button>
 
               {/* Scene Prompt Tool */}
@@ -776,7 +811,9 @@ function ChatPanel({
                 className="flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-white/70 transition hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/10 hover:text-white"
               >
                 <PencilSimple size={16} />
-                <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">Scene</span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">
+                  Scene
+                </span>
               </button>
 
               {/* Character Hidden Prompts */}
@@ -786,7 +823,9 @@ function ChatPanel({
                 className="flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-white/70 transition hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/10 hover:text-white"
               >
                 <LockSimple size={16} weight="fill" />
-                <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">Secrets</span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">
+                  Secrets
+                </span>
               </button>
             </div>
 
@@ -804,7 +843,8 @@ function ChatPanel({
                   rows={3}
                 />
                 <p className="mt-2 text-xs text-white/40">
-                  This prompt sets the mood and context for the current chat session.
+                  This prompt sets the mood and context for the current chat
+                  session.
                 </p>
               </div>
             )}
@@ -816,14 +856,20 @@ function ChatPanel({
                   Secret Instructions for {character.name}
                 </label>
                 <textarea
-                  value={characterHiddenPrompts[character.id] || ''}
-                  onChange={(e) => setCharacterHiddenPrompts(prev => ({ ...prev, [character.id]: e.target.value }))}
+                  value={characterHiddenPrompts[character.id] || ""}
+                  onChange={(e) =>
+                    setCharacterHiddenPrompts((prev) => ({
+                      ...prev,
+                      [character.id]: e.target.value,
+                    }))
+                  }
                   placeholder={`Private instructions only ${character.name} knows... (e.g., 'You were told to flirt but act innocent')`}
                   className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/30 focus:border-[#ff1372] focus:outline-none"
                   rows={3}
                 />
                 <p className="mt-2 text-xs text-white/40">
-                  This is secret knowledge only this character has - what they were told privately, their hidden agenda, etc.
+                  This is secret knowledge only this character has - what they
+                  were told privately, their hidden agenda, etc.
                 </p>
               </div>
             )}
@@ -858,18 +904,33 @@ function WingmanPanel({
   const [activeTab, setActiveTab] = useState<"chat" | "tools">("chat");
   const [chatDraft, setChatDraft] = useState("");
   const [isResponding, setIsResponding] = useState(false);
-  const [houseConfig, setHouseConfig] = useState<{ worldPrompt?: string; copilotPersonality?: string; copilotMainPrompt?: string; copilotResponseLength?: string; copilotUseHouseContext?: boolean; copilotContextDetail?: string; copilotMaxTokens?: number } | null>(null);
+  const [houseConfig, setHouseConfig] = useState<{
+    worldPrompt?: string;
+    copilotPersonality?: string;
+    copilotMainPrompt?: string;
+    copilotResponseLength?: string;
+    copilotUseHouseContext?: boolean;
+    copilotContextDetail?: string;
+    copilotMaxTokens?: number;
+  } | null>(null);
   const [messages, setMessages] = useState<
     Array<{ id: string; role: "user" | "assistant"; content: string }>
   >([]);
-  
+
   // Scene director instance
-  const [sceneDirector, setSceneDirector] = useState<WingmanSceneDirector | null>(null);
+  const [sceneDirector, setSceneDirector] =
+    useState<WingmanSceneDirector | null>(null);
+  
+  // Character workshop instance
+  const [characterWorkshop, setCharacterWorkshop] = useState<CharacterWorkshop | null>(null);
+  const [workshopMode, setWorkshopMode] = useState(false);
 
   // Initialize scene director when characters or config change
   useEffect(() => {
     if (characters.length > 0) {
-      setSceneDirector(new WingmanSceneDirector(characters, houseConfig || undefined));
+      setSceneDirector(
+        new WingmanSceneDirector(characters, houseConfig || undefined)
+      );
     }
   }, [characters, houseConfig]);
 
@@ -890,14 +951,16 @@ function WingmanPanel({
   // Set initial greeting message
   useEffect(() => {
     if (messages.length === 0 && houseConfig) {
-      const greeting = houseConfig.copilotPersonality 
+      const greeting = houseConfig.copilotPersonality
         ? `Hey! I'm your Wingman - ${houseConfig.copilotPersonality}. How can I help?`
         : "Hey! I can help with tips, character insights, or house management. What do you need?";
-      setMessages([{
-        id: "1",
-        role: "assistant",
-        content: greeting,
-      }]);
+      setMessages([
+        {
+          id: "1",
+          role: "assistant",
+          content: greeting,
+        },
+      ]);
     }
   }, [houseConfig, messages.length]);
 
@@ -977,14 +1040,16 @@ function WingmanPanel({
 
   // Clear chat handler
   const handleClearChat = useCallback(() => {
-    const greeting = houseConfig?.copilotPersonality 
+    const greeting = houseConfig?.copilotPersonality
       ? `Hey! I'm your Wingman - ${houseConfig.copilotPersonality}. How can I help?`
       : "Hey! I can help with tips, character insights, or house management. What do you need?";
-    setMessages([{
-      id: Date.now().toString(),
-      role: "assistant",
-      content: greeting,
-    }]);
+    setMessages([
+      {
+        id: Date.now().toString(),
+        role: "assistant",
+        content: greeting,
+      },
+    ]);
     toast.success("Chat cleared");
   }, [houseConfig]);
 
@@ -1005,35 +1070,104 @@ function WingmanPanel({
     setIsResponding(true);
 
     try {
-      // Check if scene director should handle this (natural language scene commands)
-      console.log('Checking scene director:', { 
-        hasDirector: !!sceneDirector, 
-        userMessage,
-        characters: characters.length 
-      });
+      // Check for Character Workshop mode
+      const workshopTriggers = /(?:create|make|design|build|new)\s+(?:a\s+)?(?:girl|character|woman)/i;
+      const isWorkshopTrigger = workshopTriggers.test(userMessage);
       
+      if (isWorkshopTrigger && !workshopMode) {
+        // Start workshop mode
+        console.log('🎨 Starting Character Workshop mode');
+        const workshop = new CharacterWorkshop();
+        setCharacterWorkshop(workshop);
+        setWorkshopMode(true);
+        
+        const introMsg = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant" as const,
+          content: "Alright, let's design a new girl together! I'll help you create someone special. First things first - what kind of vibe are we going for? Give me a quick idea of what you're looking for.",
+        };
+        setMessages((prev) => [...prev, introMsg]);
+        setIsResponding(false);
+        return;
+      }
+      
+      // Handle Character Workshop conversation
+      if (workshopMode && characterWorkshop) {
+        console.log('🎨 Processing in Character Workshop mode');
+        try {
+          const result = await characterWorkshop.processInput(userMessage);
+          
+          if (result.type === 'complete' && result.characterData) {
+            // Character is complete! Exit workshop mode and create character
+            console.log('✅ Character workshop complete:', result.characterData);
+            
+            const completeMsg = {
+              id: (Date.now() + 1).toString(),
+              role: "assistant" as const,
+              content: result.message + "\n\n*Opening character creator with your design...*",
+            };
+            setMessages((prev) => [...prev, completeMsg]);
+            setIsResponding(false);
+            setWorkshopMode(false);
+            setCharacterWorkshop(null);
+            
+            // TODO: Trigger character creation with the draft data
+            // For now, show success message
+            setTimeout(() => {
+              toast.success(`${result.characterData.name || 'New character'} ready to create!`);
+              // In future: onCreateCharacter(result.characterData)
+            }, 800);
+            return;
+          }
+          
+          // Continue conversation
+          const workshopMsg = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant" as const,
+            content: result.message,
+          };
+          setMessages((prev) => [...prev, workshopMsg]);
+          setIsResponding(false);
+          return;
+        } catch (workshopError) {
+          logger.error('Character Workshop error:', workshopError);
+          // Exit workshop mode on error
+          setWorkshopMode(false);
+          setCharacterWorkshop(null);
+          toast.error('Workshop error - returning to normal mode');
+        }
+      }
+      
+      // Check if scene director should handle this (natural language scene commands)
+      console.log("Checking scene director:", {
+        hasDirector: !!sceneDirector,
+        userMessage,
+        characters: characters.length,
+      });
+
       if (sceneDirector) {
-        const sceneKeywords = /send|bring|tell|setup|create|start|scene|arrange|introduce/i;
+        const sceneKeywords =
+          /send|bring|tell|setup|create|start|scene|arrange|introduce/i;
         const matchesKeywords = sceneKeywords.test(userMessage);
         const isAwaitingAnswer = sceneDirector.getState().awaitingAnswer;
-        
-        console.log('Scene keyword check:', { 
-          matchesKeywords, 
+
+        console.log("Scene keyword check:", {
+          matchesKeywords,
           isAwaitingAnswer,
           shouldProcess: matchesKeywords || isAwaitingAnswer,
-          userMessage 
+          userMessage,
         });
-        
+
         if (matchesKeywords || isAwaitingAnswer) {
-          console.log('Processing with scene director...');
+          console.log("Processing with scene director...");
           try {
             const result = await sceneDirector.processInput(userMessage);
-            
-            console.log('Scene Director Result:', result);
-            
-            if (result.type === 'question') {
+
+            console.log("Scene Director Result:", result);
+
+            if (result.type === "question") {
               // Wingman is asking a follow-up question
-              console.log('Scene Director asking question:', result.message);
+              console.log("Scene Director asking question:", result.message);
               const assistantMsg = {
                 id: (Date.now() + 1).toString(),
                 role: "assistant" as const,
@@ -1043,20 +1177,22 @@ function WingmanPanel({
               setIsResponding(false);
               return;
             }
-            
-            if (result.type === 'scene') {
+
+            if (result.type === "scene") {
               if (!result.scene) {
-                console.error('Scene Director returned type=scene but no scene object!');
-                throw new Error('Scene object missing');
+                console.error(
+                  "Scene Director returned type=scene but no scene object!"
+                );
+                throw new Error("Scene object missing");
               }
-              
+
               if (!onStartScene) {
-                console.error('onStartScene handler is not provided!');
-                throw new Error('onStartScene handler missing');
+                console.error("onStartScene handler is not provided!");
+                throw new Error("onStartScene handler missing");
               }
-              
+
               // Scene is ready! Display it in Wingman chat and launch it
-              console.log('✅ Launching scene:', result.scene);
+              console.log("✅ Launching scene:", result.scene);
               const sceneMsg = {
                 id: (Date.now() + 1).toString(),
                 role: "assistant" as const,
@@ -1064,38 +1200,55 @@ function WingmanPanel({
               };
               setMessages((prev) => [...prev, sceneMsg]);
               setIsResponding(false);
-              
+
               // Start the scene in main chat
               setTimeout(() => {
-                console.log('🎬 Calling onStartScene with:', result.scene);
+                console.log("🎬 Calling onStartScene with:", result.scene);
                 onStartScene(result.scene!);
               }, 800);
               return;
             }
-            
+
             // If we get here, scene director returned acknowledgment or unknown type
-            console.warn('Scene Director returned unexpected type:', result.type, result);
+            console.warn(
+              "Scene Director returned unexpected type:",
+              result.type,
+              result
+            );
             // Fall through to normal AI
           } catch (sceneError) {
-            logger.warn("Scene director failed, falling through to normal AI", sceneError);
+            logger.warn(
+              "Scene director failed, falling through to normal AI",
+              sceneError
+            );
             // Fall through to normal AI response
           }
         }
       }
 
       // Detect quick actions (legacy fallback)
-      const bringMatch = userMessage.match(/bring\s+(\w+)\s+to\s+(my\s+)?room/i);
-      const setupMatch = userMessage.match(/(?:set\s*up|start|create)\s+(?:a\s+)?(?:scene|scenario)\s+(?:with\s+)?(\w+)/i);
-      
+      const bringMatch = userMessage.match(
+        /bring\s+(\w+)\s+to\s+(my\s+)?room/i
+      );
+      const setupMatch = userMessage.match(
+        /(?:set\s*up|start|create)\s+(?:a\s+)?(?:scene|scenario)\s+(?:with\s+)?(\w+)/i
+      );
+
       if ((bringMatch || setupMatch) && onStartChat) {
-        const targetName = (bringMatch?.[1] || setupMatch?.[1] || "").toLowerCase();
-        const targetChar = characters.find(c => c.name.toLowerCase().includes(targetName));
-        
+        const targetName = (
+          bringMatch?.[1] ||
+          setupMatch?.[1] ||
+          ""
+        ).toLowerCase();
+        const targetChar = characters.find((c) =>
+          c.name.toLowerCase().includes(targetName)
+        );
+
         if (targetChar) {
-          const actionReply = bringMatch 
+          const actionReply = bringMatch
             ? `Perfect! I'll bring ${targetChar.name} to your room right now. Setting up the scene...`
             : `Got it! Starting a scenario with ${targetChar.name}...`;
-          
+
           const assistantMsg = {
             id: (Date.now() + 1).toString(),
             role: "assistant" as const,
@@ -1103,7 +1256,7 @@ function WingmanPanel({
           };
           setMessages((prev) => [...prev, assistantMsg]);
           setIsResponding(false);
-          
+
           // Start the chat with this character
           setTimeout(() => onStartChat(targetChar), 500);
           return;
@@ -1111,7 +1264,8 @@ function WingmanPanel({
       }
 
       // Get AI response with full context
-      let reply = "I'm here to help! Ask me about character tips, house management, or anything else.";
+      let reply =
+        "I'm here to help! Ask me about character tips, house management, or anything else.";
 
       try {
         if (typeof AIService.copilotRespond === "function") {
@@ -1121,20 +1275,23 @@ function WingmanPanel({
           }));
 
           // Build enhanced copilot prompt
-          const mainPrompt = houseConfig?.copilotMainPrompt ||
+          const mainPrompt =
+            houseConfig?.copilotMainPrompt ||
             "You are Wingman, the Dollhouse assistant. Help manage the house, introduce girls, set up scenarios, and provide tips. Keep responses conversational and engaging. Remember context from our ongoing conversation.";
-          
-          const personalityNote = houseConfig?.copilotPersonality 
+
+          const personalityNote = houseConfig?.copilotPersonality
             ? `\n\nPersonality: ${houseConfig.copilotPersonality}`
             : "";
-          
-          const responseLengthNote = houseConfig?.copilotResponseLength === "brief"
-            ? "\n\nKeep responses very brief (1-2 sentences max)."
-            : houseConfig?.copilotResponseLength === "detailed"
-            ? "\n\nProvide detailed, comprehensive responses."
-            : "\n\nKeep responses balanced (2-4 sentences).";
 
-          const enhancedPrompt = mainPrompt + personalityNote + responseLengthNote;
+          const responseLengthNote =
+            houseConfig?.copilotResponseLength === "brief"
+              ? "\n\nKeep responses very brief (1-2 sentences max)."
+              : houseConfig?.copilotResponseLength === "detailed"
+                ? "\n\nProvide detailed, comprehensive responses."
+                : "\n\nKeep responses balanced (2-4 sentences).";
+
+          const enhancedPrompt =
+            mainPrompt + personalityNote + responseLengthNote;
 
           reply = await AIService.copilotRespond({
             threadId: "wingman-sidebar",
@@ -1146,13 +1303,17 @@ function WingmanPanel({
               ? `Currently viewing: ${selectedCharacter.name}`
               : "House overview",
             includeHouseContext: houseConfig?.copilotUseHouseContext !== false,
-            contextDetail: (houseConfig?.copilotContextDetail ?? "balanced") as "lite" | "balanced" | "detailed",
+            contextDetail: (houseConfig?.copilotContextDetail ?? "balanced") as
+              | "lite"
+              | "balanced"
+              | "detailed",
             maxTokens: houseConfig?.copilotMaxTokens || 500,
           });
         }
       } catch (error) {
         logger.warn("AIService copilot response failed", error);
-        reply = "Sorry, I'm having trouble connecting right now. Try asking me something else!";
+        reply =
+          "Sorry, I'm having trouble connecting right now. Try asking me something else!";
       }
 
       // Add assistant response
@@ -1168,7 +1329,17 @@ function WingmanPanel({
     } finally {
       setIsResponding(false);
     }
-  }, [chatDraft, isResponding, messages, selectedCharacter, characters, houseConfig, onStartChat, sceneDirector, onStartScene]);
+  }, [
+    chatDraft,
+    isResponding,
+    messages,
+    selectedCharacter,
+    characters,
+    houseConfig,
+    onStartChat,
+    sceneDirector,
+    onStartScene,
+  ]);
 
   return (
     <div className="hidden lg:flex min-w-0 flex-col overflow-hidden border-l border-white/5 bg-[#0d0e17] text-white">
@@ -1483,11 +1654,11 @@ export function DatingSimShell({
 
   const loadMessages = useCallback(
     async (sessionId: string) => {
-      console.log('📥 Loading messages for session:', sessionId);
+      console.log("📥 Loading messages for session:", sessionId);
       setIsLoadingMessages(true);
       try {
         const data = await getSessionMessages(sessionId);
-        console.log('📨 Loaded messages:', data.length, 'messages');
+        console.log("📨 Loaded messages:", data.length, "messages");
         setMessages(data);
       } finally {
         setIsLoadingMessages(false);
@@ -1537,16 +1708,16 @@ export function DatingSimShell({
 
   const handleSendMessage = useCallback(
     async (text: string) => {
-      console.log('📤 handleSendMessage called:', { activeSessionId, text });
+      console.log("📤 handleSendMessage called:", { activeSessionId, text });
       if (!activeSessionId) {
-        console.warn('❌ No active session ID!');
+        console.warn("❌ No active session ID!");
         return;
       }
-      console.log('⏳ Sending message...');
+      console.log("⏳ Sending message...");
       await sendMessage(activeSessionId, text, "user");
-      console.log('✅ Message sent, reloading messages...');
+      console.log("✅ Message sent, reloading messages...");
       await loadMessages(activeSessionId);
-      console.log('✅ Messages reloaded');
+      console.log("✅ Messages reloaded");
     },
     [activeSessionId, sendMessage, loadMessages]
   );
@@ -1618,44 +1789,56 @@ export function DatingSimShell({
 
   const handleStartScene = useCallback(
     async (scene: SceneSetup) => {
-      console.log('handleStartScene called with:', scene);
+      console.log("handleStartScene called with:", scene);
       try {
         // Create a new session with all participants
-        console.log('Creating scene session with participants:', scene.participantIds);
-        const sessionId = await createSession('scene', scene.participantIds);
-        console.log('Session created:', sessionId);
-        
+        console.log(
+          "Creating scene session with participants:",
+          scene.participantIds
+        );
+        const sessionId = await createSession("scene", scene.participantIds);
+        console.log("Session created:", sessionId);
+
         setActiveSessionId(sessionId);
         setChatActiveId(sessionId);
-        
+
         // Load the session
         await loadMessages(sessionId);
-        
+
         // Send the scene description as a system/narrator message
-  const promptText = scene.scenePrompt?.trim() ?? "";
-  console.log('Sending scene prompt:', promptText);
-  await sendMessage(sessionId, `**Scene Start:**\n\n${promptText}`, 'system');
-        
+        const promptText = scene.scenePrompt?.trim() ?? "";
+        console.log("Sending scene prompt:", promptText);
+        await sendMessage(
+          sessionId,
+          `**Scene Start:**\n\n${promptText}`,
+          "system"
+        );
+
         // If there's an initial message, send it from the character
         if (scene.initialMessage && scene.participantIds.length > 0) {
           const firstCharacterId = scene.participantIds[0];
-          console.log('Sending initial message from:', firstCharacterId);
+          console.log("Sending initial message from:", firstCharacterId);
           await sendMessage(sessionId, scene.initialMessage, firstCharacterId);
         }
-        
+
         // Store character hidden prompts as session-scoped secret goals
-        console.log('Setting hidden prompts:', scene.characterHiddenPrompts);
-        const hiddenEntries = Object.entries(scene.characterHiddenPrompts ?? {}).filter(([charId, hiddenPrompt]) => {
+        console.log("Setting hidden prompts:", scene.characterHiddenPrompts);
+        const hiddenEntries = Object.entries(
+          scene.characterHiddenPrompts ?? {}
+        ).filter(([charId, hiddenPrompt]) => {
           if (!hiddenPrompt?.trim()) return false;
           return scene.participantIds.includes(charId);
         });
         const hiddenPromptMap = Object.fromEntries(
-          hiddenEntries.map(([charId, hiddenPrompt]) => [charId, hiddenPrompt.trim()])
+          hiddenEntries.map(([charId, hiddenPrompt]) => [
+            charId,
+            hiddenPrompt.trim(),
+          ])
         );
         if (hiddenEntries.length > 0) {
           await Promise.all(
             hiddenEntries.map(([charId, hiddenPrompt]) =>
-              updateSessionGoal(sessionId, charId, hiddenPrompt.trim(), 'high')
+              updateSessionGoal(sessionId, charId, hiddenPrompt.trim(), "high")
             )
           );
         }
@@ -1663,7 +1846,7 @@ export function DatingSimShell({
         // Broadcast scene metadata so interested panels can reflect the update
         try {
           globalThis.dispatchEvent?.(
-            new CustomEvent('scene-metadata-updated', {
+            new CustomEvent("scene-metadata-updated", {
               detail: {
                 sessionId,
                 scenePrompt: promptText,
@@ -1672,20 +1855,27 @@ export function DatingSimShell({
             })
           );
         } catch (eventError) {
-          logger.warn('Failed to dispatch scene metadata event', eventError);
+          logger.warn("Failed to dispatch scene metadata event", eventError);
         }
-        
+
         // Reload messages to show the scene
         await loadMessages(sessionId);
-        
+
         toast.success("Scene started! Characters are ready.");
       } catch (error) {
-        console.error('handleStartScene error:', error);
+        console.error("handleStartScene error:", error);
         logger.error("Failed to start scene", error);
         toast.error("Could not start the scene");
       }
     },
-    [characters, sendMessage, setChatActiveId, loadMessages, createSession, updateSessionGoal]
+    [
+      characters,
+      sendMessage,
+      setChatActiveId,
+      loadMessages,
+      createSession,
+      updateSessionGoal,
+    ]
   );
 
   const handleToggleCharacterInChat = useCallback(
@@ -1698,10 +1888,12 @@ export function DatingSimShell({
       }
 
       const isInChat = activeSession.participantIds.includes(characterId);
-      
+
       if (isInChat) {
         // Remove character from chat
-        const newParticipants = activeSession.participantIds.filter((id) => id !== characterId);
+        const newParticipants = activeSession.participantIds.filter(
+          (id) => id !== characterId
+        );
         if (newParticipants.length === 0) {
           // If removing the last character, end the session
           setActiveSessionId(null);
@@ -1710,7 +1902,10 @@ export function DatingSimShell({
           toast.info("Chat ended");
         } else {
           // Update session with remaining participants
-          const newSessionId = await createSession(activeSession.type, newParticipants);
+          const newSessionId = await createSession(
+            activeSession.type,
+            newParticipants
+          );
           setActiveSessionId(newSessionId);
           setChatActiveId(newSessionId);
           await loadMessages(newSessionId);
@@ -1719,14 +1914,24 @@ export function DatingSimShell({
       } else {
         // Add character to chat
         const newParticipants = [...activeSession.participantIds, characterId];
-        const newSessionId = await createSession(activeSession.type, newParticipants);
+        const newSessionId = await createSession(
+          activeSession.type,
+          newParticipants
+        );
         setActiveSessionId(newSessionId);
         setChatActiveId(newSessionId);
         await loadMessages(newSessionId);
         toast.success(`Added to chat`);
       }
     },
-    [sessions, activeSessionId, handleStartChat, createSession, setChatActiveId, loadMessages]
+    [
+      sessions,
+      activeSessionId,
+      handleStartChat,
+      createSession,
+      setChatActiveId,
+      loadMessages,
+    ]
   );
 
   const handleDeleteCharacter = useCallback(
