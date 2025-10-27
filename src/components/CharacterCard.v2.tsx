@@ -1744,11 +1744,17 @@ export function CharacterCard({
       </TabsContent>
     );
 
-  const panelContent = (
+  const renderPanelContent = (insideDialog: boolean) => (
     <>
-      <DialogHeader className="border-b border-white/10 px-6 py-4">
-        <DialogTitle className="text-lg font-semibold">{character.name}</DialogTitle>
-      </DialogHeader>
+      {insideDialog ? (
+        <DialogHeader className="border-b border-white/10 px-6 py-4">
+          <DialogTitle className="text-lg font-semibold">{character.name}</DialogTitle>
+        </DialogHeader>
+      ) : (
+        <div className="border-b border-white/10 px-6 py-4">
+          <h2 className="text-lg font-semibold text-white">{character.name}</h2>
+        </div>
+      )}
       <Tabs defaultValue="overview" className="flex h-full flex-col">
         <TabsList className="flex w-full flex-wrap justify-start gap-1 border-b border-white/10 bg-[#080814] px-6 py-3">
           <TabsTrigger
@@ -1817,7 +1823,7 @@ export function CharacterCard({
   const dialogContent = (
     <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="flex w-full max-w-[1100px] max-h-[90vh] flex-col overflow-hidden border border-white/10 bg-[#05050c] p-0 text-white">
-        {panelContent}
+        {renderPanelContent(true)}
       </DialogContent>
     </Dialog>
   );
@@ -1872,7 +1878,7 @@ export function CharacterCard({
         <>
           {isDialogOpen ? (
             <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#05050c]/95 text-white">
-              {panelContent}
+              {renderPanelContent(false)}
             </div>
           ) : null}
           {selectedImageDialog}

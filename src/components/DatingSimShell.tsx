@@ -10,6 +10,10 @@ import { useQuickActions } from "@/hooks/useQuickActions";
 import { repositoryStorage } from "@/hooks/useRepositoryStorage";
 import { AIService } from "@/lib/aiService";
 import { logger } from "@/lib/logger";
+import {
+  WingmanCharacterBuilder,
+  type WingmanCharacterBuilderResult,
+} from "@/lib/wingmanCharacterBuilder";
 import { WingmanSceneDirector, type SceneSetup } from "@/lib/wingmanSceneDirector";
 import type { Character, ChatMessage, ChatSession } from "@/types";
 import {
@@ -844,6 +848,8 @@ interface WingmanPanelProps {
   onOpenManager: () => void;
   onStartChat?: (character: Character) => void;
   onStartScene?: (scene: SceneSetup) => void; // New callback for starting scenes
+  onCreateCharacter: (character: Character) => Promise<boolean>;
+  onCharacterCreated?: (character: Character) => void;
 }
 
 function WingmanPanel({
@@ -854,6 +860,8 @@ function WingmanPanel({
   onOpenManager,
   onStartChat,
   onStartScene,
+  onCreateCharacter,
+  onCharacterCreated,
 }: WingmanPanelProps) {
   const [activeTab, setActiveTab] = useState<"chat" | "tools">("chat");
   const [chatDraft, setChatDraft] = useState("");
@@ -865,12 +873,20 @@ function WingmanPanel({
   
   // Scene director instance
   const [sceneDirector, setSceneDirector] = useState<WingmanSceneDirector | null>(null);
+  const characterBuilderRef = useRef<WingmanCharacterBuilder | null>(null);
 
   // Initialize scene director when characters or config change
   useEffect(() => {
     if (characters.length > 0) {
       setSceneDirector(new WingmanSceneDirector(characters, houseConfig || undefined));
     }
+    if (!characterBuilderRef.current) {
+      characterBuilderRef.current = new WingmanCharacterBuilder();
+    }
+    characterBuilderRef.current.updateContext({
+      characters,
+      housePrompt: houseConfig?.worldPrompt,
+    });
   }, [characters, houseConfig]);
 
   // Load house config on mount
@@ -988,6 +1004,55 @@ function WingmanPanel({
     toast.success("Chat cleared");
   }, [houseConfig]);
 
+  const handleBuilderResult = useCallback(
+    async (result: WingmanCharacterBuilderResult): Promise<boolean> => {
+      if (!result || result.type === "none") {
+        return false;
+      }
+
+      if (result.type === "message" || result.type === "error") {
+        const assistantMsg = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant" as const,
+          content: result.message,
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+        setIsResponding(false);
+        return true;
+      }
+
+      if (result.type === "create") {
+        let success = false;
+        try {
+          success = await onCreateCharacter(result.character);
+        } catch (error) {
+          logger.error("Wingman failed to create character", error);
+        }
+
+        const content = success
+          ? `${result.message}\n\nI'll usher her into the roster right now.`
+          : "I tried to bring her in, but something glitched. Want me to try again?";
+
+        const assistantMsg = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant" as const,
+          content,
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+        setIsResponding(false);
+
+        if (success) {
+          onCharacterCreated?.(result.character);
+        }
+
+        return true;
+      }
+
+      return false;
+    },
+    [onCreateCharacter, onCharacterCreated, setMessages, setIsResponding]
+  );
+
   // Send chat message with enhanced context, scene director, and quick action detection
   const handleSendChat = useCallback(async () => {
     if (!chatDraft.trim() || isResponding) return;
@@ -1005,6 +1070,14 @@ function WingmanPanel({
     setIsResponding(true);
 
     try {
+      if (characterBuilderRef.current) {
+        const builderResult = await characterBuilderRef.current.processInput(userMessage);
+        const handled = await handleBuilderResult(builderResult);
+        if (handled) {
+          return;
+        }
+      }
+
       // Check if scene director should handle this (natural language scene commands)
       console.log('Checking scene director:', { 
         hasDirector: !!sceneDirector, 
@@ -1168,7 +1241,7 @@ function WingmanPanel({
     } finally {
       setIsResponding(false);
     }
-  }, [chatDraft, isResponding, messages, selectedCharacter, characters, houseConfig, onStartChat, sceneDirector, onStartScene]);
+  }, [chatDraft, isResponding, messages, selectedCharacter, characters, houseConfig, onStartChat, sceneDirector, onStartScene, handleBuilderResult]);
 
   return (
     <div className="hidden lg:flex min-w-0 flex-col overflow-hidden border-l border-white/5 bg-[#0d0e17] text-white">
@@ -1397,6 +1470,7 @@ export function DatingSimShell({
   const {
     characters,
     isLoading: isLoadingHouse,
+    addCharacter,
     removeCharacter,
     updateCharacter,
   } = useHouseFileStorage();
@@ -1847,6 +1921,8 @@ export function DatingSimShell({
             onStartScene={(scene) => {
               void handleStartScene(scene);
             }}
+            onCreateCharacter={addCharacter}
+            onCharacterCreated={handleCharacterCreatedFromDialog}
           />
         </div>
 
