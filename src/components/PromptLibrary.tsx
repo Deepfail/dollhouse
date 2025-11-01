@@ -4,17 +4,24 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { logger } from '@/lib/logger';
 import {
-    getPromptDefinitionsByCategory,
-    reloadPromptOverrides,
-    resetAllPrompts,
-    resetPromptOverride,
-    setPromptOverride,
-    type PromptCategory,
-    type PromptDefinition,
+  applyAdditionalPromptData,
+  buildPromptExportPayload,
+  type AdditionalPromptSnapshot,
+  type PromptExportFile,
+} from '@/lib/promptExport';
+import {
+  getPromptDefinitionsByCategory,
+  reloadPromptOverrides,
+  resetAllPrompts,
+  resetPromptOverride,
+  setPromptOverride,
+  type PromptCategory,
+  type PromptDefinition,
+  type PromptKey,
 } from '@/lib/prompts';
-import { ArrowClockwise, FloppyDisk, Trash } from '@phosphor-icons/react';
+import { ArrowClockwise, DownloadSimple, FloppyDisk, Trash, UploadSimple } from '@phosphor-icons/react';
 import clsx from 'clsx';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { toast } from 'sonner';
 
 type PromptStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -42,6 +49,7 @@ export function PromptLibrary({ className, variant = 'default' }: PromptLibraryP
   const [promptOverrides, setPromptOverrides] = useState<Record<string, string>>({});
   const [statuses, setStatuses] = useState<StatusMap>({});
   const [isLoading, setIsLoading] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     void loadPrompts();
@@ -130,6 +138,130 @@ export function PromptLibrary({ className, variant = 'default' }: PromptLibraryP
     }
   };
 
+  const handleExportPrompts = async () => {
+    try {
+      const payload = await buildPromptExportPayload(promptValues);
+      const serialized = JSON.stringify(payload, null, 2);
+      const blob = new Blob([serialized], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const stamp = new Date().toISOString().replace(/[:]/g, '-');
+      link.href = url;
+      link.download = `dollhouse-prompts-${stamp}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('Prompt library exported');
+    } catch (error) {
+      logger.error('[PromptLibrary] Failed to export prompts', error);
+      toast.error('Failed to export prompts');
+    }
+  };
+
+  const handleImportClick = () => {
+    importInputRef.current?.click();
+  };
+
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      setIsLoading(true);
+      const text = await file.text();
+      const parsed = JSON.parse(text) as PromptExportFile | Record<string, string>;
+
+      let promptPayload: Record<string, string> = {};
+      const additionalSections: AdditionalPromptSnapshot = {};
+
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        !Array.isArray(parsed) &&
+        'prompts' in parsed &&
+        (parsed as PromptExportFile).prompts &&
+        typeof (parsed as PromptExportFile).prompts === 'object'
+      ) {
+        const detailed = parsed as PromptExportFile;
+        promptPayload = detailed.prompts as Record<string, string>;
+
+        if (detailed.houseConfig && typeof detailed.houseConfig === 'object') {
+          additionalSections.houseConfig = detailed.houseConfig;
+        }
+
+        if (detailed.imageSettings && typeof detailed.imageSettings === 'object') {
+          additionalSections.imageSettings = detailed.imageSettings;
+        }
+      } else {
+        promptPayload = parsed as Record<string, string>;
+      }
+
+      if (!promptPayload || typeof promptPayload !== 'object') {
+        throw new Error('Invalid prompt pack format');
+      }
+
+      const availableKeys = new Set(
+        (Object.values(promptGroups) as PromptDefinition[][]).flat().map((definition) => definition.key)
+      );
+
+      const relevantEntries = Object.entries(promptPayload).filter(([key, value]): value is string => {
+        return availableKeys.has(key) && typeof value === 'string';
+      });
+
+      const hasAdditionalData = Boolean(
+        (additionalSections.houseConfig && Object.keys(additionalSections.houseConfig).length > 0) ||
+          (additionalSections.imageSettings && Object.keys(additionalSections.imageSettings).length > 0)
+      );
+
+      if (relevantEntries.length === 0 && !hasAdditionalData) {
+        throw new Error('No matching prompts found in file');
+      }
+
+      let overrides = promptOverrides;
+      if (relevantEntries.length > 0) {
+        for (const [key, value] of relevantEntries) {
+          overrides = await setPromptOverride(key as PromptKey, value);
+        }
+        setPromptOverrides(overrides);
+      }
+
+      const additionalSummary = await applyAdditionalPromptData(additionalSections);
+
+      if (relevantEntries.length > 0) {
+        await loadPrompts();
+      }
+
+      const summaryParts: string[] = [];
+      if (relevantEntries.length > 0) {
+        summaryParts.push(`${relevantEntries.length} ${relevantEntries.length === 1 ? 'library prompt' : 'library prompts'}`);
+      }
+      if (additionalSummary.houseFieldsUpdated > 0) {
+        summaryParts.push(
+          `${additionalSummary.houseFieldsUpdated} ${additionalSummary.houseFieldsUpdated === 1 ? 'house field' : 'house fields'}`
+        );
+      }
+      if (additionalSummary.imageFieldsUpdated > 0) {
+        summaryParts.push(
+          `${additionalSummary.imageFieldsUpdated} ${additionalSummary.imageFieldsUpdated === 1 ? 'image setting' : 'image settings'}`
+        );
+      }
+
+      const message = summaryParts.length > 0 ? `Imported ${summaryParts.join(', ')}` : 'Import complete';
+      toast.success(message);
+
+      if (additionalSummary.warnings.length > 0) {
+        toast.warning('Some prompt sections could not be applied. Check logs for details.');
+      }
+    } catch (error) {
+      logger.error('[PromptLibrary] Failed to import prompts', error);
+      const message = error instanceof Error ? error.message : 'Failed to import prompts';
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const containerClasses = clsx(
     'space-y-6',
     variant === 'dark' && 'text-white',
@@ -149,6 +281,33 @@ export function PromptLibrary({ className, variant = 'default' }: PromptLibraryP
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportPrompts}
+            disabled={isLoading}
+            className="flex items-center gap-2"
+          >
+            <DownloadSimple size={16} />
+            Export
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleImportClick}
+            disabled={isLoading}
+            className="flex items-center gap-2"
+          >
+            <UploadSimple size={16} />
+            Import
+          </Button>
           <Button
             variant="outline"
             size="sm"

@@ -9,7 +9,8 @@ export interface Character {
   personality: string; // personality selection from list
   appearance: string;
   avatar?: string;
-  roomId?: string;
+  roomId?: string; // DEPRECATED - use locationId instead
+  locationId?: string; // ID of location character is assigned to
 
   // Stats & Progression
   stats: {
@@ -372,6 +373,17 @@ export interface SceneObjective {
   priority: "low" | "medium" | "high";
 }
 
+export interface Location {
+  id: string;
+  name: string;
+  description: string;
+  prompt: string; // LLM context about this location
+  type: "private" | "public" | "special";
+  mood?: string; // ambient mood/vibe
+  unlocked: boolean;
+  imageUrl?: string;
+}
+
 export interface Room {
   id: string;
   name: string;
@@ -442,6 +454,7 @@ export interface House {
   name: string;
   description?: string;
   rooms: Room[];
+  locations?: Location[]; // Available locations in the dollhouse
   characters: Character[];
   currency: number;
 

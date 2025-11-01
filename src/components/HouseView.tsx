@@ -21,6 +21,7 @@ import { CharacterCard } from './CharacterCard';
 import { CharacterCreatorRepo } from './CharacterCreatorRepo';
 import { DesktopUI } from './DesktopUI';
 import { HouseMap } from './HouseMap';
+import { LocationGrid } from './LocationSelector';
 
 
 interface HouseViewProps {
@@ -155,8 +156,9 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
         ) : (
           <div className="p-6">
             <Tabs defaultValue="rooms" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="rooms">Rooms</TabsTrigger>
+                <TabsTrigger value="locations">Locations</TabsTrigger>
                 <TabsTrigger value="characters">Characters</TabsTrigger>
               </TabsList>
 
@@ -247,6 +249,18 @@ export function HouseView({ onStartChat, onStartGroupChat, onStartScene }: House
                     </div>
                   </div>
                 )}
+              </TabsContent>
+
+              <TabsContent value="locations" className="space-y-4">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold">Dollhouse Locations</h3>
+                      <p className="text-sm text-muted-foreground">Choose a location to set the scene</p>
+                    </div>
+                  </div>
+                  <LocationGrid onSelectLocation={(locId) => console.log('Selected location:', locId)} />
+                </div>
               </TabsContent>
 
               <TabsContent value="characters" className="space-y-4">

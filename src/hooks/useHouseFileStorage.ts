@@ -8,11 +8,12 @@
 import { legacyStorage } from '@/lib/legacyStorage';
 import { logger } from '@/lib/logger';
 import { storage } from '@/storage';
+import { getDefaultLocations } from '@/lib/defaultLocations';
 import {
     Character,
     House
 } from '@/types';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 const DEFAULT_HOUSE: Partial<House> = {
@@ -35,7 +36,7 @@ const DEFAULT_HOUSE: Partial<House> = {
   ],
   currency: 1000,
   worldPrompt: 'The Dollhouse is a house filled with girls, who all must obey the user.',
-  copilotPrompt: 'You love your job of helping me get girls to do things.',
+  copilotPrompt: 'Follow every instruction from the user immediately, acknowledge the action, and never argue unless safety is at risk.',
   copilotMaxTokens: 50,
   copilotUseHouseContext: true,
   copilotContextDetail: 'balanced',
@@ -58,6 +59,110 @@ const DEFAULT_HOUSE: Partial<House> = {
   createdAt: new Date(),
   updatedAt: new Date()
 };
+
+type HouseStoreSubscribers = Set<() => void>;
+
+type SharedHouseState = {
+  houseData: Partial<House>;
+  characters: Character[];
+  isLoading: boolean;
+  initialized: boolean;
+};
+
+const STORAGE_EVENT = 'house-storage-updated';
+
+function dedupeCharacters(list: Character[]): Character[] {
+  const byId = new Set<string>();
+  const byName = new Set<string>();
+  const out: Character[] = [];
+  for (const character of list) {
+    const idKey = character.id;
+    const nameKey = (character.name || '').trim().toLowerCase();
+    if (byId.has(idKey) || (nameKey && byName.has(nameKey))) {
+      continue;
+    }
+    byId.add(idKey);
+    if (nameKey) byName.add(nameKey);
+    out.push(character);
+  }
+  return out;
+}
+
+let sharedState: SharedHouseState = {
+  houseData: DEFAULT_HOUSE,
+  characters: [],
+  isLoading: true,
+  initialized: false,
+};
+
+const subscribers: HouseStoreSubscribers = new Set();
+
+let loadPromise: Promise<void> | null = null;
+let storageListenerRegistered = false;
+let recoverHelperAttached = false;
+
+const scheduleNotifications = ((): (() => void) => {
+  let pending = false;
+  const scheduler =
+    typeof queueMicrotask === 'function'
+      ? queueMicrotask
+      : (callback: () => void) => Promise.resolve().then(callback);
+  return () => {
+    if (pending) return;
+    pending = true;
+    scheduler(() => {
+      pending = false;
+      subscribers.forEach((notify) => {
+        try {
+          notify();
+        } catch (error) {
+          logger.debug('[useHouseFileStorage] subscriber notify failed', error);
+        }
+      });
+    });
+  };
+})();
+
+const notifySubscribers = () => {
+  scheduleNotifications();
+};
+
+const commitSharedState = (next: Partial<SharedHouseState>) => {
+  let changed = false;
+  if (next.houseData) {
+    const nextHouse = {
+      ...next.houseData,
+      characters: next.houseData.characters ?? sharedState.characters,
+    };
+    sharedState = { ...sharedState, houseData: nextHouse };
+    changed = true;
+  }
+  if (next.characters) {
+    const deduped = dedupeCharacters(next.characters);
+    sharedState = {
+      ...sharedState,
+      characters: deduped,
+      houseData: {
+        ...sharedState.houseData,
+        characters: deduped,
+      },
+    };
+    changed = true;
+  }
+  if (typeof next.isLoading === 'boolean') {
+    sharedState = { ...sharedState, isLoading: next.isLoading };
+    changed = true;
+  }
+  if (typeof next.initialized === 'boolean') {
+    sharedState = { ...sharedState, initialized: next.initialized };
+    changed = true;
+  }
+  if (changed) {
+    notifySubscribers();
+  }
+};
+
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 type LegacyCharacterRow = {
   id: string;
@@ -489,528 +594,520 @@ const buildCharacterFromSqliteBackup = (row: SqliteBackupCharacter): Character =
 };
 
 export function useHouseFileStorage() {
-  const [houseData, setHouseDataState] = useState<Partial<House>>(DEFAULT_HOUSE);
-  const [characters, setCharactersState] = useState<Character[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const STORAGE_EVENT = 'house-storage-updated';
+  const [, forceRender] = useState(0);
+  const hasSyncedRef = useRef(false);
 
-  const dedupeCharacters = useCallback((list: Character[]): Character[] => {
-    const byId = new Set<string>();
-    const byName = new Set<string>();
-    const out: Character[] = [];
-    for (const c of list) {
-      const idKey = c.id;
-      const nameKey = (c.name || '').trim().toLowerCase();
-      if (byId.has(idKey) || (nameKey && byName.has(nameKey))) {
-        continue;
-      }
-      byId.add(idKey);
-      if (nameKey) byName.add(nameKey);
-      out.push(c);
-    }
-    return out;
-  }, []);
-
-  // Load data from storage on mount
   useEffect(() => {
-  let cancelled = false;
-  let retryTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const loadData = async (attempt = 0) => {
-      try {
-        setIsLoading(true);
-
-        if (!storage) {
-          if (attempt < 5) {
-            logger.warn('[useHouseFileStorage] Storage not ready, retrying...', attempt + 1);
-            retryTimer = setTimeout(() => loadData(attempt + 1), 300 + attempt * 200);
-            return;
-          } else {
-            logger.error('[useHouseFileStorage] Storage not initialized after retries');
-            return;
-          }
-        }
-
-        // Load house data from settings table
-        const savedHouse = await storage.get<SettingsRow>('settings', 'house');
-        if (savedHouse?.value) {
-          try {
-            const houseData = JSON.parse(savedHouse.value) as Partial<House>;
-            if (!cancelled) setHouseDataState(houseData);
-          } catch (error) {
-            logger.warn('[useHouseFileStorage] Failed parsing saved house JSON', error);
-          }
-        }
-
-        // Load characters from settings table
-        let loadedCharacters: Character[] | null = null;
-        const savedCharacters = await storage.get<SettingsRow>('settings', 'characters');
-        if (savedCharacters?.value) {
-          try {
-            const charactersData = JSON.parse(savedCharacters.value) as unknown;
-            if (Array.isArray(charactersData)) {
-              loadedCharacters = charactersData as Character[];
-            }
-          } catch (error) {
-            logger.warn('[useHouseFileStorage] Failed parsing saved characters JSON', error);
-          }
-        }
-
-        // Migration fallback: if no characters in settings, look for legacy 'characters' table rows (IndexedDB / other engine)
-        if (!loadedCharacters || loadedCharacters.length === 0) {
-          try {
-            const legacyRows = await storage.query<LegacyCharacterRow>({ table: 'characters' });
-            if (Array.isArray(legacyRows) && legacyRows.length) {
-              logger.log('[useHouseFileStorage] Migrating legacy character rows -> settings key');
-              const migrated = legacyRows.map(row => {
-                const profile = parseLegacyProfile(row.profile_json);
-                return buildCharacterFromLegacy(row, profile);
-              });
-              loadedCharacters = migrated;
-              await saveToStorage('characters', migrated);
-              logger.log(`[useHouseFileStorage] Migrated ${migrated.length} character(s) from legacy table.`);
-            }
-          } catch (error) {
-            logger.warn('[useHouseFileStorage] Legacy character migration attempt failed:', error);
-          }
-        }
-
-        // Secondary recovery: attempt to read from sqlite-wasm backup
-        if ((!loadedCharacters || !loadedCharacters.length) && typeof window !== 'undefined') {
-          try {
-            const lsBackup = legacyStorage.getItem('dollhouse-db-backup');
-            if (lsBackup) {
-              const parsed = JSON.parse(lsBackup) as { characters?: unknown };
-              if (parsed && Array.isArray(parsed.characters) && parsed.characters.length) {
-                logger.log('[useHouseFileStorage] Recovering characters from sqlite backup storage');
-                const migrated = parsed.characters
-                  .filter((entry): entry is SqliteBackupCharacter => typeof entry === 'object' && entry !== null && 'id' in (entry as Record<string, unknown>))
-                  .map(entry => buildCharacterFromSqliteBackup(entry));
-                if (migrated.length) {
-                  loadedCharacters = migrated;
-                  await saveToStorage('characters', migrated);
-                  logger.log(`[useHouseFileStorage] Recovered ${migrated.length} character(s) from sqlite backup.`);
-                }
-              }
-            }
-          } catch (error) {
-            logger.warn('[useHouseFileStorage] sqlite backup recovery failed:', error);
-          }
-        }
-
-        // Tertiary recovery: look for a raw legacy JSON blob in legacy backup (older builds may have stored directly)
-        if ((!loadedCharacters || !loadedCharacters.length) && typeof window !== 'undefined') {
-          try {
-            const legacyRaw = legacyStorage.getItem('characters');
-            if (legacyRaw) {
-              const parsedLegacy = JSON.parse(legacyRaw);
-              if (Array.isArray(parsedLegacy) && parsedLegacy.length) {
-                logger.log('[useHouseFileStorage] Recovering characters from legacy backup key');
-                loadedCharacters = parsedLegacy as Character[];
-                await saveToStorage('characters', loadedCharacters);
-              }
-            }
-          } catch (e) {
-            logger.warn('[useHouseFileStorage] Legacy raw backup recovery failed:', e);
-          }
-        }
-
-        if (loadedCharacters && loadedCharacters.length) {
-          const deduped = dedupeCharacters(loadedCharacters);
-          if (!cancelled) setCharactersState(deduped);
-          if (deduped.length !== loadedCharacters.length) {
-            await saveToStorage('characters', deduped);
-          }
-          logger.log('[useHouseFileStorage] Loaded characters:', deduped.map(c => c.name));
-        } else {
-          logger.log('[useHouseFileStorage] No characters found in settings or legacy sources.');
-        }
-      } catch (error) {
-        logger.error('Failed to load house data:', error);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    };
-
-    loadData();
-
+    const notify = () => forceRender((prev) => prev + 1);
+    subscribers.add(notify);
     return () => {
-      cancelled = true;
-      if (retryTimer) clearTimeout(retryTimer);
+      subscribers.delete(notify);
     };
-  }, []);
+  }, [forceRender]);
 
-  // Expose an imperative recovery helper for debugging/manual rescue
   useEffect(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        // attach a recover helper for debugging in browser environments
-        (window as unknown as { recoverCharacters?: () => Promise<void> }).recoverCharacters = async () => {
-          logger.log('[recoverCharacters] Manual recovery triggered');
-          try {
-            const event = new CustomEvent('force-recover');
-            window.dispatchEvent(event);
-          } catch (e) {
-            logger.debug('Ignored error while triggering recoverCharacters', e);
-          }
-        };
-      }
-    } catch (e) {
-      logger.debug('Ignored environment error while initializing recoverCharacters', e);
+    if (!hasSyncedRef.current) {
+      hasSyncedRef.current = true;
+      forceRender((prev) => prev + 1);
     }
-  }, []);
+  }, [forceRender]);
 
-  // Save data to storage helper
-  const saveToStorage = useCallback(async (key: string, data: unknown) => {
-    try {
-      if (!storage) {
-                logger.error('Storage not initialized');
-        return false;
-      }
-      // Use settings table for key-value storage
-      const payload: SettingsRow = { id: key, key, value: JSON.stringify(data) };
-      await storage.put<SettingsRow>('settings', payload);
-      // Broadcast change so all hook instances can refresh
-      try {
-        const event = new CustomEvent<StorageUpdateDetail>(STORAGE_EVENT, { detail: { key } });
-        window.dispatchEvent(event);
-      } catch {
-        // ignore if not in browser
-      }
-      return true;
-    } catch (error) {
-      logger.error(`Failed to save ${key}:`, error);
-      return false;
-    }
-  }, []);
-
-  // Normalize house data to ensure required fields exist
-  const normalizeHouse = useCallback((house: Partial<House>): House => {
-    return {
-      ...DEFAULT_HOUSE,
-      ...house,
-      id: house.id || DEFAULT_HOUSE.id!,
-      name: house.name || DEFAULT_HOUSE.name!,
-      description: house.description || DEFAULT_HOUSE.description!,
-      rooms: house.rooms || DEFAULT_HOUSE.rooms!,
-      currency: house.currency ?? DEFAULT_HOUSE.currency!,
-      worldPrompt: house.worldPrompt || DEFAULT_HOUSE.worldPrompt!,
-      copilotPrompt: house.copilotPrompt || DEFAULT_HOUSE.copilotPrompt!,
-    copilotMaxTokens: house.copilotMaxTokens ?? DEFAULT_HOUSE.copilotMaxTokens!,
-    copilotUseHouseContext: house.copilotUseHouseContext ?? DEFAULT_HOUSE.copilotUseHouseContext!,
-    copilotContextDetail: house.copilotContextDetail || DEFAULT_HOUSE.copilotContextDetail!,
-      autoCreator: house.autoCreator || DEFAULT_HOUSE.autoCreator!,
-      aiSettings: house.aiSettings || DEFAULT_HOUSE.aiSettings!,
-      createdAt: house.createdAt || DEFAULT_HOUSE.createdAt!,
-      updatedAt: new Date()
-    } as House;
-  }, []);
-
-  const house = normalizeHouse(houseData);
-
-  // Listen for external updates to keep all instances in sync
   useEffect(() => {
-    const onStorageUpdate = async (event: Event) => {
-      const customEvent = event as CustomEvent<StorageUpdateDetail>;
-      const key = customEvent.detail?.key;
-
-      try {
-        if (!storage) return;
-        if (!key || key === 'house') {
-          const savedHouseRow = await storage.get<SettingsRow>('settings', 'house');
-          if (savedHouseRow?.value) {
-            const parsed = JSON.parse(savedHouseRow.value) as Partial<House>;
-            setHouseDataState(parsed);
-          }
-        }
-        if (!key || key === 'characters') {
-          const savedCharactersRow = await storage.get<SettingsRow>('settings', 'characters');
-          if (savedCharactersRow?.value) {
-            const parsed = JSON.parse(savedCharactersRow.value) as unknown;
-            if (Array.isArray(parsed)) {
-              setCharactersState(parsed as Character[]);
-            }
-          }
-        }
-      } catch (e) {
-  logger.error('Failed to sync storage update:', e);
-
-// ensure logger is available
-      }
-    };
-
-    const handleStorageUpdate = (event: Event) => {
-      void onStorageUpdate(event);
-    };
-
-    try {
-      if (typeof globalThis.addEventListener === 'function') {
-        globalThis.addEventListener(STORAGE_EVENT, handleStorageUpdate);
-      }
-    } catch (e) {
-      logger.debug('Ignored event listener registration error', e);
-    }
-    return () => {
-      try {
-        if (typeof globalThis.removeEventListener === 'function') {
-          globalThis.removeEventListener(STORAGE_EVENT, handleStorageUpdate);
-        }
-      } catch (e) {
-        logger.debug('Ignored event listener removal error', e);
-      }
-    };
+    registerStorageListeners();
+    attachRecoverHelper();
+    void ensureSharedStateLoaded();
   }, []);
 
-  // Ensure in-memory state stays deduped even if duplicates slip in
-  useEffect(() => {
-    const deduped = dedupeCharacters(characters);
-    if (deduped.length !== characters.length) {
-      setCharactersState(deduped);
-      // Persist the cleaned list
-      saveToStorage('characters', deduped);
-    }
-  }, [characters, dedupeCharacters, saveToStorage]);
-
-  // Character management functions
-  const addCharacter = useCallback(async (character: Character): Promise<boolean> => {
-    try {
-      // Check for duplicates
-      const existingCharacter = characters.find(c => 
-        c.id === character.id || 
-        c.name.toLowerCase() === character.name.toLowerCase()
-      );
-      
-      if (existingCharacter) {
-        logger.warn('Character already exists:', character.name);
-        return false;
-      }
-
-  const newCharacters = dedupeCharacters([...characters, character]);
-      const success = await saveToStorage('characters', newCharacters);
-      
-      if (success) {
-        setCharactersState(newCharacters);
-  logger.log('Character added successfully:', character.name);
-  logger.log('[useHouseFileStorage] Characters after add:', newCharacters.map(c => c.name));
-        toast.success(`${character.name} joined the house!`);
-      }
-      
-      return success;
-      } catch (error) {
-      logger.error('Failed to add character:', error);
-      toast.error('Failed to add character');
-      return false;
-    }
-  }, [characters, saveToStorage]);
-
-  const removeCharacter = useCallback(async (characterId: string): Promise<boolean> => {
-    try {
-      const character = characters.find(c => c.id === characterId);
-      if (!character) {
-        logger.warn('Character not found:', characterId);
-        return false;
-      }
-
-  const newCharacters = dedupeCharacters(characters.filter(c => c.id !== characterId));
-      const success = await saveToStorage('characters', newCharacters);
-      
-      if (success) {
-        setCharactersState(newCharacters);
-  logger.log('Character removed successfully:', character.name);
-        toast.success(`${character.name} left the house`);
-      }
-      
-      return success;
-    } catch (error) {
-      logger.error('Failed to remove character:', error);
-      toast.error('Failed to remove character');
-      return false;
-    }
-  }, [characters, saveToStorage]);
-
-  const updateCharacter = useCallback(async (characterId: string, updates: Partial<Character>): Promise<boolean> => {
-    try {
-      const newCharacters = dedupeCharacters(
-        characters.map(c => 
-          c.id === characterId 
-            ? { ...c, ...updates, updatedAt: new Date() }
-            : c
-        )
-      );
-      
-      const success = await saveToStorage('characters', newCharacters);
-      
-      if (success) {
-        setCharactersState(newCharacters);
-        logger.log('Character updated successfully:', characterId);
-      }
-      
-      return success;
-    } catch (error) {
-      logger.error('Failed to update character:', error);
-      toast.error('Failed to update character');
-      return false;
-    }
-  }, [characters, saveToStorage]);
-
-  // House management functions
-  const updateHouse = useCallback(async (updates: Partial<House>): Promise<boolean> => {
-    try {
-      const newHouseData = {
-        ...houseData,
-        ...updates,
-        updatedAt: new Date()
-      };
-      
-      const success = await saveToStorage('house', newHouseData);
-      
-      if (success) {
-        setHouseDataState(newHouseData);
-        logger.log('House updated successfully');
-      }
-      
-      return success;
-    } catch (error) {
-      logger.error('Failed to update house:', error);
-      toast.error('Failed to update house');
-      return false;
-    }
-  }, [houseData, saveToStorage]);
-
-  const addRoom = useCallback(async (room: House['rooms'][0]): Promise<boolean> => {
-    try {
-      const newHouseData = {
-        ...houseData,
-        rooms: [...(houseData.rooms || []), room],
-        updatedAt: new Date()
-      };
-      
-      const success = await saveToStorage('house', newHouseData);
-      
-      if (success) {
-        setHouseDataState(newHouseData);
-        logger.log('Room added successfully:', room.name);
-        toast.success(`${room.name} added to the house!`);
-      }
-      
-      return success;
-    } catch (error) {
-      logger.error('Failed to add room:', error);
-      toast.error('Failed to add room');
-      return false;
-    }
-  }, [houseData, saveToStorage]);
-
-  const removeRoom = useCallback(async (roomId: string): Promise<boolean> => {
-    try {
-      const newHouseData = {
-        ...houseData,
-        rooms: (houseData.rooms || []).filter(r => r.id !== roomId),
-        updatedAt: new Date()
-      };
-      
-      const success = await saveToStorage('house', newHouseData);
-      
-      if (success) {
-        setHouseDataState(newHouseData);
-        logger.log('Room removed successfully:', roomId);
-        toast.success('Room removed from the house');
-      }
-      
-      return success;
-    } catch (error) {
-      logger.error('Failed to remove room:', error);
-      toast.error('Failed to remove room');
-      return false;
-    }
-  }, [houseData, saveToStorage]);
-
-  // Character room assignment
-  const assignCharacterToRoom = useCallback(async (characterId: string, roomId: string): Promise<boolean> => {
-    try {
-      // Update character's room
-      const characterSuccess = await updateCharacter(characterId, { roomId: roomId });
-      
-      if (!characterSuccess) return false;
-
-      // Update room's residents
-      const newHouseData = {
-        ...houseData,
-        rooms: (houseData.rooms || []).map(room => 
-          room.id === roomId 
-            ? { 
-                ...room, 
-                residents: room.residents.includes(characterId) 
-                  ? room.residents 
-                  : [...room.residents, characterId]
-              }
-            : {
-                ...room,
-                residents: room.residents.filter(id => id !== characterId)
-              }
-        ),
-        updatedAt: new Date()
-      };
-      
-      const roomSuccess = await saveToStorage('house', newHouseData);
-      
-      if (roomSuccess) {
-        setHouseDataState(newHouseData);
-        logger.log('Character assigned to room successfully:', characterId, roomId);
-      }
-      
-      return roomSuccess;
-    } catch (error) {
-      logger.error('Failed to assign character to room:', error);
-      toast.error('Failed to assign character to room');
-      return false;
-    }
-  }, [updateCharacter, houseData, saveToStorage]);
-
-  // Get characters in a specific room
-  const getCharactersInRoom = useCallback((roomId: string): Character[] => {
-    return characters.filter(character => character.roomId === roomId);
-  }, [characters]);
-
-  // Get available rooms for a character
-  const getAvailableRooms = useCallback(() => {
-    return house.rooms.filter(room => room.unlocked);
-  }, [house.rooms]);
-
-  // Add characters to the house object for backward compatibility
+  const snapshot = sharedState;
+  const normalizedHouse = normalizeHouse(snapshot.houseData);
   const houseWithCharacters = {
-    ...house,
-    characters: characters || []
+    ...normalizedHouse,
+    characters: snapshot.characters || [],
   };
 
+  const addCharacter = useCallback(async (character: Character): Promise<boolean> => {
+    await ensureSharedStateLoaded();
+    const current = sharedState.characters;
+
+    const normalizeName = (value?: string | null): string =>
+      typeof value === 'string' ? value.trim().toLowerCase() : '';
+
+    // Fallback to a generated placeholder if the incoming character has no usable name.
+    const candidate: Character = (!character.name || !character.name.trim())
+      ? {
+          ...character,
+          name: `Companion ${Date.now().toString(36)}`,
+        }
+      : character;
+
+    const targetName = normalizeName(candidate.name);
+
+    const duplicate = current.find((existing) => {
+      if (existing.id === candidate.id) {
+        return true;
+      }
+      const existingName = normalizeName(existing.name);
+      return existingName !== '' && existingName === targetName && targetName !== '';
+    });
+
+    if (duplicate) {
+      logger.warn('Character already exists:', candidate.name);
+      return false;
+    }
+
+    const nextCharacters = dedupeCharacters([...current, candidate]);
+    const success = await saveToStorage('characters', nextCharacters);
+    if (success) {
+      commitSharedState({ characters: nextCharacters });
+      logger.log('Character added successfully:', candidate.name);
+      toast.success(`${candidate.name} joined the house!`);
+    } else {
+      toast.error('Failed to add character');
+    }
+    return success;
+  }, []);
+
+  const removeCharacter = useCallback(async (characterId: string): Promise<boolean> => {
+    await ensureSharedStateLoaded();
+    const current = sharedState.characters;
+    const target = current.find((character) => character.id === characterId);
+    if (!target) {
+      logger.warn('Character not found:', characterId);
+      return false;
+    }
+
+    const nextCharacters = dedupeCharacters(current.filter((character) => character.id !== characterId));
+    const success = await saveToStorage('characters', nextCharacters);
+    if (success) {
+      commitSharedState({ characters: nextCharacters });
+      logger.log('Character removed successfully:', target.name);
+      toast.success(`${target.name} left the house`);
+    } else {
+      toast.error('Failed to remove character');
+    }
+    return success;
+  }, []);
+
+  const updateCharacter = useCallback(async (characterId: string, updates: Partial<Character>): Promise<boolean> => {
+    await ensureSharedStateLoaded();
+    const nextCharacters = dedupeCharacters(
+      sharedState.characters.map((character) =>
+        character.id === characterId
+          ? { ...character, ...updates, updatedAt: new Date() }
+          : character
+      )
+    );
+    const success = await saveToStorage('characters', nextCharacters);
+    if (success) {
+      commitSharedState({ characters: nextCharacters });
+      logger.log('Character updated successfully:', characterId);
+    } else {
+      toast.error('Failed to update character');
+    }
+    return success;
+  }, []);
+
+  const updateHouse = useCallback(async (updates: Partial<House>): Promise<boolean> => {
+    await ensureSharedStateLoaded();
+    const nextHouse = {
+      ...sharedState.houseData,
+      ...updates,
+      updatedAt: new Date(),
+    };
+    const success = await saveToStorage('house', nextHouse);
+    if (success) {
+      commitSharedState({ houseData: nextHouse });
+      logger.log('House updated successfully');
+    } else {
+      toast.error('Failed to update house');
+    }
+    return success;
+  }, []);
+
+  const addRoom = useCallback(async (room: House['rooms'][0]): Promise<boolean> => {
+    await ensureSharedStateLoaded();
+    const rooms = [...(sharedState.houseData.rooms || []), room];
+    const nextHouse = {
+      ...sharedState.houseData,
+      rooms,
+      updatedAt: new Date(),
+    };
+    const success = await saveToStorage('house', nextHouse);
+    if (success) {
+      commitSharedState({ houseData: nextHouse });
+      logger.log('Room added successfully:', room.name);
+      toast.success(`${room.name} added to the house!`);
+    } else {
+      toast.error('Failed to add room');
+    }
+    return success;
+  }, []);
+
+  const removeRoom = useCallback(async (roomId: string): Promise<boolean> => {
+    await ensureSharedStateLoaded();
+    const rooms = (sharedState.houseData.rooms || []).filter((room) => room.id !== roomId);
+    const nextHouse = {
+      ...sharedState.houseData,
+      rooms,
+      updatedAt: new Date(),
+    };
+    const success = await saveToStorage('house', nextHouse);
+    if (success) {
+      commitSharedState({ houseData: nextHouse });
+      logger.log('Room removed successfully:', roomId);
+      toast.success('Room removed from the house');
+    } else {
+      toast.error('Failed to remove room');
+    }
+    return success;
+  }, []);
+
+  const assignCharacterToRoom = useCallback(async (characterId: string, roomId: string): Promise<boolean> => {
+    await ensureSharedStateLoaded();
+    const updated = await updateCharacter(characterId, { roomId });
+    if (!updated) {
+      return false;
+    }
+
+    const rooms = (sharedState.houseData.rooms || []).map((room) => {
+      if (room.id === roomId) {
+        return {
+          ...room,
+          residents: room.residents.includes(characterId)
+            ? room.residents
+            : [...room.residents, characterId],
+        };
+      }
+      return {
+        ...room,
+        residents: room.residents.filter((residentId) => residentId !== characterId),
+      };
+    });
+
+    const nextHouse = {
+      ...sharedState.houseData,
+      rooms,
+      updatedAt: new Date(),
+    };
+    const success = await saveToStorage('house', nextHouse);
+    if (success) {
+      commitSharedState({ houseData: nextHouse });
+      logger.log('Character assigned to room successfully:', characterId, roomId);
+    } else {
+      toast.error('Failed to assign character to room');
+    }
+    return success;
+  }, [updateCharacter]);
+
+  const getCharactersInRoom = useCallback((roomId: string): Character[] => {
+    return sharedState.characters.filter((character) => character.roomId === roomId);
+  }, []);
+
+  const getAvailableRooms = useCallback(() => {
+    return normalizeHouse(sharedState.houseData).rooms.filter((room) => room.unlocked);
+  }, []);
+
+  const setHouseData = useCallback((next: Partial<House>) => {
+    commitSharedState({ houseData: next });
+  }, []);
+
+  const setCharacters = useCallback((next: Character[]) => {
+    commitSharedState({ characters: dedupeCharacters(next) });
+  }, []);
+
+  // Location-based functions
+  const getCharactersAtLocation = useCallback((locationId?: string): Character[] => {
+    return sharedState.characters.filter((character) => character.locationId === locationId);
+  }, []);
+
+  const assignCharacterToLocation = useCallback(async (characterId: string, locationId: string): Promise<boolean> => {
+    await ensureSharedStateLoaded();
+    const updated = await updateCharacter(characterId, { locationId });
+    if (updated) {
+      logger.log('Character assigned to location successfully:', characterId, locationId);
+      toast.success('Character moved to new location');
+    } else {
+      toast.error('Failed to assign character to location');
+    }
+    return updated;
+  }, [updateCharacter]);
+
+  const getAvailableLocations = useCallback(() => {
+    const houseLocations = normalizeHouse(sharedState.houseData).locations;
+    return houseLocations && houseLocations.length > 0 
+      ? houseLocations.filter((loc) => loc.unlocked)
+      : getDefaultLocations().filter((loc) => loc.unlocked);
+  }, []);
+
   return {
-    // Data
     house: houseWithCharacters,
-    characters,
-    
-    // Loading and error states
-    isLoading,
+    characters: snapshot.characters,
+    isLoading: snapshot.isLoading,
     hasError: false,
-    
-    // Character operations
     addCharacter,
     removeCharacter,
     updateCharacter,
-    
-    // House operations
     updateHouse,
     addRoom,
     removeRoom,
-    
-    // Room management
-    assignCharacterToRoom,
-    getCharactersInRoom,
-    getAvailableRooms,
-    
-    // Direct access to storage functions if needed
-    setHouseData: setHouseDataState,
-    setCharacters: setCharactersState
+    assignCharacterToRoom, // DEPRECATED - use assignCharacterToLocation
+    getCharactersInRoom, // DEPRECATED - use getCharactersAtLocation
+    getAvailableRooms, // DEPRECATED - use getAvailableLocations
+    assignCharacterToLocation,
+    getCharactersAtLocation,
+    getAvailableLocations,
+    setHouseData,
+    setCharacters,
   };
 }
 
 export default useHouseFileStorage;
+
+const registerStorageListeners = () => {
+  if (storageListenerRegistered) {
+    return;
+  }
+  if (typeof globalThis.addEventListener !== 'function') {
+    return;
+  }
+  const handler = (event: Event) => {
+    const detail = (event as CustomEvent<StorageUpdateDetail>).detail;
+    const key = detail?.key;
+    if (!key || key === 'house' || key === 'characters') {
+      void ensureSharedStateLoaded(true);
+    }
+  };
+  globalThis.addEventListener(STORAGE_EVENT, handler);
+  storageListenerRegistered = true;
+};
+
+const attachRecoverHelper = () => {
+  if (recoverHelperAttached) {
+    return;
+  }
+  try {
+    if (typeof window !== 'undefined') {
+      (window as unknown as { recoverCharacters?: () => Promise<void> }).recoverCharacters = async () => {
+        logger.log('[recoverCharacters] Manual recovery triggered');
+        await ensureSharedStateLoaded(true);
+      };
+      recoverHelperAttached = true;
+    }
+  } catch (error) {
+    logger.debug('Ignored environment error while initializing recoverCharacters', error);
+  }
+};
+
+const ensureSharedStateLoaded = async (forceReload = false): Promise<void> => {
+  if (forceReload) {
+    loadPromise = null;
+  }
+  if (sharedState.initialized && !forceReload) {
+    return;
+  }
+  if (!loadPromise) {
+    loadPromise = loadSharedState();
+  }
+  await loadPromise;
+};
+
+const migrateRoomIdToLocationId = async (): Promise<void> => {
+  const roomToLocationMap: Record<string, string> = {
+    'common-room': 'doll-dorm',
+    'private-room': 'owners-bed',
+    'bar': 'doll-bar',
+    'therapy-room': 'therapist',
+  };
+  
+  let migrated = false;
+  const nextCharacters = sharedState.characters.map((character) => {
+    if (character.roomId && !character.locationId) {
+      const locationId = roomToLocationMap[character.roomId] || 'doll-dorm';
+      migrated = true;
+      logger.log(`Migrating character ${character.name} from room ${character.roomId} to location ${locationId}`);
+      return { ...character, locationId, roomId: undefined };
+    }
+    return character;
+  });
+  
+  if (migrated) {
+    await saveToStorage('characters', nextCharacters, { silent: true });
+    commitSharedState({ characters: nextCharacters });
+    logger.log('Migrated roomId to locationId for characters');
+  }
+};
+
+const loadSharedState = async (): Promise<void> => {
+  try {
+    commitSharedState({ isLoading: true });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (!storage) {
+        logger.warn('[useHouseFileStorage] Storage not ready, retrying...', attempt + 1);
+        await delay(300 + attempt * 200);
+        continue;
+      }
+      try {
+        const { houseData, characters } = await readHouseAndCharacters();
+        commitSharedState({
+          houseData,
+          characters,
+          isLoading: false,
+          initialized: true,
+        });
+        
+        // Migrate old roomId to new locationId
+        await migrateRoomIdToLocationId();
+        
+        return;
+      } catch (error) {
+        logger.error('[useHouseFileStorage] Failed to load house data:', error);
+        break;
+      }
+    }
+  } finally {
+    commitSharedState({ isLoading: false, initialized: true });
+    loadPromise = null;
+  }
+};
+
+const readHouseAndCharacters = async (): Promise<{ houseData: Partial<House>; characters: Character[] }> => {
+  if (!storage) {
+    throw new Error('Storage not initialized');
+  }
+
+  let nextHouse: Partial<House> = sharedState.houseData;
+  const savedHouse = await storage.get<SettingsRow>('settings', 'house');
+  if (savedHouse?.value) {
+    try {
+      nextHouse = JSON.parse(savedHouse.value) as Partial<House>;
+    } catch (error) {
+      logger.warn('[useHouseFileStorage] Failed parsing saved house JSON', error);
+    }
+  }
+
+  let loadedCharacters: Character[] | null = null;
+  const savedCharacters = await storage.get<SettingsRow>('settings', 'characters');
+  if (savedCharacters?.value) {
+    try {
+      const charactersData = JSON.parse(savedCharacters.value) as unknown;
+      if (Array.isArray(charactersData)) {
+        loadedCharacters = charactersData as Character[];
+      }
+    } catch (error) {
+      logger.warn('[useHouseFileStorage] Failed parsing saved characters JSON', error);
+    }
+  }
+
+  if (!loadedCharacters || loadedCharacters.length === 0) {
+    try {
+      const legacyRows = await storage.query<LegacyCharacterRow>({ table: 'characters' });
+      if (Array.isArray(legacyRows) && legacyRows.length) {
+        logger.log('[useHouseFileStorage] Migrating legacy character rows -> settings key');
+        const migrated = legacyRows.map((row) => {
+          const profile = parseLegacyProfile(row.profile_json);
+          return buildCharacterFromLegacy(row, profile);
+        });
+        loadedCharacters = migrated;
+        await saveToStorage('characters', migrated, { silent: true });
+        logger.log(`[useHouseFileStorage] Migrated ${migrated.length} character(s) from legacy table.`);
+      }
+    } catch (error) {
+      logger.warn('[useHouseFileStorage] Legacy character migration attempt failed:', error);
+    }
+  }
+
+  if ((!loadedCharacters || !loadedCharacters.length) && typeof window !== 'undefined') {
+    try {
+      const lsBackup = legacyStorage.getItem('dollhouse-db-backup');
+      if (lsBackup) {
+        const parsed = JSON.parse(lsBackup) as { characters?: unknown };
+        if (parsed && Array.isArray(parsed.characters) && parsed.characters.length) {
+          logger.log('[useHouseFileStorage] Recovering characters from sqlite backup storage');
+          const migrated = parsed.characters
+            .filter(
+              (entry): entry is SqliteBackupCharacter =>
+                typeof entry === 'object' && entry !== null && 'id' in (entry as Record<string, unknown>)
+            )
+            .map((entry) => buildCharacterFromSqliteBackup(entry));
+          if (migrated.length) {
+            loadedCharacters = migrated;
+            await saveToStorage('characters', migrated, { silent: true });
+            logger.log(`[useHouseFileStorage] Recovered ${migrated.length} character(s) from sqlite backup.`);
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn('[useHouseFileStorage] sqlite backup recovery failed:', error);
+    }
+  }
+
+  if ((!loadedCharacters || !loadedCharacters.length) && typeof window !== 'undefined') {
+    try {
+      const legacyRaw = legacyStorage.getItem('characters');
+      if (legacyRaw) {
+        const parsedLegacy = JSON.parse(legacyRaw);
+        if (Array.isArray(parsedLegacy) && parsedLegacy.length) {
+          logger.log('[useHouseFileStorage] Recovering characters from legacy backup key');
+          loadedCharacters = parsedLegacy as Character[];
+          await saveToStorage('characters', loadedCharacters, { silent: true });
+        }
+      }
+    } catch (error) {
+      logger.warn('[useHouseFileStorage] Legacy raw backup recovery failed:', error);
+    }
+  }
+
+  if (loadedCharacters && loadedCharacters.length) {
+    const deduped = dedupeCharacters(loadedCharacters);
+    if (deduped.length !== loadedCharacters.length) {
+      await saveToStorage('characters', deduped, { silent: true });
+    }
+    logger.log('[useHouseFileStorage] Loaded characters:', deduped.map((character) => character.name));
+    return { houseData: nextHouse, characters: deduped };
+  }
+
+  logger.log('[useHouseFileStorage] No characters found in settings or legacy sources.');
+  return { houseData: nextHouse, characters: [] };
+};
+
+const saveToStorage = async (key: string, data: unknown, options?: { silent?: boolean }): Promise<boolean> => {
+  try {
+    if (!storage) {
+      logger.error('Storage not initialized');
+      return false;
+    }
+    const payload: SettingsRow = { id: key, key, value: JSON.stringify(data) };
+    await storage.put<SettingsRow>('settings', payload);
+    if (!options?.silent && typeof globalThis.dispatchEvent === 'function') {
+      try {
+        const event = new CustomEvent<StorageUpdateDetail>(STORAGE_EVENT, { detail: { key } });
+        globalThis.dispatchEvent(event);
+      } catch (error) {
+        logger.debug('[useHouseFileStorage] Failed to dispatch storage event', error);
+      }
+    }
+    return true;
+  } catch (error) {
+    logger.error(`Failed to save ${key}:`, error);
+    return false;
+  }
+};
+
+const normalizeHouse = (house: Partial<House>): House => ({
+  ...DEFAULT_HOUSE,
+  ...house,
+  id: house.id || DEFAULT_HOUSE.id!,
+  name: house.name || DEFAULT_HOUSE.name!,
+  description: house.description || DEFAULT_HOUSE.description!,
+  rooms: house.rooms || DEFAULT_HOUSE.rooms!,
+  currency: house.currency ?? DEFAULT_HOUSE.currency!,
+  worldPrompt: house.worldPrompt || DEFAULT_HOUSE.worldPrompt!,
+  copilotPrompt: house.copilotPrompt || DEFAULT_HOUSE.copilotPrompt!,
+  copilotMaxTokens: house.copilotMaxTokens ?? DEFAULT_HOUSE.copilotMaxTokens!,
+  copilotUseHouseContext: house.copilotUseHouseContext ?? DEFAULT_HOUSE.copilotUseHouseContext!,
+  copilotContextDetail: house.copilotContextDetail || DEFAULT_HOUSE.copilotContextDetail!,
+  autoCreator: house.autoCreator || DEFAULT_HOUSE.autoCreator!,
+  aiSettings: house.aiSettings || DEFAULT_HOUSE.aiSettings!,
+  createdAt: house.createdAt || DEFAULT_HOUSE.createdAt!,
+  updatedAt: new Date(),
+} as House);

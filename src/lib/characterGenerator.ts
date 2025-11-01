@@ -15,6 +15,8 @@ const DEFAULT_ARCHETYPE_DETAILS: Record<
     label: string;
     pitch: string;
     maturityNote: string;
+    ageRange: string;
+    defaultAge: number;
     defaultRole: string;
     defaultRoom: string;
   }
@@ -24,7 +26,9 @@ const DEFAULT_ARCHETYPE_DETAILS: Record<
     pitch:
       "upperclass student balancing campus life, side hustles, and thrill-seeking nights",
     maturityNote:
-      "Present her as an unapologetically adult woman with collegiate energy who makes her own choices.",
+      "Present her as an unapologetically collegiate energy girl who makes her own choices.",
+    ageRange: "20-23",
+    defaultAge: 21,
     defaultRole: "Campus Muse",
     defaultRoom: "club",
   },
@@ -34,6 +38,8 @@ const DEFAULT_ARCHETYPE_DETAILS: Record<
       "ambitious woman firmly in her prime—polished, seductive, and in control of her world",
     maturityNote:
       "Make it unmistakable that she is seasoned, confident, and firmly in her adult prime.",
+    ageRange: "24-32",
+    defaultAge: 27,
     defaultRole: "Prime Temptress",
     defaultRoom: "vip",
   },
@@ -42,7 +48,9 @@ const DEFAULT_ARCHETYPE_DETAILS: Record<
     pitch:
       "fresh-faced adult bursting with curiosity, playful bravado, and a drive to impress",
     maturityNote:
-      "Keep the vibe bright and eager while stating clearly that she is a consenting adult exploring the Dollhouse by choice.",
+      "Keep the vibe bright and eager.",
+    ageRange: "19-21",
+    defaultAge: 20,
     defaultRole: "Fresh Muse",
     defaultRoom: "lounge",
   },
@@ -67,6 +75,14 @@ function mergeArchetypeConfig(
       typeof v?.maturityNote === "string" && v.maturityNote.trim().length > 0
         ? v.maturityNote
         : fallback.maturityNote,
+    ageRange:
+      typeof v?.ageRange === "string" && v.ageRange.trim().length > 0
+        ? v.ageRange
+        : fallback.ageRange,
+    defaultAge:
+      typeof v?.defaultAge === "number" && v.defaultAge > 0
+        ? v.defaultAge
+        : fallback.defaultAge,
     defaultRole:
       typeof v?.defaultRole === "string" &&
       v.defaultRole.trim().length > 0
@@ -178,6 +194,23 @@ function determineRarity(weights: {
   if (r < (weights.common ?? 70)) return "common" as const;
   if (r < (weights.common ?? 70) + (weights.rare ?? 25)) return "rare" as const;
   return "legendary" as const;
+}
+
+function parseAgeRange(ageRangeStr: string, defaultAge: number): { min: number; max: number; default: number } {
+  try {
+    const parts = ageRangeStr.split('-').map(s => parseInt(s.trim(), 10));
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      return { min: parts[0], max: parts[1], default: defaultAge };
+    }
+  } catch (e) {
+    logger.warn('Failed to parse age range:', ageRangeStr, e);
+  }
+  return { min: defaultAge, max: defaultAge, default: defaultAge };
+}
+
+function generateRandomAge(ageRange: { min: number; max: number; default: number }): number {
+  const range = ageRange.max - ageRange.min;
+  return ageRange.min + Math.floor(Math.random() * (range + 1));
 }
 
 export interface CharacterGenerationInstructions {
@@ -367,8 +400,13 @@ export async function generateRandomCharacter(
   const statsBase = rarity === "common" ? 55 : rarity === "rare" ? 70 : 85;
   const skillBase = rarity === "common" ? 50 : rarity === "rare" ? 65 : 78;
 
+  // Parse age range and generate age if not provided
+  const ageRange = parseAgeRange(archetypeDetail.ageRange, archetypeDetail.defaultAge);
+  const generatedAge = options.overrides?.age ?? generateRandomAge(ageRange);
+
   const overrideFromInstructions: Partial<Character> = {
     gender,
+    age: generatedAge,
     role: options.overrides?.role || archetypeDetail.defaultRole,
     preferredRoomType:
       options.overrides?.preferredRoomType || archetypeDetail.defaultRoom,
@@ -381,10 +419,6 @@ export async function generateRandomCharacter(
       instructions.featureNotes
     ),
   };
-
-  if (options.overrides?.age != null) {
-    overrideFromInstructions.age = options.overrides.age;
-  }
 
   const baseCharacter = createBaseCharacter({
     id,
@@ -440,9 +474,10 @@ export async function generateRandomCharacter(
   const requestSegments: string[] = [
     `Design a ${rarity} ${gender === "male" ? "male" : "female"} companion for the Digital Dollhouse.`,
     `Archetype focus: ${archetypeDetail.label} — ${archetypeDetail.pitch}. ${archetypeDetail.maturityNote}`,
+    `Age: ${generatedAge} years old (from age range ${archetypeDetail.ageRange}). Use this specific age consistently throughout all prompts.`,
     varietyPrompt,
-    "Deliver the best possible version of this archetype with standout ambitions, vices, and seduction style.",
-    "Avoid generic majors such as psychology unless explicitly requested; choose vivid, story-rich pursuits instead.",
+    "Create a simple, cute, relatable character. Focus on personality traits and basic background - avoid elaborate careers, scientists, CEOs, or overly complex occupations.",
+    "Keep their role simple (like student, friend, companion). The emphasis should be on their personality, appearance, and simple backstory, not professional achievements.",
     `Random seed for variety: ${randomSeed}`,
   ];
 

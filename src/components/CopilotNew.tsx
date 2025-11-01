@@ -4,14 +4,17 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { useFileStorage } from '@/hooks/useFileStorage';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { useChat } from '@/hooks/useChat';
 import { QuickAction, useQuickActions } from '@/hooks/useQuickActions';
 import { repositoryStorage } from '@/hooks/useRepositoryStorage';
 import { useSceneMode } from '@/hooks/useSceneMode';
 import { AIService } from '@/lib/aiService';
 import { generateCharacterFromPrompt } from '@/lib/characterGenerator';
-import { Character, CopilotUpdate } from '@/types';
+import { logger } from '@/lib/logger';
+import { Character, ChatMessage, ChatSession, CopilotUpdate } from '@/types';
 import {
     Chat,
     CheckCircle as Check,
@@ -57,6 +60,13 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
   const roster = (house.characters && house.characters.length ? house.characters : characters) || [];
   const { quickActions, executeAction } = useQuickActions();
   const { createSceneSession } = useSceneMode();
+  const {
+    sessions: chatSessions,
+    getSessionMessages,
+    sendMessage: pushSessionMessage,
+    loadSessions: reloadSessions,
+    sessionsLoaded,
+  } = useChat();
   const { data: updates, setData: setUpdates } = useFileStorage<CopilotUpdate[]>('copilot-updates.json', []);
   const { data: chatMessages, setData: setChatMessages } = useFileStorage<CopilotMessage[]>('copilot-chat.json', []);
   const { data: forceUpdate } = useFileStorage<number>('settings-force-update.json', 0);
@@ -69,9 +79,228 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
   const [pendingCharacterCreation, setPendingCharacterCreation] = useState<{ seed?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const selectedSessionRef = useRef<string | null>(null);
+
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [sessionMessages, setSessionMessages] = useState<ChatMessage[]>([]);
+  const [sessionDraft, setSessionDraft] = useState('');
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [sessionSending, setSessionSending] = useState(false);
+  const [sessionResponding, setSessionResponding] = useState(false);
+  const selectedSession = selectedSessionId
+    ? chatSessions.find((session) => session.id === selectedSessionId)
+    : undefined;
 
   const safeUpdates = updates || [];
   const safeChatMessages = chatMessages || [];
+
+  const handleSessionSend = useCallback(async () => {
+    if (!selectedSessionId || !sessionDraft.trim()) {
+      return;
+    }
+    setSessionSending(true);
+    try {
+      await pushSessionMessage(selectedSessionId, sessionDraft.trim(), 'copilot', { copilot: true });
+      setSessionDraft('');
+      await refreshSessionMessages(selectedSessionId, { silent: true });
+      toast.success('Copilot message sent to chat.');
+    } catch (error) {
+      logger.error('Failed to send Copilot message to session', error);
+      toast.error('Copilot could not send that message.');
+    } finally {
+      setSessionSending(false);
+    }
+  }, [selectedSessionId, sessionDraft, pushSessionMessage, refreshSessionMessages]);
+
+  const handleSessionAutoReply = useCallback(async () => {
+    if (!selectedSessionId) {
+      return;
+    }
+    setSessionResponding(true);
+    try {
+      const messages = await getSessionMessages(selectedSessionId);
+      if (selectedSessionRef.current === selectedSessionId) {
+        setSessionMessages(messages);
+      }
+
+      let lastUserIndex = -1;
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        if (!messages[i].characterId) {
+          lastUserIndex = i;
+          break;
+        }
+      }
+
+      if (lastUserIndex === -1) {
+        toast.info('No user message to respond to yet.');
+        return;
+      }
+
+      const historyStart = Math.max(0, lastUserIndex - 18);
+      const relevant = messages.slice(historyStart, lastUserIndex + 1);
+      const formatted = relevant.map((message) => {
+        if (!message.characterId) {
+          return { role: 'user' as const, content: message.content };
+        }
+        if (message.characterId === 'copilot') {
+          return { role: 'assistant' as const, content: message.content };
+        }
+        const speaker = roster.find((char) => char.id === message.characterId)?.name || 'Character';
+        return { role: 'assistant' as const, content: `${speaker}: ${message.content}` };
+      });
+
+      const session = chatSessions.find((s) => s.id === selectedSessionId);
+      const participantCharacters = session
+        ? session.participantIds
+            .map((id) => roster.find((char) => char.id === id))
+            .filter((char): char is Character => Boolean(char))
+        : [];
+
+      const housePrompt = houseConfig?.worldPrompt ?? house?.worldPrompt ?? '';
+      const includeContext = houseConfig?.copilotUseHouseContext !== false;
+      const contextDetail = (houseConfig?.copilotContextDetail ?? 'balanced') as 'lite' | 'balanced' | 'detailed';
+      const maxTokens = houseConfig?.copilotMaxTokens || 400;
+
+      const reply = await AIService.copilotRespond({
+        threadId: `copilot-session-${selectedSessionId}`,
+        messages: formatted,
+        sessionId: selectedSessionId,
+        characters: participantCharacters,
+        copilotPrompt: effectiveCopilotPrompt,
+        housePrompt,
+        includeHouseContext: includeContext,
+        contextDetail,
+        maxTokens,
+      });
+
+      const cleaned = reply?.trim();
+      if (!cleaned) {
+        toast.error('Copilot did not produce a reply.');
+        return;
+      }
+
+      await pushSessionMessage(selectedSessionId, cleaned, 'copilot', { copilot: true });
+      await refreshSessionMessages(selectedSessionId, { silent: true });
+      toast.success('Copilot replied to the chat.');
+    } catch (error) {
+      logger.error('Copilot auto reply failed', error);
+      toast.error('Copilot could not reply right now.');
+    } finally {
+      setSessionResponding(false);
+    }
+  }, [
+    selectedSessionId,
+    chatSessions,
+    getSessionMessages,
+    house,
+    houseConfig,
+    pushSessionMessage,
+    refreshSessionMessages,
+    roster,
+    effectiveCopilotPrompt,
+  ]);
+
+  const describeSession = useCallback(
+    (session: ChatSession): string => {
+      const participantNames = session.participantIds
+        .map((id) => roster.find((char) => char.id === id)?.name)
+        .filter((name): name is string => Boolean(name));
+      const label = participantNames.length ? participantNames.join(' + ') : 'Unassigned session';
+      const typeLabel = session.type === 'individual' ? '1:1' : session.type;
+      return `${label} • ${typeLabel}`;
+    },
+    [roster]
+  );
+
+  const refreshSessionMessages = useCallback(
+    async (sessionId: string, opts?: { silent?: boolean }) => {
+      setSessionLoading(true);
+      try {
+        const data = await getSessionMessages(sessionId);
+        if (selectedSessionRef.current === sessionId) {
+          setSessionMessages(data);
+        }
+      } catch (error) {
+        logger.warn('Failed to load session messages', error);
+        if (!opts?.silent) {
+          toast.error('Failed to load chat history.');
+        }
+      } finally {
+        setSessionLoading(false);
+      }
+    },
+    [getSessionMessages]
+  );
+
+  useEffect(() => {
+    selectedSessionRef.current = selectedSessionId;
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    if (!sessionsLoaded) {
+      void reloadSessions();
+    }
+  }, [sessionsLoaded, reloadSessions]);
+
+  useEffect(() => {
+    if (chatSessions.length === 0) {
+      setSelectedSessionId(null);
+      setSessionMessages([]);
+      return;
+    }
+    const hasSelection = selectedSessionId && chatSessions.some((session) => session.id === selectedSessionId);
+    if (!hasSelection) {
+      setSelectedSessionId(chatSessions[0].id);
+    }
+  }, [chatSessions, selectedSessionId]);
+
+  useEffect(() => {
+    if (!selectedSessionId) {
+      setSessionMessages([]);
+      return;
+    }
+    void refreshSessionMessages(selectedSessionId, { silent: true });
+  }, [selectedSessionId, refreshSessionMessages]);
+
+  useEffect(() => {
+    const target = globalThis as {
+      addEventListener?: (type: string, handler: (event: unknown) => void) => void;
+      removeEventListener?: (type: string, handler: (event: unknown) => void) => void;
+    };
+    if (!target?.addEventListener) {
+      return;
+    }
+    const handleUpdate = () => {
+      void reloadSessions();
+      if (selectedSessionRef.current) {
+        void refreshSessionMessages(selectedSessionRef.current, { silent: true });
+      }
+    };
+    target.addEventListener('chat-sessions-updated', handleUpdate);
+    return () => {
+      target.removeEventListener?.('chat-sessions-updated', handleUpdate);
+    };
+  }, [reloadSessions, refreshSessionMessages]);
+
+  useEffect(() => {
+    const target = globalThis as {
+      addEventListener?: (type: string, handler: (event: unknown) => void) => void;
+      removeEventListener?: (type: string, handler: (event: unknown) => void) => void;
+    };
+    if (!target?.addEventListener) {
+      return;
+    }
+    const handleActiveChange = (event: unknown) => {
+      const detail = (event as { detail?: { sessionId?: string } }).detail;
+      if (detail?.sessionId) {
+        setSelectedSessionId(detail.sessionId);
+      }
+    };
+    target.addEventListener('chat-active-session-changed', handleActiveChange);
+    return () => {
+      target.removeEventListener?.('chat-active-session-changed', handleActiveChange);
+    };
+  }, []);
 
   // ==== Personality / Godmode helpers ====
   const getEffectiveCopilotPrompt = (cfg: StoredHouseConfig | null): string => {
@@ -217,10 +446,12 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
 
   const completeCharacterCreation = async (
     userDetails: string,
-    history: CopilotMessage[]
-  ) => {
-    const pendingSeed = pendingCharacterCreation?.seed || '';
+    history: CopilotMessage[],
+    overrideSeed?: string
+  ): Promise<boolean> => {
+    const pendingSeed = overrideSeed ?? pendingCharacterCreation?.seed ?? '';
     const cancelMatch = /(cancel|never mind|stop)/i;
+    let succeeded = false;
     if (cancelMatch.test(userDetails)) {
       const cancelMessage: CopilotMessage = {
         id: `creation-cancel-${Date.now()}`,
@@ -231,7 +462,7 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
       setPendingCharacterCreation(null);
       setChatMessages([...history, cancelMessage]);
       setIsTyping(false);
-      return;
+      return false;
     }
 
     const rosterNames = roster.map((char) => char.name).join(', ');
@@ -277,6 +508,7 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
       };
 
       setChatMessages([...history, workingMessage, summaryMessage]);
+      succeeded = true;
     } catch (error) {
       console.error('Character creation via copilot failed:', error);
       const errorMessage: CopilotMessage = {
@@ -294,7 +526,33 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
       setPendingCharacterCreation(null);
       setIsTyping(false);
     }
+    return succeeded;
   };
+
+  const detectCharacterCreationIntent = useCallback(
+    (message: string, history: CopilotMessage[]): { mode: 'auto'; seed: string } | { mode: 'prompt'; seed: string } | null => {
+      const lowered = message.toLowerCase();
+      const intentMatch = /(create|make|generate|craft|build)\s+(?:me\s+)?(?:(?:a|an)\s+)?(?:new\s+)?(girl|character|companion|profile|waifu|female|woman|lady|girlfriend|gf|partner|npc|persona|waifu)/i.test(lowered);
+      if (!intentMatch) {
+        return null;
+      }
+      const userHistory = history.filter((entry) => entry.sender === 'user');
+      const recent = userHistory.slice(-5);
+      const lastEntry = history.length ? history[history.length - 1] : undefined;
+      const detailMessages = recent.filter((entry) => entry.content.trim().length > 40 && entry.id !== lastEntry?.id);
+      const seedParts = detailMessages.map((entry) => entry.content.trim());
+      const seedBase = [...seedParts, message.trim()].join('\n\n').trim();
+      const wantsRandom = /\b(random|any|whatever|surprise me|your pick|no preference)\b/i.test(message);
+      if (!detailMessages.length) {
+        if (wantsRandom) {
+          return { mode: 'auto', seed: message.trim() };
+        }
+        return { mode: 'prompt', seed: message.trim() };
+      }
+      return { mode: 'auto', seed: seedBase || message.trim() };
+    },
+    []
+  );
 
   // ====== Message send ======
   const sendMessage = async () => {
@@ -389,6 +647,22 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
 
         if (cmd.kind === 'create-character') {
           promptForCharacterDetails(cmd.seed, updatedMessages);
+          return;
+        }
+      }
+
+      if (!pendingCharacterCreation) {
+        const creationIntent = detectCharacterCreationIntent(userMessage.content, updatedMessages);
+        if (creationIntent) {
+          if (creationIntent.mode === 'prompt') {
+            promptForCharacterDetails(creationIntent.seed, updatedMessages);
+            setIsTyping(false);
+            return;
+          }
+          const created = await completeCharacterCreation(userMessage.content, updatedMessages, creationIntent.seed);
+          if (created) {
+            return;
+          }
           return;
         }
       }
@@ -722,6 +996,148 @@ export function CopilotNew({ onStartChat, onStartGroupChat, onStartScene }: Copi
                 <PaperPlaneRight size={16} />
               </Button>
             </div>
+          </div>
+
+          <Separator className="my-4 bg-zinc-800" />
+
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-white">Live Sessions</h4>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    if (selectedSessionId) {
+                      void refreshSessionMessages(selectedSessionId);
+                    } else {
+                      void reloadSessions();
+                    }
+                  }}
+                  disabled={sessionLoading}
+                  className="h-7 px-3 text-xs text-zinc-300 hover:text-white"
+                >
+                  Refresh
+                </Button>
+              </div>
+            </div>
+
+            {chatSessions.length === 0 ? (
+              <p className="text-xs text-zinc-400">
+                No active chat sessions yet. Start a conversation to let Copilot assist.
+              </p>
+            ) : (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs uppercase tracking-[0.2em] text-zinc-500">
+                    Session
+                  </label>
+                  <select
+                    value={selectedSessionId ?? ''}
+                    onChange={(event) => setSelectedSessionId(event.target.value || null)}
+                    className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-zinc-500"
+                  >
+                    {chatSessions.map((session) => (
+                      <option key={session.id} value={session.id}>
+                        {describeSession(session)}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedSession && (
+                    <p className="mt-1 text-[11px] text-zinc-500">
+                      Updated {selectedSession.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} •{' '}
+                      {selectedSession.participantIds.length} participant
+                      {selectedSession.participantIds.length === 1 ? '' : 's'}
+                    </p>
+                  )}
+                </div>
+
+                <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+                  {sessionLoading ? (
+                    <p className="text-xs text-zinc-400">Loading messages…</p>
+                  ) : sessionMessages.length === 0 ? (
+                    <p className="text-xs text-zinc-400">No messages in this chat yet.</p>
+                  ) : (
+                    sessionMessages.map((message) => {
+                      const isUser = !message.characterId;
+                      const isCopilotMessage = message.characterId === 'copilot';
+                      const speakerName = isUser
+                        ? 'You'
+                        : isCopilotMessage
+                          ? 'Copilot'
+                          : roster.find((char) => char.id === message.characterId)?.name || 'Character';
+                      const alignment = isUser ? 'justify-end' : 'justify-start';
+                      const bubbleClass = isUser
+                        ? 'bg-blue-600 text-white'
+                        : isCopilotMessage
+                          ? 'bg-purple-600/80 text-white'
+                          : 'bg-zinc-800 text-zinc-200';
+                      return (
+                        <div key={message.id} className={`flex ${alignment}`}>
+                          <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs leading-relaxed ${bubbleClass}`}>
+                            <div className="text-[10px] uppercase tracking-[0.18em] opacity-60">
+                              {speakerName}
+                            </div>
+                            <div className="whitespace-pre-wrap">{message.content}</div>
+                            <div className="mt-1 text-[10px] opacity-60">
+                              {new Date(message.timestamp).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <Textarea
+                  value={sessionDraft}
+                  onChange={(event) => setSessionDraft(event.target.value)}
+                  placeholder={
+                    selectedSessionId
+                      ? 'Send a Copilot message to this chat…'
+                      : 'Select a session to compose a message'
+                  }
+                  disabled={!selectedSessionId || sessionSending || sessionResponding}
+                  className="min-h-[60px] border-zinc-700 bg-zinc-950 text-sm text-white placeholder:text-zinc-500"
+                />
+
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (selectedSessionId) {
+                        void refreshSessionMessages(selectedSessionId);
+                      }
+                    }}
+                    disabled={!selectedSessionId || sessionLoading}
+                    className="border-zinc-700 text-xs text-zinc-200 hover:bg-zinc-800"
+                  >
+                    Sync
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => void handleSessionSend()}
+                    disabled={!selectedSessionId || !sessionDraft.trim() || sessionSending}
+                    className="bg-blue-600 px-3 text-xs hover:bg-blue-500"
+                  >
+                    {sessionSending ? 'Sending…' : 'Send as Copilot'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void handleSessionAutoReply()}
+                    disabled={!selectedSessionId || sessionResponding || sessionLoading}
+                    className="bg-purple-600 px-3 text-xs text-white hover:bg-purple-500"
+                  >
+                    {sessionResponding ? 'Thinking…' : 'Have Copilot Reply'}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </TabsContent>
 

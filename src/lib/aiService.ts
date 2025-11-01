@@ -2,6 +2,7 @@
 import { repositoryStorage } from '@/hooks/useRepositoryStorage';
 import { logger } from '@/lib/logger';
 import { formatPrompt } from '@/lib/prompts';
+import { getDefaultLocations } from '@/lib/defaultLocations';
 
 const safeFetch = async (input: any, init?: any): Promise<any> => {
   const f = (globalThis as any).fetch;
@@ -272,7 +273,6 @@ export class AIService {
     const body = {
       model: model || 'deepseek/deepseek-chat-v3.1',
       messages: [
-        { role: 'system', content: 'You are a helpful assistant.' },
         { role: 'user', content: prompt },
       ],
       temperature: params?.temperature ?? 0.8,
@@ -319,7 +319,6 @@ export class AIService {
     const body = {
       model: model || 'llama-3.3-70b',
       messages: [
-        { role: 'system', content: 'You are a helpful assistant.' },
         { role: 'user', content: prompt },
       ],
       temperature: params?.temperature ?? 0.8,
@@ -594,12 +593,17 @@ export class AIService {
     const houseContextText = includeContext && params.housePrompt?.trim() ? params.housePrompt.trim() : '';
     const houseCharactersText = characterSummaries.length ? characterSummaries.join('\n\n') : 'Unavailable';
 
+    // Build locations list
+    const locations = getDefaultLocations();
+    const locationsList = locations.map(loc => `- ${loc.name}: ${loc.description}`).join('\n');
+
     // Use the prompt library's copilot.mainResponse template with user's custom copilotPrompt
     // This ensures ANY edits to the prompt in the Prompt Library are respected
     const finalPrompt = formatPrompt('copilot.mainResponse', {
       copilotPrompt: params.copilotPrompt?.trim() || 'You are a helpful AI assistant for the Dollhouse game.',
       houseContext: houseContextText,
       houseCharacters: houseCharactersText,
+      availableLocations: locationsList,
       conversationHistory: conversationHistoryText,
       userMessage: userMessageText,
     });

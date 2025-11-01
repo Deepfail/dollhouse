@@ -13,6 +13,8 @@ interface SceneSession {
   createdAt: Date;
   hiddenGoals?: Record<string, { goal: string; priority: 'low' | 'medium' | 'high' }>;
   chatSessionId?: string;
+  playerPrompt?: string;
+  locationId?: string; // ID of the location where scene takes place
 }
 
 export function useSceneMode() {
@@ -23,11 +25,11 @@ export function useSceneMode() {
     (async () => {
       try {
         const { db } = await getDb();
-        const rows: any[] = [];
+        const rows: { key: string; value: string }[] = [];
         db.exec({
           sql: "SELECT key, value FROM settings WHERE key LIKE 'scene_session:%'",
           rowMode: 'object',
-          callback: (r: any) => rows.push(r)
+          callback: (r: unknown) => rows.push(r as { key: string; value: string })
         });
         const sessions: SceneSession[] = [];
         for (const r of rows) {
@@ -39,11 +41,13 @@ export function useSceneMode() {
               parsed.createdAt = parsed.createdAt ? new Date(parsed.createdAt) : new Date();
               sessions.push(parsed as SceneSession);
             }
-          } catch {}
+          } catch (parseErr) {
+            logger.warn('Failed to parse scene session', parseErr);
+          }
         }
         if (sessions.length) setActiveSessions(sessions.filter(s => s.active !== false));
       } catch (e) {
-  logger.warn('Failed to load scene sessions from settings', e);
+        logger.warn('Failed to load scene sessions from settings', e);
       }
     })();
   }, []);
@@ -55,6 +59,8 @@ export function useSceneMode() {
       description?: string;
       hiddenGoals?: Record<string, { goal: string; priority: 'low' | 'medium' | 'high' }>;
       chatSessionId?: string;
+      playerPrompt?: string;
+      locationId?: string; // Location where scene takes place
     }
   ) => {
     const sessionId = uuid();
@@ -67,9 +73,12 @@ export function useSceneMode() {
       active: true,
       createdAt: new Date(),
       hiddenGoals: options?.hiddenGoals,
-      chatSessionId: options?.chatSessionId
+      chatSessionId: options?.chatSessionId,
+      playerPrompt: options?.playerPrompt,
+      locationId: options?.locationId
     };
 
+    setActiveSessions(prev => [...prev, session]);
     setActiveSessions(prev => [...prev, session]);
 
     // Persist the scene session record itself for cross-mount visibility
@@ -82,18 +91,18 @@ export function useSceneMode() {
           // Ensure date is serialized
           createdAt: session.createdAt.toISOString()
         });
-        const before: any[] = [];
-        db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: any) => before.push(r) });
+        const before: { c: number }[] = [];
+        db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: unknown) => before.push(r as { c: number }) });
         db.exec({ sql: 'UPDATE settings SET value = ? WHERE key = ?', bind: [serialized, key] });
-        const after: any[] = [];
-        db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: any) => after.push(r) });
+        const after: { c: number }[] = [];
+        db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: unknown) => after.push(r as { c: number }) });
         const changed = (after[0]?.c ?? 0) - (before[0]?.c ?? 0);
         if (changed === 0) {
           db.exec({ sql: 'INSERT INTO settings (key, value) VALUES (?, ?)', bind: [key, serialized] });
         }
         await saveDatabase();
       } catch (e) {
-  logger.warn('Failed to persist scene session:', e);
+        logger.warn('Failed to persist scene session:', e);
       }
     })();
 
@@ -105,11 +114,11 @@ export function useSceneMode() {
           const key = `scene_goals:${sessionId}`;
           const serialized = JSON.stringify(options.hiddenGoals);
           // Upsert into settings
-          const before: any[] = [];
-          db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: any) => before.push(r) });
+          const before: { c: number }[] = [];
+          db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: unknown) => before.push(r as { c: number }) });
           db.exec({ sql: 'UPDATE settings SET value = ? WHERE key = ?', bind: [serialized, key] });
-          const after: any[] = [];
-          db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: any) => after.push(r) });
+          const after: { c: number }[] = [];
+          db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: unknown) => after.push(r as { c: number }) });
           const changed = (after[0]?.c ?? 0) - (before[0]?.c ?? 0);
           if (changed === 0) {
             db.exec({ sql: 'INSERT INTO settings (key, value) VALUES (?, ?)', bind: [key, serialized] });
@@ -134,11 +143,11 @@ export function useSceneMode() {
             const { db } = await getDb();
             const key = `scene_session:${sessionId}`;
             const serialized = JSON.stringify({ ...target, createdAt: target.createdAt.toISOString?.() || target.createdAt });
-            const before: any[] = [];
-            db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: any) => before.push(r) });
+            const before: { c: number }[] = [];
+            db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: unknown) => before.push(r as { c: number }) });
             db.exec({ sql: 'UPDATE settings SET value = ? WHERE key = ?', bind: [serialized, key] });
-            const after: any[] = [];
-            db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: any) => after.push(r) });
+            const after: { c: number }[] = [];
+            db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: unknown) => after.push(r as { c: number }) });
             const changed = (after[0]?.c ?? 0) - (before[0]?.c ?? 0);
             if (changed === 0) {
               db.exec({ sql: 'INSERT INTO settings (key, value) VALUES (?, ?)', bind: [key, serialized] });
@@ -178,8 +187,8 @@ export function useSceneMode() {
       // Compute latest goals from state-like approach: read back the session from local latest
       let latest: Record<string, { goal: string; priority: 'low' | 'medium' | 'high' }> = {};
       // Unlike React state sync, we will fetch from DB first and then override target key for determinism
-      const existing: any[] = [];
-      db.exec({ sql: 'SELECT value FROM settings WHERE key = ?', bind: [key], rowMode: 'object', callback: (r: any) => existing.push(r) });
+      const existing: { value: string }[] = [];
+      db.exec({ sql: 'SELECT value FROM settings WHERE key = ?', bind: [key], rowMode: 'object', callback: (r: unknown) => existing.push(r as { value: string }) });
       if (existing.length > 0) {
         try { latest = JSON.parse(existing[0].value || '{}') || {}; } catch { latest = {}; }
       }
@@ -189,26 +198,26 @@ export function useSceneMode() {
         latest[characterId] = { goal: goalText.trim(), priority };
       }
       const serialized = JSON.stringify(latest);
-      const before: any[] = [];
-      db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: any) => before.push(r) });
+      const before: { c: number }[] = [];
+      db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: unknown) => before.push(r as { c: number }) });
       db.exec({ sql: 'UPDATE settings SET value = ? WHERE key = ?', bind: [serialized, key] });
-      const after: any[] = [];
-      db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: any) => after.push(r) });
+      const after: { c: number }[] = [];
+      db.exec({ sql: 'SELECT total_changes() AS c', rowMode: 'object', callback: (r: unknown) => after.push(r as { c: number }) });
       const changed = (after[0]?.c ?? 0) - (before[0]?.c ?? 0);
       if (changed === 0) {
         db.exec({ sql: 'INSERT INTO settings (key, value) VALUES (?, ?)', bind: [key, serialized] });
       }
       await saveDatabase();
+      await saveDatabase();
     } catch (e) {
-  logger.warn('Failed to persist updated scene goal', e);
+      logger.warn('Failed to persist updated scene goal', e);
     }
-
     // Also update the persisted scene_session record's hiddenGoals snapshot
     try {
       const { db } = await getDb();
       const sessionKey = `scene_session:${sceneId}`;
-      const rows: any[] = [];
-      db.exec({ sql: 'SELECT value FROM settings WHERE key = ?', bind: [sessionKey], rowMode: 'object', callback: (r: any) => rows.push(r) });
+      const rows: { value: string }[] = [];
+      db.exec({ sql: 'SELECT value FROM settings WHERE key = ?', bind: [sessionKey], rowMode: 'object', callback: (r: unknown) => rows.push(r as { value: string }) });
       if (rows.length > 0) {
         try {
           const parsed = JSON.parse(rows[0].value || '{}');
@@ -218,10 +227,12 @@ export function useSceneMode() {
           const serialized = JSON.stringify(parsed);
           db.exec({ sql: 'UPDATE settings SET value = ? WHERE key = ?', bind: [serialized, sessionKey] });
           await saveDatabase();
-        } catch {}
+        } catch (parseErr) {
+          logger.warn('Failed to parse scene session for goal sync', parseErr);
+        }
       }
     } catch (e) {
-  logger.warn('Failed to sync hiddenGoals into scene_session record', e);
+      logger.warn('Failed to sync hiddenGoals into scene_session record', e);
     }
   };
 

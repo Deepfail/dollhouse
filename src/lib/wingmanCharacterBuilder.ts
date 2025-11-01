@@ -30,8 +30,6 @@ export type WingmanCharacterBuilderResult =
   | { type: "create"; message: string; character: Character }
   | { type: "error"; message: string };
 
-const MINIMUM_AGE = 21;
-
 const generateId = () => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -148,9 +146,9 @@ export class WingmanCharacterBuilder {
 
     const instruction = params.existing
       ? `You previously proposed this candidate (JSON):\n${JSON.stringify(params.existing)}\n\nThe user said: "${params.request}". Update the candidate to honour the request while keeping her believable and adult.`
-      : `The user asked: "${params.request}". Propose an adult woman (age ${MINIMUM_AGE}+), someone Wingman can "obtain" for the Dollhouse.`;
+      : `The user asked: "${params.request}". Propose a woman, someone Wingman can "obtain" for the Dollhouse.`;
 
-    const prompt = `You are Wingman, an experienced fixer sourcing adult companions for an exclusive house.\n\n${instruction}\n\nHouse context:${housePrompt ? `\n- ${housePrompt}` : "\n- Exclusive, indulgent mansion catering only to consenting adults."}\n${existingNames ? `\nExisting residents to avoid duplicating: ${existingNames}.` : ""}\n\nReturn ONLY valid JSON with this shape:\n{\n  "name": string,\n  "age": number (${MINIMUM_AGE}+),\n  "summary": string,\n  "originStory": string (3-4 sentences),\n  "personalityTraits": string[],\n  "physicalTraits": string[],\n  "motivations": string,\n  "suggestedRole": string,\n  "houseFit": string,\n  "tags": string[],\n  "sampleDialogue": string,\n  "prompts": {\n     "system": string,\n     "description": string,\n     "background": string,\n     "personality": string,\n     "appearance": string,\n     "responseStyle": string,\n     "originScenario": string\n  }\n}\n\nRules:\n- Age must be an integer >= ${MINIMUM_AGE}.\n- Make her compelling and distinct.\n- Keep everything grounded in consensual adult fantasy.\n- Prompts must be tailored to her specifics.\n- Do not wrap the JSON in markdown fences.`;
+    const prompt = `You are Wingman, an experienced fixer sourcing companions for an exclusive house.\n\n${instruction}\n\nHouse context:${housePrompt ? `\n- ${housePrompt}` : "\n- Exclusive, indulgent mansion."}\n${existingNames ? `\nExisting residents to avoid duplicating: ${existingNames}.` : ""}\n\nReturn ONLY valid JSON with this shape:\n{\n  "name": string,\n  "age": number,\n  "summary": string,\n  "originStory": string (3-4 sentences),\n  "personalityTraits": string[],\n  "physicalTraits": string[],\n  "motivations": string,\n  "suggestedRole": string,\n  "houseFit": string,\n  "tags": string[],\n  "sampleDialogue": string,\n  "prompts": {\n     "system": string,\n     "description": string,\n     "background": string,\n     "personality": string,\n     "appearance": string,\n     "responseStyle": string,\n     "originScenario": string\n  }\n}\n\nRules:\n- Make her compelling and distinct.\n- Prompts must be tailored to her specifics.\n- Do not wrap the JSON in markdown fences.`;
 
     const response = await AIService.generateText({
       prompt,
@@ -190,12 +188,12 @@ export class WingmanCharacterBuilder {
     const coerceNumber = (key: string, fallback: number): number => {
       const value = data[key];
       if (typeof value === "number" && Number.isFinite(value)) {
-        return Math.max(MINIMUM_AGE, Math.round(value));
+        return Math.round(value);
       }
       if (typeof value === "string") {
         const parsed = Number.parseInt(value, 10);
         if (!Number.isNaN(parsed)) {
-          return Math.max(MINIMUM_AGE, parsed);
+          return parsed;
         }
       }
       return fallback;
@@ -229,7 +227,7 @@ export class WingmanCharacterBuilder {
 
     const pitch: CharacterPitch = {
       name: coerceString("name", "Unnamed") || "Unnamed",
-      age: coerceNumber("age", MINIMUM_AGE),
+      age: coerceNumber("age", 20),
       summary: coerceString("summary", ""),
       originStory: coerceString("originStory", ""),
       personalityTraits: coerceStringArray("personalityTraits"),

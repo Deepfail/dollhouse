@@ -15,6 +15,7 @@ import { aliProfileService } from "@/lib/aliProfile";
 import { legacyStorage } from "@/lib/legacyStorage";
 import { logger } from "@/lib/logger";
 import { formatPrompt } from "@/lib/prompts";
+import { getLocationContext } from "@/lib/defaultLocations";
 import {
   Character,
   CharacterMemory,
@@ -968,6 +969,7 @@ export function useChat() {
 
         // Load scene context if this session is part of a scene
         let sceneContext = "";
+        let locationContext = "";
         try {
           const sceneRows: any[] = [];
           db.exec({
@@ -991,6 +993,15 @@ export function useChat() {
                   "🎬 Injecting scene context for session:",
                   sessionId
                 );
+                
+                // Inject location context if scene has a locationId
+                if (sceneSession.locationId) {
+                  locationContext = getLocationContext(sceneSession.locationId);
+                  logger.log(
+                    "📍 Injecting location context:",
+                    sceneSession.locationId
+                  );
+                }
 
                 // Also load hidden goals from scene session if they exist
                 if (sceneSession.hiddenGoals) {
@@ -1241,6 +1252,16 @@ export function useChat() {
 
             // Scene context injection
             const sceneDirective = sceneContext || "";
+            
+            // Location context injection - use scene location or character's assigned location
+            let locationDirective = locationContext || "";
+            if (!locationDirective && character.locationId) {
+              locationDirective = getLocationContext(character.locationId);
+              logger.log(
+                `📍 Injecting character location context for ${character.name}:`,
+                character.locationId
+              );
+            }
 
             // Memory context
             const memorySection = sessionSummary
@@ -1248,7 +1269,7 @@ export function useChat() {
               : "";
 
             // Build the full prompt with proper narrative roleplay format
-            const fullPrompt = `${systemPrompt}${globalChatDirective}${characterHiddenDirective}${hiddenDirective}${sceneDirective}${memorySection}
+            const fullPrompt = `${systemPrompt}${globalChatDirective}${characterHiddenDirective}${hiddenDirective}${sceneDirective}${locationDirective}${memorySection}
 
 RECENT CONVERSATION:
 ${historyText}

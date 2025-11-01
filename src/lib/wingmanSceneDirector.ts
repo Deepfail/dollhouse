@@ -1,6 +1,7 @@
 import type { Character } from "@/types";
 import { AIService } from "./aiService";
 import { logger } from "./logger";
+import { getDefaultLocations } from "./defaultLocations";
 
 /**
  * Wingman Scene Director
@@ -22,6 +23,9 @@ export interface SceneSetup {
   characterHiddenPrompts: Record<string, string>; // character ID -> their secret motivation/knowledge
   initialMessage?: string; // Optional first message to kick off the scene (from a character)
   participantIds: string[]; // Character IDs involved
+  playerPrompt?: string; // Private instructions for the user/player
+  playerTitle?: string; // How the system should refer to the player
+  locationId?: string; // ID of the location where scene takes place
 }
 
 export interface WingmanConversationState {
@@ -31,45 +35,139 @@ export interface WingmanConversationState {
   currentQuestion?: string;
 }
 
+export const DEFAULT_PLAYER_TITLE = "The Dollhouse Owner";
+
+const BASE_PLAYER_ALIASES = [
+  "user",
+  "the user",
+  "player",
+  "the player",
+  "you",
+  "mc",
+  "main-character",
+  "owner",
+  "the owner",
+  "overlord",
+  "the overlord",
+  "dollhouse owner",
+  "the dollhouse owner",
+];
+
+const normalizeAlias = (value: string): string => value.trim().toLowerCase();
+
+const stripLeadingThe = (value: string): string =>
+  value.startsWith("the ") ? value.slice(4) : value;
+
+export const buildPlayerAliasSet = (playerTitle?: string): Set<string> => {
+  const aliases = new Set<string>(BASE_PLAYER_ALIASES);
+  const trimmed = playerTitle?.trim();
+  if (trimmed) {
+    const normalized = normalizeAlias(trimmed);
+    if (normalized) {
+      aliases.add(normalized);
+      const withoutThe = stripLeadingThe(normalized);
+      if (withoutThe) {
+        aliases.add(withoutThe);
+      }
+    }
+  }
+  return aliases;
+};
+
+const isPlayerAlias = (
+  value: string,
+  aliasSet: Set<string>
+): boolean => aliasSet.has(normalizeAlias(value));
+
 /**
  * Parse a natural language command to extract scene intent
  */
+function preprocessText(text: string): { lower: string; tokens: Set<string> } {
+  const lower = text.toLowerCase();
+  const normalized = lower.replace(/[^a-z0-9]+/g, " ");
+  const tokens = new Set(normalized.split(" ").filter(Boolean));
+  return { lower, tokens };
+}
+
+function getCharacterAliases(character: Character): string[] {
+  const name = (character.name || "").trim().toLowerCase();
+  if (!name) return [];
+  const aliases = new Set<string>();
+  aliases.add(name);
+  name
+    .split(/[^a-z0-9]+/i)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .forEach((token) => aliases.add(token.toLowerCase()));
+  if (character.id) aliases.add(character.id.toLowerCase());
+  return Array.from(aliases);
+}
+
+function textMentionsCharacter(
+  haystack: { lower: string; tokens: Set<string> },
+  character: Character
+): boolean {
+  const aliases = getCharacterAliases(character);
+  return aliases.some((alias) => {
+    if (!alias) return false;
+    if (alias.includes(" ")) {
+      return haystack.lower.includes(alias);
+    }
+    return haystack.tokens.has(alias);
+  });
+}
+
 export function parseSceneCommand(
   input: string,
   availableCharacters: Character[]
 ): SceneCommand {
-  const lower = input.toLowerCase().trim();
+  const haystack = preprocessText(input.trim());
 
   // Extract character names from input
   const mentionedCharacters: string[] = [];
   availableCharacters.forEach((char) => {
-    if (lower.includes(char.name.toLowerCase()) || lower.includes(char.id)) {
+    if (textMentionsCharacter(haystack, char)) {
       mentionedCharacters.push(char.id);
     }
   });
 
   // Detect intent
   let intent: SceneCommand["intent"] = "unknown";
-  if (/send|tell|ask|bring/i.test(lower)) {
+  if (/send|tell|ask|bring/i.test(haystack.lower)) {
     intent = "send";
-  } else if (/setup|create|start|begin/i.test(lower)) {
+  } else if (/setup|create|start|begin/i.test(haystack.lower)) {
     intent = "setup";
-  } else if (/arrange|organize|get ready/i.test(lower)) {
+  } else if (/arrange|organize|get ready/i.test(haystack.lower)) {
     intent = "arrange";
-  } else if (/introduce|meet/i.test(lower)) {
+  } else if (/introduce|meet/i.test(haystack.lower)) {
     intent = "introduce";
   }
 
-  // Extract location (room, place, etc.)
-  const locationMatch = lower.match(
-    /(?:to|in|at)\s+(?:the\s+)?([a-z0-9'\s]+?)(?:'s)?\s+(?:room|house|place|office|apartment)/i
+  // Extract location - check for known locations first
+  const locations = getDefaultLocations();
+  let detectedLocationId: string | undefined;
+  
+  for (const loc of locations) {
+    const locName = loc.name.toLowerCase();
+    const locId = loc.id.toLowerCase();
+    if (haystack.lower.includes(locName) || haystack.lower.includes(locId)) {
+      detectedLocationId = loc.id;
+      break;
+    }
+  }
+  
+  // Fallback to generic location extraction
+  const locationMatch = haystack.lower.match(
+    /(?:to|in|at)\s+(?:the\s+)?([a-z0-9'\s]+?)(?:'s)?\s+(?:room|house|place|office|apartment|bar|dorm|bed)/i
   );
-  const location = locationMatch ? locationMatch[0] : undefined;
+  const location = detectedLocationId || (locationMatch ? locationMatch[0] : undefined);
 
-  // Simple completeness check
+  // Simple completeness check - be more permissive
+  // Accept any command that has characters OR has clear intent OR has meaningful content
   const complete =
-    mentionedCharacters.length >= 2 ||
-    (mentionedCharacters.length === 1 && location);
+    mentionedCharacters.length > 0 ||
+    intent !== "unknown" ||
+    input.trim().length > 10;
 
   return {
     rawCommand: input,
@@ -152,12 +250,19 @@ export async function generateFollowUpQuestion(
 export async function generateSceneSetup(
   state: WingmanConversationState,
   characters: Character[],
-  houseConfig?: { worldPrompt?: string }
+  houseConfig?: { worldPrompt?: string; playerTitle?: string },
+  playerAliasSet?: Set<string>,
+  playerTitleOverride?: string
 ): Promise<SceneSetup> {
   const cmd = state.command;
   if (!cmd || !cmd.characters || cmd.characters.length === 0) {
     throw new Error("Insufficient information to generate scene");
   }
+
+  const resolvedPlayerTitle =
+    (playerTitleOverride ?? houseConfig?.playerTitle)?.trim() ||
+    DEFAULT_PLAYER_TITLE;
+  const aliasSet = playerAliasSet ?? buildPlayerAliasSet(resolvedPlayerTitle);
 
   // Build context from conversation
   const conversationContext = state.clarifications
@@ -187,11 +292,13 @@ ${houseConfig?.worldPrompt ? `WORLD CONTEXT:\n${houseConfig.worldPrompt}\n` : ""
 Generate a JSON response with:
 1. "scenePrompt": A vivid 2-3 sentence scene description from third-person perspective using the ACTUAL character names (like: "${participantCharacters[0]?.name || "The first character"} knocks nervously on ${participantCharacters[1]?.name || "the door"}, ${participantCharacters[0]?.gender === "female" ? "her" : "his"} makeup done perfectly. The door opens...")
 2. "characterHiddenPrompts": An object with character IDs as keys and their secret thoughts/motivations as values (what they know/don't know, their private feelings, instructions they received from the user)
-3. "initialMessage": The first line of dialogue or action from the most relevant character to start the scene, using their actual name
-4. "participantIds": Array of character IDs involved
+3. "playerPrompt": A short briefing just for the player (if the user gave special instructions for themselves)
+4. "initialMessage": The first line of dialogue or action from the most relevant character to start the scene, using their actual name
+5. "participantIds": Array of character IDs involved (do NOT include the player—only character IDs)
 
 Make it engaging, slightly dramatic, and ensure each character has realistic private knowledge/motivations based on the conversation.
 Use the characters' ACTUAL NAMES from the character list above - never use placeholders like "Girl1" or "Male1".
+When you reference the user, call them exactly "${resolvedPlayerTitle}" and acknowledge that they run the house. Do not invent any other names or roles for them.
 
 Return ONLY valid JSON, no markdown:`;
 
@@ -215,7 +322,25 @@ Return ONLY valid JSON, no markdown:`;
       logger.error("Failed to parse scene setup JSON", parseError, response);
 
       // Fallback manual generation
-      parsed = generateFallbackScene(cmd, participantCharacters, state);
+      parsed = generateFallbackScene(
+        cmd,
+        participantCharacters,
+        state,
+        resolvedPlayerTitle,
+        aliasSet
+      );
+    }
+
+    if (parsed && parsed.characterHiddenPrompts) {
+      for (const key of Object.keys(parsed.characterHiddenPrompts)) {
+        if (isPlayerAlias(key, aliasSet)) {
+          const briefing = parsed.characterHiddenPrompts[key];
+          if (briefing && briefing.trim()) {
+            parsed.playerPrompt = parsed.playerPrompt || briefing.trim();
+          }
+          delete parsed.characterHiddenPrompts[key];
+        }
+      }
     }
 
     // Ensure participant IDs are set
@@ -223,11 +348,108 @@ Return ONLY valid JSON, no markdown:`;
       parsed.participantIds = cmd.characters;
     }
 
+    if (parsed.participantIds) {
+      parsed.participantIds = Array.from(
+        new Set(
+          parsed.participantIds
+            .map((id: unknown) =>
+              typeof id === "string" ? id.trim() : ""
+            )
+            .filter(Boolean)
+            .filter((id: string) => !isPlayerAlias(id, aliasSet))
+        )
+      );
+    }
+
+    parsed.playerTitle = parsed.playerTitle?.trim() || resolvedPlayerTitle;
     return parsed;
   } catch (error) {
     logger.error("Failed to generate scene setup", error);
-    return generateFallbackScene(cmd, participantCharacters, state);
+    return generateFallbackScene(
+      cmd,
+      participantCharacters,
+      state,
+      resolvedPlayerTitle,
+      aliasSet
+    );
   }
+}
+
+function looksLikeManualScene(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  const newlineCount = (trimmed.match(/\n/g) || []).length;
+  if (newlineCount < 2) return false;
+  const lowered = trimmed.toLowerCase();
+  const keywords = [
+    "scene:",
+    "scene set",
+    "setting:",
+    "script:",
+    "dialogue:",
+    "**scene",
+  ];
+  return keywords.some((keyword) => lowered.includes(keyword));
+}
+
+function buildManualSceneSetup(
+  state: WingmanConversationState,
+  characters: Character[],
+  playerAliasSet: Set<string>,
+  playerTitle: string
+): SceneSetup | null {
+  if (!state.command) return null;
+  const answers = state.clarifications
+    .map(entry => (entry.answer || '').trim())
+    .filter(Boolean);
+  if (answers.length === 0) return null;
+  let candidate = answers[answers.length - 1];
+  if (!looksLikeManualScene(candidate)) {
+    const combined = answers.join('\n\n');
+    if (!looksLikeManualScene(combined)) return null;
+    candidate = combined;
+  }
+
+  const scenePrompt = candidate.replace(/^\*\*Scene Set:?\*\*/i, '').trim();
+  const participantIds = new Set(
+    (state.command.characters || [])
+      .filter(Boolean)
+      .filter((value) =>
+        typeof value === "string" ? !isPlayerAlias(value, playerAliasSet) : true
+      )
+  );
+  const haystack = preprocessText(candidate);
+
+  for (const char of characters) {
+    if (textMentionsCharacter(haystack, char)) {
+      participantIds.add(char.id);
+    }
+  }
+
+  const participantCharacters = characters.filter((c) =>
+    participantIds.has(c.id)
+  );
+
+  const commandForFallback: SceneCommand = {
+    ...state.command,
+    characters: Array.from(participantIds),
+  };
+
+  const fallback = generateFallbackScene(
+    commandForFallback,
+    participantCharacters,
+    state,
+    playerTitle,
+    playerAliasSet
+  );
+  fallback.scenePrompt = scenePrompt || candidate;
+  fallback.participantIds = (commandForFallback.characters || [])
+    .filter(Boolean)
+    .filter((value) =>
+      typeof value === "string" ? !isPlayerAlias(value, playerAliasSet) : true
+    );
+  fallback.playerTitle = playerTitle;
+  return fallback;
 }
 
 /**
@@ -236,7 +458,9 @@ Return ONLY valid JSON, no markdown:`;
 function generateFallbackScene(
   cmd: SceneCommand,
   characters: Character[],
-  state: WingmanConversationState
+  state: WingmanConversationState,
+  playerTitle: string,
+  playerAliasSet: Set<string>
 ): SceneSetup {
   const char1 = characters[0];
   const char2 = characters[1];
@@ -247,31 +471,47 @@ function generateFallbackScene(
 
   const characterHiddenPrompts: Record<string, string> = {};
 
-  if (char1) {
-    const userInstructions = state.clarifications
-      .filter((c) => c.answer)
-      .map((c) => c.answer)
-      .join(". ");
+  const userInstructionText = state.clarifications
+    .filter((c) => c.answer)
+    .map((c) => c.answer)
+    .join(". ");
+  const trimmedInstruction = userInstructionText.trim();
 
-    characterHiddenPrompts[char1.id] = userInstructions
-      ? `The user told me: "${userInstructions}". I should act accordingly, even if I don't fully understand why.`
-      : "I'm here because the user wanted me to be. I should be open to what happens next.";
+  if (char1) {
+    characterHiddenPrompts[char1.id] = trimmedInstruction
+      ? `${playerTitle} told me: "${trimmedInstruction}". I should act accordingly, even if I don't fully understand why.`
+      : `I'm here because ${playerTitle} wanted me to be. I should be open to what happens next.`;
   }
 
   if (char2) {
     characterHiddenPrompts[char2.id] =
-      "Someone is coming to see me. I should be myself and see what they want.";
+      `${playerTitle} arranged for this meeting. Be yourself and see what they want.`;
   }
 
   const initialMessage = char2
     ? `${char2.name} ${char2.gender === "male" ? "stands" : "stands"} in the doorway, looking ${char1?.name || "the visitor"} up and down before smiling slightly. "You must be ${char1?.name || "here"}..."`
     : `${char1?.name || "They"} take a deep breath and step forward...`;
 
+  const rawParticipantIds = Array.isArray(cmd.characters)
+    ? cmd.characters
+    : [];
+  const participantIds = Array.from(
+    new Set(
+      rawParticipantIds
+        .filter(Boolean)
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter(Boolean)
+        .filter((value) => !isPlayerAlias(value, playerAliasSet))
+    )
+  );
+
   return {
     scenePrompt,
     characterHiddenPrompts,
     initialMessage,
-    participantIds: cmd.characters || [],
+    participantIds,
+    playerPrompt: trimmedInstruction ? trimmedInstruction : undefined,
+    playerTitle,
   };
 }
 
@@ -284,11 +524,17 @@ export class WingmanSceneDirector {
     clarifications: [],
     awaitingAnswer: false,
   };
+  private playerTitle: string;
+  private playerAliasSet: Set<string>;
 
   constructor(
     private characters: Character[],
-    private houseConfig?: { worldPrompt?: string }
-  ) {}
+    private houseConfig?: { worldPrompt?: string; playerTitle?: string }
+  ) {
+    this.playerTitle =
+      this.houseConfig?.playerTitle?.trim() || DEFAULT_PLAYER_TITLE;
+    this.playerAliasSet = buildPlayerAliasSet(this.playerTitle);
+  }
 
   /**
    * Process user input - either initial command or follow-up answer
@@ -353,11 +599,21 @@ export class WingmanSceneDirector {
       // Generate the scene!
       console.log("🎬 Generating scene with state:", this.state);
       try {
-        const scene = await generateSceneSetup(
+        const manualScene = buildManualSceneSetup(
           this.state,
           this.characters,
-          this.houseConfig
+          this.playerAliasSet,
+          this.playerTitle
         );
+        const scene = manualScene
+          ? manualScene
+          : await generateSceneSetup(
+              this.state,
+              this.characters,
+              this.houseConfig,
+              this.playerAliasSet,
+              this.playerTitle
+            );
         console.log("✅ Scene generated successfully:", scene);
 
         // Reset state for next command

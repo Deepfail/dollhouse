@@ -153,7 +153,7 @@ Please provide a JSON response with any combination of these fields that would e
 - traits: Object with physical/personality traits as key-value pairs
 - tags: Array of relevant tags/categories
 - system_prompt: AI system instructions for roleplaying this character
-- appearance: A vivid, tasteful physical appearance description focused on overall looks and outfits. Keep it under 150 words. Highlight clothing style and how cute or attractive she looks in it; include non-explicit body type descriptors (e.g., petite, slim, curvy, busty, flat chest, athletic, thick thighs, bubble butt) when relevant. Avoid explicit sexual content, age mentions, or graphic details.
+- appearance: A vivid, tasteful physical appearance description focused on overall looks and outfits. Keep it under 150 words. Highlight clothing style and how cute or attractive she looks in it; include body type descriptors (e.g., petite, slim, curvy, busty, flat chest, athletic, thick thighs, bubble butt) when relevant.
 
 Focus on making the character more interesting and detailed while maintaining consistency.`;
 

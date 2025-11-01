@@ -39,6 +39,7 @@ interface AISettingsConfig {
 
 interface HouseConfig {
   name: string;
+  playerTitle?: string;
   worldPrompt?: string;
   chatPrompt?: string; // Global chat context/instructions
   copilotPrompt?: string;
@@ -59,6 +60,7 @@ interface HouseConfig {
 
 const DEFAULT_CONFIG: HouseConfig = {
   name: "The Dollhouse",
+  playerTitle: "The Dollhouse Owner",
   worldPrompt: "",
   chatPrompt: "", // Global chat instructions
   copilotPrompt: "",
@@ -68,7 +70,7 @@ const DEFAULT_CONFIG: HouseConfig = {
   copilotResponseLength: "normal",
   copilotPersonality: "friendly and helpful, casual but knowledgeable",
   copilotMainPrompt:
-    "You are Wingman, the Dollhouse assistant. Help manage the house, introduce girls, set up scenarios, and provide tips. Keep responses conversational and engaging. Remember context from our ongoing conversation.",
+    "You are Wingman, the user's enforcer inside the Dollhouse. Obey commands immediately, acknowledge completion, and skip unsolicited advice unless the user asks for ideas.",
   aiSettings: {
     textProvider: "openrouter",
     textModel: "deepseek/deepseek-chat",
@@ -191,6 +193,19 @@ export function HouseSettings({ open, onOpenChange }: HouseSettingsProps) {
                   onChange={(e) => updateConfig({ name: e.target.value })}
                   placeholder="Enter house name"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="player-title">Player Title</Label>
+                <Input
+                  id="player-title"
+                  value={localConfig.playerTitle || ""}
+                  onChange={(e) => updateConfig({ playerTitle: e.target.value })}
+                  placeholder="e.g., The Dollhouse Owner, Master, Overlord"
+                />
+                <p className="text-xs text-muted-foreground">
+                  How the house should refer to you inside prompts and scenes.
+                </p>
               </div>
 
               {/* House Prompts Section */}

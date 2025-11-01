@@ -1,4 +1,5 @@
 import { CharacterCard } from '@/components/CharacterCard';
+import { CharacterLocationBadge } from '@/components/CharacterLocationBadge';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -18,6 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAutoCharacterCreator } from '@/hooks/useAutoCharacterCreator';
 import { useChat } from '@/hooks/useChat';
 import { useHouseFileStorage } from '@/hooks/useHouseFileStorage';
+import { getDefaultLocations } from '@/lib/defaultLocations';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 import type { Character, ChatMessage, ChatSession } from '@/types';
@@ -54,14 +56,31 @@ function CharacterRoster({
   onViewProfile,
 }: CharacterRosterProps) {
   const [genderFilter, setGenderFilter] = useState<'all' | 'female' | 'male'>('all');
+  const [locationFilter, setLocationFilter] = useState<string | 'all'>('all');
+  const locations = getDefaultLocations();
 
   const filteredCharacters = characters.filter((character) => {
-    if (genderFilter === 'all') return true;
-    const info = `${character.personality ?? ''} ${character.description ?? ''}`.toLowerCase();
-    if (genderFilter === 'male') {
-      return info.includes('male') || info.includes('man') || info.includes('boy') || info.includes('guy');
+    // Gender filter
+    if (genderFilter !== 'all') {
+      const info = `${character.personality ?? ''} ${character.description ?? ''}`.toLowerCase();
+      if (genderFilter === 'male') {
+        const isMale = info.includes('male') || info.includes('man') || info.includes('boy') || info.includes('guy');
+        if (!isMale) return false;
+      } else {
+        const isMale = info.includes('male') || info.includes('man') || info.includes('boy') || info.includes('guy');
+        if (isMale) return false;
+      }
     }
-    return !info.includes('male') && !info.includes('man') && !info.includes('boy') && !info.includes('guy');
+    
+    // Location filter
+    if (locationFilter !== 'all') {
+      if (locationFilter === 'unassigned') {
+        return !character.locationId;
+      }
+      return character.locationId === locationFilter;
+    }
+    
+    return true;
   });
 
   const handleKeyActivate = useCallback((event: ReactKeyboardEvent, action: () => void) => {
@@ -99,6 +118,21 @@ function CharacterRoster({
               Men
             </Button>
           </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={locationFilter}
+            onChange={(e) => setLocationFilter(e.target.value)}
+            className="h-8 flex-1 rounded-full border border-white/10 bg-white/5 px-3 text-xs text-white/90 outline-none focus:border-[#ff1372]/50"
+          >
+            <option value="all">All Locations</option>
+            <option value="unassigned">Unassigned</option>
+            {locations.map((loc) => (
+              <option key={loc.id} value={loc.id}>
+                {loc.name}
+              </option>
+            ))}
+          </select>
         </div>
         <Button
           size="sm"
@@ -160,6 +194,7 @@ function CharacterRoster({
                     <Users size={12} />
                     {activeSessions.length === 0 ? 'No chats yet' : `${activeSessions.length} active chat${activeSessions.length > 1 ? 's' : ''}`}
                   </span>
+                  <CharacterLocationBadge locationId={character.locationId} className="text-[10px]" />
                 </div>
                 <div className="mt-3 flex gap-2">
                   <div

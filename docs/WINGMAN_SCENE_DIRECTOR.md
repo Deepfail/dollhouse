@@ -130,6 +130,8 @@ interface SceneSetup {
   characterHiddenPrompts: Record<string, string>; // charId -> secret knowledge
   initialMessage?: string; // First message to send
   participantIds: string[]; // Characters involved
+  playerPrompt?: string; // Private briefing for the player
+  playerTitle?: string; // Preferred way to address the player
 }
 ```
 

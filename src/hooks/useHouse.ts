@@ -3,11 +3,13 @@ import { Character, House, Room } from '@/types';
 import { useEffect } from 'react';
 import { useRelationshipDynamics } from './useRelationshipDynamics';
 import { useSimpleStorage } from './useSimpleStorage';
+import { getDefaultLocations } from '@/lib/defaultLocations';
 
 const DEFAULT_HOUSE: House = {
   id: 'main-house',
   name: 'My Character House',
   description: 'A cozy place for your AI companions',
+  locations: getDefaultLocations(),
   rooms: [
     {
       id: 'common-room',
@@ -235,6 +237,18 @@ export function useHouse() {
 
   // Ensure house is never undefined by providing the default
   const safeHouse = house || DEFAULT_HOUSE;
+  
+  // Ensure locations exist (migration for existing houses)
+  useEffect(() => {
+    if (safeHouse && (!safeHouse.locations || safeHouse.locations.length === 0)) {
+      logger.log('Migrating house to add default locations');
+      setHouse(current => ({
+        ...(current || DEFAULT_HOUSE),
+        locations: getDefaultLocations(),
+        updatedAt: new Date()
+      }));
+    }
+  }, [safeHouse?.id]);
   
   // Ensure critical fields exist with proper defaults (applied by normalize/handlers below)
   

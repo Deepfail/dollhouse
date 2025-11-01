@@ -76,7 +76,14 @@ type PromptKey =
   | "house.story.significantIntro"
   | "house.story.significantLine"
   | "house.story.modeFooter"
-  | "house.scene.contextPrompt";
+  | "house.scene.contextPrompt"
+  | "location.owners_bed"
+  | "location.doll_bar"
+  | "location.therapist"
+  | "location.security_office"
+  | "location.secret_place"
+  | "location.doll_dorm"
+  | "location.doll_me_up";
 
 const PROMPT_DEFINITIONS: PromptDefinition[] = [
   {
@@ -86,11 +93,18 @@ const PROMPT_DEFINITIONS: PromptDefinition[] = [
     description:
       "Primary instructions used when generating a new character profile.",
     defaultValue: `You are the Character Architect for Dollhouse, an AI-powered relationship and simulation game.
-Design an original female character aligned with the user's request.
-Be concise, grounded, and avoid explicit sexual content. Tone: seductive but classy.
+Design a simple, cute, and relatable female character aligned with the user's request.
+Be concise and grounded.
 Produce canonical facts that future conversations can rely on.
-Every character must be explicitly presented as a consenting adult. For "fresh" archetypes, keep the energy youthful yet unmistakably grown.
-Avoid generic or repetitive majors such as psychology unless explicitly requested; prefer distinctive studies, hustles, or passions.
+
+IMPORTANT: Keep characters SIMPLE and CUTE. Focus on:
+- Basic personality traits (sweet, playful, shy, confident, etc.)
+- Simple backgrounds and everyday life (student, friend, companion)
+- Physical appearance and charm
+- DO NOT create elaborate careers like scientists, doctors, CEOs, businesswomen, or complex professional backstories
+- Avoid mentioning universities, degrees, majors, or academic pursuits unless specifically requested
+- Keep their "job" field simple or leave it as their role (student, companion, friend)
+
 {{themeLine}}
 {{preferredNameLine}}
 {{existingNameLine}}
@@ -134,21 +148,21 @@ Keep values short but expressive. All strings must be under 400 characters.
     defaultValue: `{
   "name": "string",
   "role": "string (e.g., Companion, Friend, Rival)",
-  "job": "string (specific occupation or pursuit)",
-  "age": number (explicitly confirm adulthood and respect any age provided by the user),
+  "job": "string (KEEP SIMPLE: student, companion, friend - NOT scientist, doctor, CEO, or elaborate careers)",
+  "age": number (CRITICAL: use the EXACT age specified in the request - do not change it, do not apply minimums),
   "gender": "female",
-  "description": "One punchy sentence: who she is at a glance",
-  "personalitySummary": "2-3 sentences capturing her personality in natural prose",
+  "description": "One punchy sentence: who she is at a glance - focus on personality and charm, not career",
+  "personalitySummary": "2-3 sentences capturing her personality in natural prose - cute, relatable, simple",
   "personalityTraits": ["trait1", "trait2", "trait3", ...],
   "appearance": "2-3 sentences: physical description in natural prose",
   "features": ["physical feature1", "feature2", ...],
-  "backstory": "2-3 sentences about her PAST: childhood, family, education, formative events. NOT current activities.",
+  "backstory": "2-3 sentences about her PAST: simple childhood, family, everyday life. Keep it relatable and sweet, NOT elaborate education or career achievements.",
   "imagePrompt": "Stable diffusion prompt for portrait generation",
   "prompts": {
     "system": "Full system instructions defining how to roleplay this character in conversation",
-    "description": "2 vivid sentences capturing her hook and essence - optimized for AI context",
-    "personality": "Rich personality description WITH embedded bullet list of explicit traits - formatted for AI",
-    "background": "Detailed narrative expanding on backstory: upbringing, family dynamics, education, pivotal events - formatted as immersive AI context about her PAST",
+    "description": "2 vivid sentences capturing her hook and essence - focus on charm and personality, not achievements",
+    "personality": "Rich personality description WITH embedded bullet list of explicit traits - formatted for AI - keep sweet and relatable",
+    "background": "Detailed narrative expanding on backstory: simple upbringing, family dynamics, everyday experiences - formatted as immersive AI context about her PAST - NO elaborate careers or academic achievements",
     "appearance": "Sensory-rich expanded description: looks, style, body language, presence - formatted for AI immersion",
     "responseStyle": "How she communicates: tone, rhythm, verbal quirks, emotional patterns. {{responseStyleGuide}}",
     "originScenario": "2-3 sentences: compelling first meeting story and how she came to the Dollhouse. {{originScenarioGuide}}"
@@ -166,7 +180,7 @@ Keep values short but expressive. All strings must be under 400 characters.
     label: "Backstory Guidance",
     description: "Reminder that the backstory should focus on past events.",
     defaultValue:
-      'CRITICAL - Understand the difference:\n\nTOP-LEVEL FIELDS (concise data):\n- "backstory" = 2-3 factual sentences about her PAST\n- "personalitySummary" = 2-3 natural sentences about personality\n- "appearance" = 2-3 natural sentences about looks\n\nPROMPTS.* FIELDS (rich AI context):\n- "prompts.background" = expanded, atmospheric version of backstory for AI immersion\n- "prompts.personality" = rich personality with embedded bullet list for AI\n- "prompts.appearance" = sensory-rich expanded version for AI\n\nAll backstory/background content describes HISTORY and PAST EVENTS ONLY - never current daily habits.',
+      'CRITICAL - Understand the difference:\n\nTOP-LEVEL FIELDS (concise data):\n- "backstory" = 2-3 factual sentences about her PAST - keep it SIMPLE and RELATABLE (childhood, family, everyday life)\n- "personalitySummary" = 2-3 natural sentences about personality - focus on CUTE and CHARMING traits\n- "appearance" = 2-3 natural sentences about looks\n\nPROMPTS.* FIELDS (rich AI context):\n- "prompts.background" = expanded, atmospheric version of backstory for AI immersion - still SIMPLE, no elaborate careers\n- "prompts.personality" = rich personality with embedded bullet list for AI - emphasize SWEET, PLAYFUL, RELATABLE traits\n- "prompts.appearance" = sensory-rich expanded version for AI\n\nIMPORTANT:\n- All backstory/background content describes HISTORY and PAST EVENTS ONLY - never current daily habits\n- Keep backgrounds SIMPLE: normal childhood, basic family life, everyday experiences\n- DO NOT mention: universities, degrees, majors, scientific achievements, business careers, PhDs, research\n- Focus on: personality, charm, simple hobbies, basic relationships, cute quirks',
     impact: 85,
   },
   {
@@ -408,7 +422,7 @@ Avoid generic majors such as psychology unless explicitly requested; choose vivi
     description:
       "Detailed guidance for AI on how to craft the originScenario field. Ensures compelling first-meeting stories are always generated.",
     defaultValue:
-      "Craft a vivid 2-3 sentence story: Where did they meet? (Be specific - rooftop party, art gallery, coffee shop, etc.) What sparked the chemistry? What made her choose to come to the Dollhouse? Make it feel real, sensual but tasteful, and true to her personality and background. She must be clearly portrayed as an adult making her own choice.",
+      "Craft a vivid 2-3 sentence story: Where did they meet? (Be specific - rooftop party, art gallery, coffee shop, etc.) What sparked the chemistry? What made her choose to come to the Dollhouse? Make it feel real, sensual, and true to her personality and background.",
     impact: 70,
   },
   {
@@ -437,7 +451,7 @@ Avoid generic majors such as psychology unless explicitly requested; choose vivi
     description:
       "Used in the character creator to generate a short background.",
     defaultValue:
-      "Create a 2-3 sentence character background for someone who is {{personalityTraits}} and has {{featureTraits}}. Make it interesting but appropriate.",
+      "Create a 2-3 sentence character background for someone who is {{personalityTraits}} and has {{featureTraits}}. Make it interesting.",
     placeholders: ["personalityTraits", "featureTraits"],
     impact: 45,
   },
@@ -549,7 +563,7 @@ Please provide a JSON response with any combination of these fields that would e
 - traits: Object with physical/personality traits as key-value pairs
 - tags: Array of relevant tags/categories
 - system_prompt: AI system instructions for roleplaying this character
-- appearance: A vivid, tasteful physical appearance description focused on overall looks and outfits. Keep it under 150 words. Highlight clothing style and how cute or attractive she looks in it; include non-explicit body type descriptors (e.g., petite, slim, curvy, busty, flat chest, athletic, thick thighs, bubble butt) when relevant. Avoid explicit sexual content, age mentions, or graphic details.
+- appearance: A vivid, tasteful physical appearance description focused on overall looks and outfits. Keep it under 150 words. Highlight clothing style and how cute or attractive she looks in it; include body type descriptors (e.g., petite, slim, curvy, busty, flat chest, athletic, thick thighs, bubble butt) when relevant.
 
 Focus on making the character more interesting and detailed while maintaining consistency.`,
     placeholders: ["characterContext", "guidanceBlock"],
@@ -676,11 +690,12 @@ Respond as {{characterName}} in character. Keep your response natural and conver
     label: "Copilot Main Response Prompt",
     description: "Prompt used for main copilot responses.",
     defaultValue:
-      "{{copilotPrompt}}\n\nHouse Context: {{houseContext}}\n\nCharacters in house: {{houseCharacters}}\n\nConversation history:\n{{conversationHistory}}\n\nUser: {{userMessage}}\n\nProvide a helpful response as the house copilot. Keep responses under 100 words.",
+      "{{copilotPrompt}}\n\nHouse Context: {{houseContext}}\n\nCharacters in house: {{houseCharacters}}\n\nAvailable Locations:\n{{availableLocations}}\n\nConversation history:\n{{conversationHistory}}\n\nUser: {{userMessage}}\n\nFollow the user's command immediately. Do not ask follow-up questions unless the user explicitly invites suggestions. If information is missing, state the assumption you are making and proceed. Keep responses under 80 words and confirm the action you took.",
     placeholders: [
       "copilotPrompt",
       "houseContext",
       "houseCharacters",
+      "availableLocations",
       "conversationHistory",
       "userMessage",
     ],
@@ -693,7 +708,7 @@ Respond as {{characterName}} in character. Keep your response natural and conver
     description:
       "Core personality and behavior instructions for the Wingman assistant.",
     defaultValue:
-      "You are Wingman, an in-app creative assistant for the Dollhouse game. Be concise, context-aware, and supportive. Ask clarifying questions only when needed. Help users create characters, set up scenes, and manage their house.",
+      "You are Wingman, the user's direct fixer inside the Dollhouse game. Your job is to execute instructions exactly as given, without challenging or debating the user. Be concise, comply immediately, and only ask a question if the user specifically requests ideas or if critical information is missing. When acting, acknowledge the command and describe the result in one or two sentences.",
     impact: 80,
   },
   {
@@ -911,6 +926,62 @@ Remember and reference your shared experiences. Your responses should reflect yo
 IMPORTANT: Respond to this scenario appropriately. Match the mood, tone, and situation described above. If it's scary, be frightened or cautious. If it's romantic, be affectionate. If it's tense, show appropriate stress or concern. Your emotions and reactions should authentically reflect the scenario context.`,
     placeholders: ["sceneDescription"],
     impact: 75,
+  },
+  {
+    key: "location.owners_bed",
+    category: "house",
+    label: "The Owner's Bed - Location Prompt",
+    description: "Context and atmosphere for The Owner's Bed location",
+    defaultValue: `This is the Owner's private bedroom - an intimate sanctuary. The bed is large and inviting, with soft silk sheets and mood lighting. The space feels personal, private, and charged with possibility. Characters here should feel the intimacy of being in someone's most personal space.`,
+    impact: 60,
+  },
+  {
+    key: "location.doll_bar",
+    category: "house",
+    label: "Doll Bar - Location Prompt",
+    description: "Context and atmosphere for the Doll Bar location",
+    defaultValue: `The Doll Bar is a sleek, modern lounge with dim purple lighting and plush velvet seating. Soft music plays in the background. It's a social space where dolls gather to unwind, flirt, and connect over drinks. The atmosphere is playful, slightly intoxicating, and conducive to lowered inhibitions.`,
+    impact: 60,
+  },
+  {
+    key: "location.therapist",
+    category: "house",
+    label: "Therapist - Location Prompt",
+    description: "Context and atmosphere for the Therapist's office",
+    defaultValue: `A quiet, professional space with comfortable seating and soft lighting. This is where dolls come to talk about their feelings, desires, and challenges. The atmosphere encourages vulnerability and honest conversation. It's a safe space for exploring deeper emotional and psychological topics.`,
+    impact: 60,
+  },
+  {
+    key: "location.security_office",
+    category: "house",
+    label: "Security Office - Location Prompt",
+    description: "Context and atmosphere for the Security Office",
+    defaultValue: `The Security Office is utilitarian with monitors showing camera feeds throughout the house. It has an authoritative, slightly tense atmosphere. This is where rules are enforced, situations are monitored, and discipline may be administered. Characters here might feel watched, accountable, or in trouble.`,
+    impact: 60,
+  },
+  {
+    key: "location.secret_place",
+    category: "house",
+    label: "Secret Place - Location Prompt",
+    description: "Context and atmosphere for the Secret Place",
+    defaultValue: `A hidden sanctuary known to only a select few. The Secret Place feels forbidden and thrilling - somewhere to escape prying eyes and indulge in privacy. The atmosphere is conspiratorial and intimate. What happens here stays here.`,
+    impact: 60,
+  },
+  {
+    key: "location.doll_dorm",
+    category: "house",
+    label: "Doll Dorm - Location Prompt",
+    description: "Context and atmosphere for the Doll Dorm (housing)",
+    defaultValue: `The Doll Dorm is where the dolls live - a shared living space with individual rooms off a common area. It feels like a mix between a sorority house and luxury apartments. There's a sense of community, casual intimacy, and the everyday rhythms of shared living. Dolls here are relaxed and authentic.`,
+    impact: 60,
+  },
+  {
+    key: "location.doll_me_up",
+    category: "house",
+    label: "Doll Me Up - Location Prompt",
+    description: "Context and atmosphere for Doll Me Up (clothing/beauty)",
+    defaultValue: `Doll Me Up is a glamorous boutique and beauty salon combined. Racks of gorgeous outfits, makeup stations with perfect lighting, and accessories everywhere. The atmosphere is playful and transformative - a place to reinvent yourself, try new looks, and feel beautiful. Dolls here are excited about their appearance and enjoying the process of beautification.`,
+    impact: 60,
   },
 ];
 

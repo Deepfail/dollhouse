@@ -563,8 +563,8 @@ export function CharacterCreator({
           ? `Background: ${newCharacter.description}.`
           : undefined,
         explicitAge != null
-          ? `Generate all prompts (system, personality, background, appearance, response style, origin scenario) that are cohesive, age-appropriate for a ${explicitAge} year old, and true to the character's essence. Ensure all content respects the age of ${explicitAge}.`
-          : `Generate all prompts (system, personality, background, appearance, response style, origin scenario) that are cohesive, adult, and true to the character's essence.`,
+          ? `Generate all prompts (system, personality, background, appearance, response style, origin scenario) that are cohesive for a ${explicitAge} year old, and true to the character's essence. Ensure all content is consistent with the age of ${explicitAge}.`
+          : `Generate all prompts (system, personality, background, appearance, response style, origin scenario) that are cohesive and true to the character's essence.`,
       ].filter(Boolean) as string[];
 
       const enrichedCharacter = await populateCharacterProfile(newCharacter, {
