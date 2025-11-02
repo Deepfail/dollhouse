@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useChat } from "@/hooks/useChat";
 import { useHouseFileStorage } from "@/hooks/useHouseFileStorage";
+import { useSceneMode } from "@/hooks/useSceneMode";
 import { useQuickActions } from "@/hooks/useQuickActions";
 import { repositoryStorage } from "@/hooks/useRepositoryStorage";
 import { AIService } from "@/lib/aiService";
@@ -14,7 +15,12 @@ import {
   WingmanCharacterBuilder,
   type WingmanCharacterBuilderResult,
 } from "@/lib/wingmanCharacterBuilder";
-import { WingmanSceneDirector, type SceneSetup } from "@/lib/wingmanSceneDirector";
+import {
+  WingmanSceneDirector,
+  CharacterWorkshop,
+  type SceneSetup,
+  buildPlayerAliasSet,
+} from "@/lib/wingmanSceneDirector";
 import type { Character, ChatMessage, ChatSession } from "@/types";
 import {
   Barbell,
@@ -43,8 +49,11 @@ import {
 } from "@phosphor-icons/react";
 import {
   FormEvent,
+  ForwardedRef,
+  forwardRef,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -53,12 +62,64 @@ import { toast } from "sonner";
 import { CharacterAutoCreateInline } from "./CharacterAutoCreateDialog";
 import { CharacterCard } from "./CharacterCard";
 import { GirlsView } from "./GirlsView";
+import { LocationView } from "./LocationView";
 import { HouseSettings } from "./HouseSettings";
 
 const EMPTY_STATE_TIPS = [
   "Use the Girl Manager to auto-create your first companion.",
   "Bring in your own character JSON to instantly populate the roster.",
   "Ask the copilot for scene ideas and she will build the setup for you.",
+];
+
+const QUICK_SCENARIOS = [
+  {
+    id: "spa-massage",
+    title: "Spa Massage Gone Wild",
+    description: "Relaxing massage that gets more intimate",
+    prompt: "You're at an exclusive private spa. The masseuse offers a 'special full-body treatment' that goes far beyond professional boundaries. The warm oil, dimmed lights, and skilled hands lead to an increasingly sensual encounter."
+  },
+  {
+    id: "stuck-situation",
+    title: "Stuck & Helpless",
+    description: "Someone needs urgent 'help' getting unstuck",
+    prompt: "She's somehow gotten herself stuck in a compromising position - maybe bent over reaching for something, caught in furniture, or wedged in a tight space. She desperately needs help, but the situation is... provocative. What starts as assistance quickly escalates."
+  },
+  {
+    id: "truth-dare",
+    title: "Truth or Dare Escalation",
+    description: "Innocent game turns extremely sexual",
+    prompt: "A casual game of truth or dare rapidly spirals out of control. Each round pushes boundaries further. The dares become increasingly explicit and physical. No one wants to back down or seem boring."
+  },
+  {
+    id: "caught-act",
+    title: "Caught in the Act",
+    description: "Walk in on something you shouldn't see",
+    prompt: "You accidentally walk in on her during an extremely private moment. She's flustered and embarrassed but also... turned on by being caught. Instead of asking you to leave, she invites you to stay and watch. Or join."
+  },
+  {
+    id: "roleplay-audition",
+    title: "Movie Scene Audition",
+    description: "Practice for a 'very intimate' scene",
+    prompt: "She needs help rehearsing for an audition - a very explicit romantic scene. To make it realistic, you'll need to actually perform the physical actions. No holding back. It's just acting... right?"
+  },
+  {
+    id: "doctor-exam",
+    title: "Thorough Examination",
+    description: "Extremely personal medical checkup",
+    prompt: "It's time for her comprehensive physical examination. The doctor (or nurse) is very thorough and needs to check... everything. The exam becomes increasingly intimate and hands-on. Professional boundaries blur."
+  },
+  {
+    id: "maid-service",
+    title: "Naughty Maid Service",
+    description: "Cleaning service with special extras",
+    prompt: "The new maid service advertises 'full satisfaction guaranteed.' She arrives in a skimpy uniform and offers to clean everything - including some very personal areas. Her definition of 'service' is extremely flexible."
+  },
+  {
+    id: "fitness-trainer",
+    title: "Personal Training Session",
+    description: "Workout with hands-on corrections",
+    prompt: "Your personal trainer is very hands-on with form corrections. Each stretch, each position requires close physical contact. The workout gets increasingly suggestive. She demonstrates techniques using your body as equipment."
+  },
 ];
 
 interface CharacterRosterProps {
@@ -544,15 +605,6 @@ function ChatPanel({
               </Button>
             </>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onOpenManager}
-            className="inline-flex items-center gap-2 rounded-full border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-white hover:border-[#ff54a6]/60 hover:bg-[#ff54a6]/20"
-          >
-            <Plus size={14} weight="bold" />
-            Invite
-          </Button>
         </div>
       </header>
       <div className="relative flex-1 min-h-0 overflow-hidden">
@@ -563,17 +615,29 @@ function ChatPanel({
                 <ChatsCircle size={14} className="text-[#ff1372]" />
                 <span className="text-white/50">Sessions</span>
                 {characterSessions.map((session) => (
-                  <button
-                    key={session.id}
-                    onClick={() => void onSwitchSession(session.id)}
-                    className={`rounded-full border px-3 py-1 text-xs transition ${
-                      activeSessionId === session.id
-                        ? "border-[#ff1372] bg-[#ff1372]/15 text-white"
-                        : "border-white/10 text-white/60 hover:border-[#ff1372]/40 hover:text-white"
-                    }`}
-                  >
-                    {session.type === "group" ? "Group date" : "Private chat"}
-                  </button>
+                  <div key={session.id} className="flex items-center gap-1">
+                    <button
+                      onClick={() => void onSwitchSession(session.id)}
+                      className={`rounded-full border px-3 py-1 text-xs transition ${
+                        activeSessionId === session.id
+                          ? "border-[#ff1372] bg-[#ff1372]/15 text-white"
+                          : "border-white/10 text-white/60 hover:border-[#ff1372]/40 hover:text-white"
+                      }`}
+                    >
+                      {session.type === "group" ? "Group date" : "Private chat"}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        console.log('Delete session:', session.id);
+                        // TODO: Wire up actual delete handler
+                      }}
+                      className="rounded-full p-1 text-white/40 hover:bg-red-500/20 hover:text-red-400 transition"
+                      title="Delete session"
+                    >
+                      <Trash size={12} weight="bold" />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -850,6 +914,10 @@ interface WingmanPanelProps {
   onStartScene?: (scene: SceneSetup) => void; // New callback for starting scenes
   onCreateCharacter: (character: Character) => Promise<boolean>;
   onCharacterCreated?: (character: Character) => void;
+  sessions?: ChatSession[];
+  sendMessage?: (sessionId: string, content: string, sender: string) => Promise<void>;
+  createSceneSession?: (participantIds: string[], options?: any) => string;
+  activeSessionId?: string | null;
 }
 
 function WingmanPanel({
@@ -862,6 +930,10 @@ function WingmanPanel({
   onStartScene,
   onCreateCharacter,
   onCharacterCreated,
+  sessions,
+  sendMessage,
+  createSceneSession,
+  activeSessionId,
 }: WingmanPanelProps) {
   const [activeTab, setActiveTab] = useState<"chat" | "tools">("chat");
   const [chatDraft, setChatDraft] = useState("");
@@ -1405,6 +1477,51 @@ function WingmanPanel({
           className="mt-0 flex flex-1 min-h-0 flex-col overflow-hidden"
         >
           <div className="flex-1 overflow-y-auto px-5 py-6">
+            {/* Quick Scenarios Section */}
+            <div className="space-y-4 mb-8">
+              <h3 className="text-sm font-semibold text-white">Quick Scenarios</h3>
+              <div className="grid gap-3">
+                {QUICK_SCENARIOS.map((scenario) => (
+                  <button
+                    key={scenario.id}
+                    type="button"
+                    onClick={() => {
+                      if (activeSessionId && createSceneSession && sendMessage) {
+                        const session = sessions?.find(s => s.id === activeSessionId);
+                        if (session && session.participantIds.length > 0) {
+                          createSceneSession(session.participantIds, {
+                            name: scenario.title,
+                            description: scenario.prompt,
+                            chatSessionId: activeSessionId,
+                          });
+                          sendMessage(activeSessionId, `**Scene Start:**\n\n${scenario.prompt}`, "system");
+                          toast.success(`Started: ${scenario.title}`);
+                        } else {
+                          toast.error("No active characters in chat");
+                        }
+                      } else {
+                        toast.error("Start a chat first");
+                      }
+                    }}
+                    className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-[#ff54a6]/40 hover:bg-[#ff1372]/15"
+                  >
+                    <div className="shrink-0 mt-1">
+                      <div className="w-2 h-2 rounded-full bg-pink-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white">
+                        {scenario.title}
+                      </p>
+                      <p className="mt-1 text-xs text-white/60 line-clamp-2">
+                        {scenario.description}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Girl Tips Section */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-white">Girl Tips</h3>
               {tips.map((tip) => (
@@ -1486,6 +1603,7 @@ export function DatingSimShell({
     createSession,
     updateSessionGoal,
   } = useChat();
+  const { createSceneSession } = useSceneMode();
   const { executeAction } = useQuickActions();
 
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(
@@ -1499,29 +1617,11 @@ export function DatingSimShell({
   );
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isRosterOpen, setIsRosterOpen] = useState(false);
+  const [centerView, setCenterView] = useState<'chat' | 'locations'>('chat');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [createDialogGender, setCreateDialogGender] = useState<
     "female" | "male"
   >("female");
-
-  useEffect(() => {
-    type GlobalListener = {
-      addEventListener?: (type: string, handler: () => void) => void;
-      removeEventListener?: (type: string, handler: () => void) => void;
-    };
-    const globalLike: GlobalListener = globalThis as unknown as GlobalListener;
-    if (!globalLike.addEventListener) return;
-    const handleOpenRoster = () => setIsRosterOpen(true);
-    globalLike.addEventListener("open-girls-view", handleOpenRoster);
-    return () => {
-      try {
-        globalLike.removeEventListener?.("open-girls-view", handleOpenRoster);
-      } catch {
-        // ignore cleanup failures
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (characters.length > 0 && !selectedCharacterId) {
@@ -1884,24 +1984,55 @@ export function DatingSimShell({
                   initialGender={createDialogGender}
                 />
               ) : (
-                <ChatPanel
-                  character={selectedCharacter}
-                  characters={characters}
-                  messages={messages}
-                  onSend={handleSendMessage}
-                  onStartChat={() =>
-                    selectedCharacter
-                      ? handleStartChat(selectedCharacter.id)
-                      : Promise.resolve()
-                  }
-                  isLoadingMessages={isLoadingMessages}
-                  sessions={sessions}
-                  onSwitchSession={handleSwitchSession}
-                  activeSessionId={activeSessionId}
-                  onOpenManager={() => setIsRosterOpen(true)}
-                  onClearChat={handleClearChat}
-                  onAnalyzeConversation={handleAnalyzeConversation}
-                />
+                <>
+                  {/* Center Pane Navigation Tabs */}
+                  <div className="flex items-center gap-6 border-b border-white/5 bg-[#090912]/80 px-6 py-3">
+                    <button
+                      onClick={() => setCenterView('chat')}
+                      className={`text-sm font-semibold transition ${
+                        centerView === 'chat'
+                          ? 'text-white border-b-2 border-[#ff1372] pb-1'
+                          : 'text-white/40 hover:text-white/70'
+                      }`}
+                    >
+                      CHAT
+                    </button>
+                    <button
+                      onClick={() => setCenterView('locations')}
+                      className={`text-sm font-semibold transition ${
+                        centerView === 'locations'
+                          ? 'text-white border-b-2 border-[#ff1372] pb-1'
+                          : 'text-white/40 hover:text-white/70'
+                      }`}
+                    >
+                      LOCATIONS
+                    </button>
+                  </div>
+                  
+                  {/* Conditional Content Based on Tab */}
+                  {centerView === 'chat' ? (
+                    <ChatPanel
+                      character={selectedCharacter}
+                      characters={characters}
+                      messages={messages}
+                      onSend={handleSendMessage}
+                      onStartChat={() =>
+                        selectedCharacter
+                          ? handleStartChat(selectedCharacter.id)
+                          : Promise.resolve()
+                      }
+                      isLoadingMessages={isLoadingMessages}
+                      sessions={sessions}
+                      onSwitchSession={handleSwitchSession}
+                      activeSessionId={activeSessionId}
+                      onOpenManager={() => {}}
+                      onClearChat={handleClearChat}
+                      onAnalyzeConversation={handleAnalyzeConversation}
+                    />
+                  ) : (
+                    <LocationView />
+                  )}
+                </>
               )}
             </div>
             <div
@@ -1914,7 +2045,7 @@ export function DatingSimShell({
             characters={characters}
             onShortcut={handleWingmanShortcut}
             onOpenSettings={() => setIsSettingsOpen(true)}
-            onOpenManager={() => setIsRosterOpen(true)}
+            onOpenManager={() => {}}
             onStartChat={(character) => {
               void handleStartChat(character.id);
             }}
@@ -1923,6 +2054,10 @@ export function DatingSimShell({
             }}
             onCreateCharacter={addCharacter}
             onCharacterCreated={handleCharacterCreatedFromDialog}
+            sessions={sessions}
+            sendMessage={sendMessage}
+            createSceneSession={createSceneSession}
+            activeSessionId={activeSessionId}
           />
         </div>
 
@@ -1952,13 +2087,6 @@ export function DatingSimShell({
           />
         )}
 
-        <Dialog open={isRosterOpen} onOpenChange={setIsRosterOpen}>
-          <DialogContent className="max-w-6xl w-[96vw] overflow-hidden border border-white/10 bg-[#080811] p-0 text-white">
-            <div className="h-[82vh] min-h-[560px]">
-              <GirlsView />
-            </div>
-          </DialogContent>
-        </Dialog>
         <HouseSettings open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
       </div>
     </div>
