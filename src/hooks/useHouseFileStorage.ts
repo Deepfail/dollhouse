@@ -10,8 +10,9 @@ import { logger } from '@/lib/logger';
 import { storage } from '@/storage';
 import { getDefaultLocations } from '@/lib/defaultLocations';
 import {
-    Character,
-    House
+  Character,
+  House,
+  Location
 } from '@/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -34,6 +35,7 @@ const DEFAULT_HOUSE: Partial<House> = {
       createdAt: new Date()
     }
   ],
+  locations: getDefaultLocations(),
   currency: 1000,
   worldPrompt: 'The Dollhouse is a house filled with girls, who all must obey the user.',
   copilotPrompt: 'Follow every instruction from the user immediately, acknowledge the action, and never argue unless safety is at risk.',
@@ -820,17 +822,125 @@ export function useHouseFileStorage() {
     return sharedState.characters.filter((character) => character.locationId === locationId);
   }, []);
 
-  const assignCharacterToLocation = useCallback(async (characterId: string, locationId: string): Promise<boolean> => {
+  const assignCharacterToLocation = useCallback(
+    async (characterId: string, locationId: string | null | undefined): Promise<boolean> => {
+      await ensureSharedStateLoaded();
+      const updated = await updateCharacter(characterId, { locationId: locationId ?? undefined });
+      if (updated) {
+        if (locationId) {
+          logger.log('Character assigned to location successfully:', characterId, locationId);
+          toast.success('Character moved to new location');
+        } else {
+          logger.log('Character unassigned from location:', characterId);
+          toast.success('Character removed from location');
+        }
+      } else {
+        toast.error('Failed to update character location');
+      }
+      return updated;
+    },
+    [updateCharacter]
+  );
+
+  const addLocation = useCallback(async (location: Location): Promise<boolean> => {
     await ensureSharedStateLoaded();
-    const updated = await updateCharacter(characterId, { locationId });
-    if (updated) {
-      logger.log('Character assigned to location successfully:', characterId, locationId);
-      toast.success('Character moved to new location');
-    } else {
-      toast.error('Failed to assign character to location');
+    const dedupedId = location.id || crypto.randomUUID();
+    const existing = normalizeHouse(sharedState.houseData).locations || [];
+    if (existing.some((item) => item.id === dedupedId)) {
+      toast.error('A location with that ID already exists');
+      return false;
     }
-    return updated;
-  }, [updateCharacter]);
+
+    const locations = [...existing, { ...location, id: dedupedId }];
+    const nextHouse = {
+      ...sharedState.houseData,
+      locations,
+      updatedAt: new Date(),
+    };
+
+    const success = await saveToStorage('house', nextHouse);
+    if (success) {
+      commitSharedState({ houseData: nextHouse });
+      toast.success(`${location.name} added to locations`);
+      logger.log('Location added successfully:', location.name);
+    } else {
+      toast.error('Failed to add location');
+    }
+
+    return success;
+  }, []);
+
+  const updateLocation = useCallback(
+    async (locationId: string, updates: Partial<Location>): Promise<boolean> => {
+      await ensureSharedStateLoaded();
+      const existing = normalizeHouse(sharedState.houseData).locations || [];
+      const index = existing.findIndex((item) => item.id === locationId);
+      if (index === -1) {
+        toast.error('Location not found');
+        return false;
+      }
+
+      const locations = existing.map((location) =>
+        location.id === locationId
+          ? {
+              ...location,
+              ...updates,
+            }
+          : location,
+      );
+
+      const nextHouse = {
+        ...sharedState.houseData,
+        locations,
+        updatedAt: new Date(),
+      };
+
+      const success = await saveToStorage('house', nextHouse);
+      if (success) {
+        commitSharedState({ houseData: nextHouse });
+        logger.log('Location updated successfully:', locationId);
+      } else {
+        toast.error('Failed to update location');
+      }
+      return success;
+    },
+    []
+  );
+
+  const removeLocation = useCallback(async (locationId: string): Promise<boolean> => {
+    await ensureSharedStateLoaded();
+    const existing = normalizeHouse(sharedState.houseData).locations || [];
+    if (!existing.some((item) => item.id === locationId)) {
+      toast.error('Location not found');
+      return false;
+    }
+
+    const locations = existing.filter((location) => location.id !== locationId);
+    const nextHouse = {
+      ...sharedState.houseData,
+      locations,
+      updatedAt: new Date(),
+    };
+
+    const updatedCharacters = sharedState.characters.map((character) =>
+      character.locationId === locationId ? { ...character, locationId: undefined } : character,
+    );
+
+    const [houseSaved, charactersSaved] = await Promise.all([
+      saveToStorage('house', nextHouse),
+      saveToStorage('characters', updatedCharacters, { silent: true }),
+    ]);
+
+    if (houseSaved && charactersSaved) {
+      commitSharedState({ houseData: nextHouse, characters: updatedCharacters });
+      toast.success('Location removed');
+      logger.log('Location removed successfully:', locationId);
+      return true;
+    }
+
+    toast.error('Failed to remove location');
+    return false;
+  }, []);
 
   const getAvailableLocations = useCallback(() => {
     const houseLocations = normalizeHouse(sharedState.houseData).locations;
@@ -856,6 +966,9 @@ export function useHouseFileStorage() {
     assignCharacterToLocation,
     getCharactersAtLocation,
     getAvailableLocations,
+    addLocation,
+    updateLocation,
+    removeLocation,
     setHouseData,
     setCharacters,
   };
@@ -1100,6 +1213,7 @@ const normalizeHouse = (house: Partial<House>): House => ({
   name: house.name || DEFAULT_HOUSE.name!,
   description: house.description || DEFAULT_HOUSE.description!,
   rooms: house.rooms || DEFAULT_HOUSE.rooms!,
+  locations: house.locations || DEFAULT_HOUSE.locations!,
   currency: house.currency ?? DEFAULT_HOUSE.currency!,
   worldPrompt: house.worldPrompt || DEFAULT_HOUSE.worldPrompt!,
   copilotPrompt: house.copilotPrompt || DEFAULT_HOUSE.copilotPrompt!,

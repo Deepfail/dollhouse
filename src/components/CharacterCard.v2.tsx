@@ -43,23 +43,24 @@ import {
   Trophy,
   User,
 } from '@phosphor-icons/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { formatPrompt } from '@/lib/prompts';
 import { useChat } from '@/hooks/useChat';
 import { useFileStorage } from '@/hooks/useFileStorage';
 import { useStorySystem } from '@/hooks/useStorySystem';
 import { Character, StoryEntry } from '@/types';
+import type { GeneratedImage } from '@/types/generatedImage';
+import { parseDataUrl, convertDataUrlToObjectUrl } from '@/lib/imageEncoding';
+import { deleteImageFromCache, ensureImageCache, loadImageBlobFromCache, storeImageInCache } from '@/lib/imageCache';
 import { toast } from 'sonner';
 
-interface GeneratedImage {
-  id: string;
-  prompt: string;
-  imageUrl: string;
-  createdAt: string | Date;
-  characterId?: string;
-  tags?: string[];
-}
+const BYTES_PER_MB = 1024 * 1024;
+const MAX_IMAGE_BYTES = 2 * BYTES_PER_MB;
+export const OBJECT_URL_THRESHOLD_BYTES = 1.5 * BYTES_PER_MB;
+export const LARGE_DATA_URL_LENGTH = 1_800_000; // Fallback when byte size is unavailable
+const formatMegabytes = (bytes: number) => (bytes / BYTES_PER_MB).toFixed(2);
+
 
 export interface CharacterCardProps {
   character: Character;
@@ -74,6 +75,41 @@ export interface CharacterCardProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   hideTrigger?: boolean;
+}
+
+async function convertImagesToCache(images: GeneratedImage[]): Promise<GeneratedImage[]> {
+  const results: GeneratedImage[] = [];
+
+  for (const image of images) {
+    const isInlineDataUrl = typeof image.imageUrl === 'string' && image.imageUrl.startsWith('data:');
+    const alreadyCached = image.storageType === 'cache' && Boolean(image.storageKey);
+
+    if (!isInlineDataUrl || alreadyCached) {
+      results.push(image);
+      continue;
+    }
+
+    try {
+      const cacheKey = image.storageKey || image.id;
+      const cacheResult = await storeImageInCache(cacheKey, image.imageUrl);
+      results.push({
+        ...image,
+        imageUrl: '',
+        storageType: 'cache',
+        storageKey: cacheResult.storageKey,
+        byteSize: image.byteSize ?? cacheResult.byteSize,
+        mimeType: image.mimeType ?? cacheResult.mimeType,
+      });
+    } catch (error) {
+      console.warn('convertImagesToCache: failed to move image into cache storage', {
+        imageId: image.id,
+        error,
+      });
+      results.push(image);
+    }
+  }
+
+  return results;
 }
 
 const getRarityIcon = (rarity?: Character['rarity']) => {
@@ -356,6 +392,57 @@ export function CharacterCard({
   const { sessions } = useChat();
   const { analyzeEmotionalJourney } = useStorySystem();
   const { data: storedImages = [], setData: setStoredImages } = useFileStorage<GeneratedImage[]>('generated-images.json', []);
+  const storedImagesRef = useRef(storedImages);
+  const attemptedMigrationRef = useRef(false);
+
+  useEffect(() => {
+    storedImagesRef.current = storedImages;
+  }, [storedImages]);
+
+  useEffect(() => {
+    if (attemptedMigrationRef.current) {
+      return;
+    }
+
+    if (!storedImages || storedImages.length === 0) {
+      attemptedMigrationRef.current = true;
+      return;
+    }
+
+    const needsMigration = storedImages.some((image) => !image.storageType && typeof image.imageUrl === 'string' && image.imageUrl.startsWith('data:'));
+    if (!needsMigration) {
+      attemptedMigrationRef.current = true;
+      return;
+    }
+
+    let cancelled = false;
+
+    const migrateToCache = async () => {
+      try {
+        const cacheAvailable = await ensureImageCache();
+        if (!cacheAvailable) {
+          attemptedMigrationRef.current = true;
+          return;
+        }
+
+        const migrated = await convertImagesToCache(storedImages);
+        if (cancelled) {
+          return;
+        }
+
+        attemptedMigrationRef.current = true;
+        await setStoredImages(migrated);
+      } catch (migrationError) {
+        console.warn('Failed to migrate generated images to cache storage', migrationError);
+      }
+    };
+
+    void migrateToCache();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setStoredImages, storedImages]);
 
   const handleCreateImage = useCallback(async () => {
     if (!newImagePrompt.trim()) {
@@ -365,25 +452,139 @@ export function CharacterCard({
 
     setIsCreatingImage(true);
     try {
-      const characterContext = character.imageDescription || 
-        `${character.personalities?.[0] || 'person'} with ${character.features?.slice(0, 3).join(', ') || 'distinctive'} features`.trim();
+      // Use the same detailed appearance prompt as profile picture generation
+      const appearancePrompt = character.prompts?.appearance || 
+        profileDraft.appearance || 
+        character.appearance ||
+        `${profileDraft.name || character.name}, ${profileDraft.age || character.age} years old, attractive`;
       
-      const enhancedPrompt = `${newImagePrompt.trim()}. Character appearance: ${characterContext}`;
+      const enhancedPrompt = `Full-bodied, half-bodied, or selfie photo (not a profile picture headshot). ${newImagePrompt.trim()}. ${appearancePrompt}`;
       
       const { AIService } = await import('@/lib/aiService');
       const imageUrl = await AIService.generateImage(enhancedPrompt);
       
+      console.log('Image URL received:', imageUrl ? `${imageUrl.substring(0, 100)}...` : 'null');
+      
       if (imageUrl) {
+        const parsedData = parseDataUrl(imageUrl);
+        const approximateByteSize = parsedData?.byteSize ?? imageUrl.length;
+        const base64Length = parsedData?.base64Data.length ?? imageUrl.length;
+        const binarySizeMb = formatMegabytes(approximateByteSize);
+        const base64SizeMb = formatMegabytes(base64Length);
+
+        console.log(
+          `Image size ≈ ${binarySizeMb}MB binary (${approximateByteSize.toLocaleString()} bytes), base64 payload ≈ ${base64SizeMb}MB (${base64Length.toLocaleString()} chars)`
+        );
+
+        if (approximateByteSize > MAX_IMAGE_BYTES) {
+          toast.error(`Image too large (${binarySizeMb}MB). Maximum size is ${formatMegabytes(MAX_IMAGE_BYTES)}MB.`, {
+            duration: 6000,
+          });
+          console.error('Image size exceeds storage limit', {
+            characterId: character.id,
+            approximateByteSize,
+            base64Length,
+          });
+          return;
+        }
+
+        if (approximateByteSize > OBJECT_URL_THRESHOLD_BYTES || imageUrl.length > LARGE_DATA_URL_LENGTH) {
+          console.warn(
+            `Large image warning: ${binarySizeMb}MB binary / ${base64SizeMb}MB base64 - may cause performance issues when rendering`
+          );
+        }
+
+        const imageId = crypto.randomUUID();
+        const tags = Array.from(
+          new Set(
+            ['character', 'generated', character.role || 'person']
+              .filter(Boolean)
+              .map((tag) => String(tag).trim().toLowerCase()),
+          ),
+        );
+
+        let storageType: GeneratedImage['storageType'] = 'inline';
+        let storageKey: string | undefined;
+        let persistedImageUrl = imageUrl;
+        let persistedByteSize = approximateByteSize;
+        let persistedMimeType = parsedData?.mimeType;
+
+        try {
+          const cacheResult = await storeImageInCache(imageId, imageUrl);
+          storageType = 'cache';
+          storageKey = cacheResult.storageKey;
+          persistedImageUrl = '';
+          persistedByteSize = cacheResult.byteSize;
+          persistedMimeType = persistedMimeType || cacheResult.mimeType;
+          console.log('Stored generated image in CacheStorage', {
+            imageId,
+            storageKey,
+            byteSize: cacheResult.byteSize,
+            mimeType: cacheResult.mimeType,
+          });
+        } catch (cacheError) {
+          console.warn('Failed to store generated image in cache, falling back to inline data URL', cacheError);
+        }
+
+        const existingImages = storedImagesRef.current ?? [];
+        let migratedExistingImages = existingImages;
+
+        if (storageType === 'cache') {
+          try {
+            migratedExistingImages = await convertImagesToCache(existingImages);
+          } catch (migrationError) {
+            console.warn('Failed to migrate existing images to cache storage', migrationError);
+          }
+        }
+
         const newImage: GeneratedImage = {
-          id: crypto.randomUUID(),
+          id: imageId,
           prompt: newImagePrompt.trim(),
-          imageUrl,
+          imageUrl: persistedImageUrl,
           createdAt: new Date(),
           characterId: character.id,
-          tags: ['character', 'generated', character.role || 'person'].filter(Boolean)
+          tags,
+          byteSize: persistedByteSize,
+          mimeType: persistedMimeType,
+          base64Length,
+          storageType,
+          storageKey,
         };
 
-        setStoredImages([newImage, ...storedImages]);
+        const inlineStorageLimit = 1;
+        let sanitizedExistingImages: GeneratedImage[];
+
+        if (storageType === 'cache') {
+          const inlineRemainders = migratedExistingImages.filter(
+            (img) => !img.storageType && typeof img.imageUrl === 'string' && img.imageUrl.startsWith('data:'),
+          );
+
+          if (inlineRemainders.length > 0) {
+            console.warn('Removing inline gallery images that could not migrate to cache storage', {
+              removedCount: inlineRemainders.length,
+            });
+          }
+
+          sanitizedExistingImages = migratedExistingImages.filter(
+            (img) => !(!img.storageType && typeof img.imageUrl === 'string' && img.imageUrl.startsWith('data:')),
+          );
+        } else {
+          sanitizedExistingImages = migratedExistingImages.slice(0, Math.max(0, inlineStorageLimit - 1));
+        }
+
+        console.log(
+          'Creating new image object:',
+          {
+            id: newImage.id,
+            promptLength: newImage.prompt.length,
+            imageUrlLength: imageUrl.length,
+            byteSize: approximateByteSize,
+          }
+        );
+        
+        await setStoredImages([newImage, ...sanitizedExistingImages]);
+        
+        console.log('Image saved to storage successfully');
         setNewImagePrompt('');
         setShowCreateImage(false);
         toast.success('Image created successfully!');
@@ -396,7 +597,31 @@ export function CharacterCard({
     } finally {
       setIsCreatingImage(false);
     }
-  }, [newImagePrompt, character, storedImages, setStoredImages]);
+  }, [newImagePrompt, character, setStoredImages]);
+
+  const handleDeleteImage = useCallback(
+    (imageId: string) => {
+      const targetImage = storedImagesRef.current?.find((img) => img.id === imageId);
+
+      const deleteAndUpdate = async () => {
+        if (targetImage?.storageType === 'cache' && targetImage.storageKey) {
+          await deleteImageFromCache(targetImage.storageKey);
+        }
+
+        await setStoredImages((prevImages) => prevImages.filter((img) => img.id !== imageId));
+      };
+
+      void deleteAndUpdate()
+        .then(() => {
+          toast.success('Image deleted');
+        })
+        .catch((error) => {
+          console.error('Failed to delete generated image', error);
+          toast.error('Failed to delete image');
+        });
+    },
+    [setStoredImages]
+  );
 
   const handleGeneratePhysicalDescription = useCallback(async () => {
     setIsGeneratingPhysical(true);
@@ -544,7 +769,11 @@ export function CharacterCard({
 
   const storyEntries = useMemo(() => {
     const entries = (progression.storyChronicle as StoryEntry[]) ?? [];
-    return entries.slice().sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, 8);
+    return entries.slice().sort((a, b) => {
+      const aTime = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
+      const bTime = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
+      return bTime - aTime;
+    }).slice(0, 8);
   }, [progression.storyChronicle]);
 
   const narrativeSummary = useMemo(() => {
@@ -771,26 +1000,85 @@ export function CharacterCard({
             </div>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-[200px_1fr]">
-            <div className="flex flex-col gap-4">
-              <Avatar className="h-32 w-32 rounded-2xl border border-white/10">
-                <AvatarImage src={profileDraft.avatar} alt={profileDraft.name || character.name} />
-                <AvatarFallback className="bg-white/10 text-2xl font-semibold">
+          <div className="grid gap-6 md:grid-cols-[280px_1fr]">
+            <div className="flex flex-col gap-4 items-center">
+              <Avatar className="h-64 w-64 rounded-2xl border-2 border-white/20">
+                <AvatarImage 
+                  src={profileDraft.avatar} 
+                  alt={profileDraft.name || character.name}
+                  className="object-cover"
+                />
+                <AvatarFallback className="bg-white/10 text-4xl font-semibold">
                   {(profileDraft.name || character.name || '?').slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               {isEditMode && (
                 <div className="w-full space-y-2 text-sm">
                   <Label htmlFor={`${character.id}-avatar`} className="text-xs uppercase tracking-wider text-white/50">
-                    Avatar URL
+                    Profile Picture
                   </Label>
-                  <Input
-                    id={`${character.id}-avatar`}
-                    value={profileDraft.avatar}
-                    onChange={(event) => handleDraftChange('avatar', event.target.value)}
-                    placeholder="https://..."
-                    className="h-9 rounded-lg border-white/15 bg-white/5 text-xs"
-                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*';
+                        input.onchange = (e) => {
+                          const file = (e.target as HTMLInputElement).files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              const dataUrl = event.target?.result as string;
+                              handleDraftChange('avatar', dataUrl);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        };
+                        input.click();
+                      }}
+                      className="flex-1 h-8 text-xs bg-white/5 border-white/10 hover:bg-white/10"
+                    >
+                      <ImageIcon size={14} className="mr-1" />
+                      Upload Image
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          toast.info('Generating portrait...');
+                          
+                          // Use the prompts.appearance field which was specifically made for image generation
+                          const appearancePrompt = character.prompts?.appearance || 
+                            profileDraft.appearance || 
+                            character.appearance ||
+                            `${profileDraft.name || character.name}, ${profileDraft.age || character.age} years old, attractive`;
+                          
+                          // Use AI service to generate image - profile picture is a portrait headshot
+                          const { AIService } = await import('@/lib/aiService');
+                          const imageUrl = await AIService.generateImage(`Portrait headshot photo. ${appearancePrompt}`);
+                          
+                          if (imageUrl) {
+                            handleDraftChange('avatar', imageUrl);
+                            toast.success('Portrait generated!');
+                          } else {
+                            toast.error('Failed to generate image');
+                          }
+                        } catch (error) {
+                          console.error('Image generation error:', error);
+                          toast.error('Failed to generate portrait');
+                        }
+                      }}
+                      className="flex-1 h-8 text-xs bg-purple-500/10 border-purple-500/30 hover:bg-purple-500/20 text-purple-300"
+                    >
+                      <Sparkle size={14} className="mr-1" />
+                      Generate AI
+                    </Button>
+                  </div>
                 </div>
               )}
               
@@ -1537,45 +1825,13 @@ export function CharacterCard({
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {galleryImages.map((image) => (
-                <Card
+                <GalleryImageCard
                   key={image.id}
-                  className="group overflow-hidden border border-white/10 bg-white/5 text-white transition hover:border-primary/40"
-                >
-                  <button
-                    type="button"
-                    className="block w-full overflow-hidden"
-                    onClick={() => setSelectedImage(image)}
-                  >
-                    <img
-                      src={image.imageUrl}
-                      alt={image.prompt}
-                      className="h-48 w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
-                  </button>
-                  <div className="space-y-2 p-4 text-sm text-white/70">
-                    <div className="line-clamp-2 text-white/80">{image.prompt}</div>
-                    <div className="text-xs uppercase tracking-wide text-white/40">
-                      {formatDate(image.createdAt)}
-                    </div>
-                    {image.tags && image.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {image.tags.map((tag) => (
-                          <Badge key={tag} variant="outline" className="border-white/20 bg-transparent text-[10px] text-white/60">
-                            #{tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full border-white/20 text-white hover:bg-white/10"
-                      onClick={() => void handleDownloadImage(image)}
-                    >
-                      <Download className="mr-2 h-4 w-4" /> Download
-                    </Button>
-                  </div>
-                </Card>
+                  image={image}
+                  onSelect={(selected) => setSelectedImage(selected)}
+                  onDownload={handleDownloadImage}
+                  onDelete={handleDeleteImage}
+                />
               ))}
             </div>
           )}
@@ -1829,46 +2085,10 @@ export function CharacterCard({
   );
 
   const selectedImageDialog = selectedImage ? (
-    <Dialog open onOpenChange={() => setSelectedImage(null)}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Image Detail</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <img
-            src={selectedImage.imageUrl}
-            alt={selectedImage.prompt}
-            className="max-h-[480px] w-full rounded-xl object-contain"
-          />
-          <div className="space-y-3 text-sm">
-            <div>
-              <h4 className="text-sm font-semibold">Prompt</h4>
-              <p className="mt-1 text-muted-foreground">{selectedImage.prompt}</p>
-            </div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wide">
-              {formatDate(selectedImage.createdAt)}
-            </div>
-            {selectedImage.tags?.length ? (
-              <div className="flex flex-wrap gap-1">
-                {selectedImage.tags.map((tag) => (
-                  <Badge key={tag} variant="outline" className="text-[10px] uppercase">
-                    #{tag}
-                  </Badge>
-                ))}
-              </div>
-            ) : null}
-            <div className="flex gap-2">
-              <Button className="flex-1" onClick={() => void handleDownloadImage(selectedImage)}>
-                <Download className="mr-2 h-4 w-4" /> Download
-              </Button>
-              <Button variant="outline" onClick={() => setSelectedImage(null)}>
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <SelectedImageModal
+      image={selectedImage}
+      onRequestClose={() => setSelectedImage(null)}
+    />
   ) : null;
 
   if (compact) {
@@ -1877,7 +2097,7 @@ export function CharacterCard({
       return (
         <>
           {isDialogOpen ? (
-            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#05050c]/95 text-white">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#05050c]/95 text-white">
               {renderPanelContent(false)}
             </div>
           ) : null}
@@ -1910,7 +2130,7 @@ export function CharacterCard({
       <div className="flex flex-col gap-6 lg:flex-row">
         <div className="flex items-start gap-4">
           <Avatar className="h-20 w-20 border-4 border-white/20 shadow-lg">
-            <AvatarImage src={character.avatar} alt={character.name} />
+            <AvatarImage src={character.avatar} alt={character.name} className="object-cover" />
             <AvatarFallback className="bg-primary/30 text-lg font-semibold">
               {character.name.slice(0, 2).toUpperCase()}
             </AvatarFallback>
@@ -1966,11 +2186,396 @@ export function CharacterCard({
   );
 }
 
-function handleDownloadImage(image: GeneratedImage) {
-  const globalObj = globalThis as unknown as { open?: (url?: string, target?: string) => void };
-  if (typeof globalObj.open !== 'function') {
-    return;
+interface GalleryImageCardProps {
+  image: GeneratedImage;
+  onSelect: (image: GeneratedImage) => void;
+  onDownload: (image: GeneratedImage) => Promise<void> | void;
+  onDelete: (imageId: string) => void;
+}
+
+interface SelectedImageModalProps {
+  image: GeneratedImage;
+  onRequestClose: () => void;
+}
+
+function SelectedImageModal({ image, onRequestClose }: SelectedImageModalProps) {
+  const sourceInfo = useGalleryImageSource(image);
+  const isPng = Boolean(image.mimeType?.includes('/png'));
+  const showUnavailable = sourceInfo.failed;
+
+  return (
+    <Dialog open onOpenChange={(value) => { if (!value) onRequestClose(); }}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Image Detail</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="relative max-h-[480px] w-full overflow-hidden rounded-xl bg-white/5">
+            {showUnavailable ? (
+              <div className="flex h-[360px] items-center justify-center text-xs uppercase tracking-wide text-white/60">
+                Preview unavailable
+              </div>
+            ) : sourceInfo.src ? (
+              <img
+                src={sourceInfo.src}
+                alt={image.prompt}
+                className="max-h-[480px] w-full object-contain"
+              />
+            ) : (
+              <div className="flex h-[360px] items-center justify-center text-xs uppercase tracking-wide text-white/60">
+                Preparing preview…
+              </div>
+            )}
+
+            {sourceInfo.isProcessing && !showUnavailable ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs uppercase tracking-wide text-white/70">
+                Preparing preview…
+              </div>
+            ) : null}
+
+            {isPng && !showUnavailable ? (
+              <div className="absolute left-2 top-2 rounded bg-black/60 px-2 py-1 text-[10px] uppercase tracking-wide text-white/70">
+                PNG
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-3 text-sm">
+            <div>
+              <h4 className="text-sm font-semibold">Prompt</h4>
+              <p className="mt-1 text-muted-foreground">{image.prompt}</p>
+            </div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">
+              {formatDate(image.createdAt)}
+            </div>
+            {image.tags?.length ? (
+              <div className="flex flex-wrap gap-1">
+                {image.tags.map((tag, index) => (
+                  <Badge key={`${tag}-${index}`} variant="outline" className="text-[10px] uppercase">
+                    #{tag}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={() => void handleDownloadImage(image)}>
+                <Download className="mr-2 h-4 w-4" /> Download
+              </Button>
+              <Button variant="outline" onClick={onRequestClose}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function GalleryImageCard({ image, onSelect, onDownload, onDelete }: GalleryImageCardProps) {
+  const sourceInfo = useGalleryImageSource(image);
+  const [hasError, setHasError] = useState(false);
+  const [isPng, setIsPng] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+    setIsPng(Boolean(image.mimeType?.includes('/png') || image.imageUrl?.toLowerCase().includes('image/png')));
+  }, [image.id, sourceInfo.src, image.mimeType, image.imageUrl]);
+
+  const sizeLabel = typeof image.byteSize === 'number' ? `${formatMegabytes(image.byteSize)}MB` : null;
+  const showUnavailable = hasError || sourceInfo.failed;
+
+  return (
+    <Card className="group overflow-hidden border border-white/10 bg-white/5 text-white transition hover:border-primary/40">
+      <button
+        type="button"
+        className="block w-full overflow-hidden"
+        onClick={() => onSelect(image)}
+      >
+        <div className="relative h-48 w-full">
+          {showUnavailable ? (
+            <div className="flex h-full w-full items-center justify-center bg-white/5 text-xs uppercase tracking-wide text-white/50">
+              Preview unavailable
+            </div>
+          ) : sourceInfo.src ? (
+            <img
+              src={sourceInfo.src}
+              alt={image.prompt}
+              className="h-48 w-full object-cover transition duration-500 group-hover:scale-105"
+              onError={() => {
+                console.error('Failed to render gallery image', {
+                  imageId: image.id,
+                  byteSize: image.byteSize,
+                  urlLength: typeof image.imageUrl === 'string' ? image.imageUrl.length : 0,
+                  mimeType: image.mimeType,
+                });
+                setHasError(true);
+              }}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-white/5 text-xs uppercase tracking-wide text-white/50">
+              Preparing preview…
+            </div>
+          )}
+          {sourceInfo.isProcessing && !showUnavailable ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs uppercase tracking-wide text-white/70">
+              Preparing preview…
+            </div>
+          ) : null}
+          {isPng && !showUnavailable ? (
+            <div className="absolute left-2 top-2 rounded bg-black/60 px-2 py-1 text-[10px] uppercase tracking-wide text-white/70">
+              PNG
+            </div>
+          ) : null}
+        </div>
+      </button>
+      <div className="space-y-2 p-4 text-sm text-white/70">
+        <div className="line-clamp-2 text-white/80">{image.prompt}</div>
+        <div className="flex items-center justify-between text-xs uppercase tracking-wide text-white/40">
+          <span>{formatDate(image.createdAt)}</span>
+          {sizeLabel ? <span className="text-[10px] text-white/35">{sizeLabel}</span> : null}
+        </div>
+        {image.tags && image.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {image.tags.map((tag, index) => (
+              <Badge key={`${tag}-${index}`} variant="outline" className="border-white/20 bg-transparent text-[10px] text-white/60">
+                #{tag}
+              </Badge>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 border-white/20 text-white hover:bg-white/10"
+            onClick={(event) => {
+              event.stopPropagation();
+              void onDownload(image);
+            }}
+          >
+            <Download className="mr-2 h-4 w-4" /> Download
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-red-500/20 text-red-400 hover:bg-red-500/10"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDelete(image.id);
+            }}
+          >
+            <Trash className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+export interface GalleryImageSourceResult {
+  src: string;
+  isProcessing: boolean;
+  failed: boolean;
+}
+
+export function useGalleryImageSource(image: GeneratedImage): GalleryImageSourceResult {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [conversionFailed, setConversionFailed] = useState(false);
+
+  const cacheKey = useMemo(() => {
+    if (image.storageType === 'cache' && image.storageKey) {
+      return image.storageKey;
+    }
+    return undefined;
+  }, [image.storageType, image.storageKey]);
+
+  const inlineDataUrl = useMemo(() => {
+    if (!cacheKey && typeof image.imageUrl === 'string' && image.imageUrl.startsWith('data:')) {
+      return image.imageUrl;
+    }
+    return undefined;
+  }, [cacheKey, image.imageUrl]);
+
+  const needsObjectUrl = useMemo(() => {
+    if (!inlineDataUrl) {
+      return false;
+    }
+
+    const estimatedBytes =
+      typeof image.byteSize === 'number' ? image.byteSize : parseDataUrl(inlineDataUrl)?.byteSize ?? 0;
+
+    if (estimatedBytes >= OBJECT_URL_THRESHOLD_BYTES) {
+      return true;
+    }
+
+    return inlineDataUrl.length >= LARGE_DATA_URL_LENGTH;
+  }, [inlineDataUrl, image.byteSize]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let localUrl: string | null = null;
+
+    const convertToObjectUrl = async () => {
+      if (!needsObjectUrl || !inlineDataUrl) {
+        setObjectUrl(null);
+        setIsProcessing(false);
+        setConversionFailed(false);
+        return;
+      }
+
+      try {
+        setIsProcessing(true);
+        setConversionFailed(false);
+        console.log('Converting large image to object URL', {
+          imageId: image.id,
+          byteSize: image.byteSize,
+          urlLength: inlineDataUrl?.length,
+        });
+        const url = await convertDataUrlToObjectUrl(inlineDataUrl);
+        if (cancelled) {
+          return;
+        }
+        localUrl = url;
+        setObjectUrl(localUrl);
+        console.log('Object URL created successfully', {
+          imageId: image.id,
+          objectUrl: url?.substring(0, 50),
+        });
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to convert data URL to object URL', {
+            imageId: image.id,
+            error,
+            willFallbackToDataUrl: true,
+          });
+          setObjectUrl(null);
+          setConversionFailed(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsProcessing(false);
+        }
+      }
+    };
+
+    const loadFromCache = async () => {
+      if (!cacheKey) {
+        setConversionFailed(false);
+        setIsProcessing(false);
+        return;
+      }
+
+      try {
+        setIsProcessing(true);
+        setConversionFailed(false);
+        const blob = await loadImageBlobFromCache(cacheKey);
+        if (!blob) {
+          throw new Error('Cache miss');
+        }
+        const url = URL.createObjectURL(blob);
+        if (cancelled) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        localUrl = url;
+        setObjectUrl(url);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load image from cache', {
+            imageId: image.id,
+            cacheKey,
+            error,
+          });
+          setObjectUrl(null);
+          setConversionFailed(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsProcessing(false);
+        }
+      }
+    };
+
+    if (cacheKey) {
+      void loadFromCache();
+    } else if (needsObjectUrl && inlineDataUrl) {
+      void convertToObjectUrl();
+    } else {
+      setObjectUrl(null);
+      setIsProcessing(false);
+      setConversionFailed(false);
+    }
+
+    return () => {
+      cancelled = true;
+      if (localUrl) {
+        console.log('Revoking object URL', {
+          imageId: image.id,
+        });
+        URL.revokeObjectURL(localUrl);
+      }
+    };
+  }, [cacheKey, inlineDataUrl, needsObjectUrl, image.id]);
+
+  const resolvedSrc = (() => {
+    if (cacheKey) {
+      return objectUrl ?? '';
+    }
+
+    if (inlineDataUrl) {
+      if (needsObjectUrl) {
+        return objectUrl ?? (conversionFailed ? inlineDataUrl : '');
+      }
+      return inlineDataUrl;
+    }
+
+    return typeof image.imageUrl === 'string' ? image.imageUrl : objectUrl ?? '';
+  })();
+
+  const hasRenderedSource = Boolean(resolvedSrc);
+  const showProcessing = ((cacheKey && !objectUrl) || (inlineDataUrl && needsObjectUrl && !objectUrl)) && !conversionFailed && isProcessing;
+  const finalSrc = hasRenderedSource ? resolvedSrc : '';
+  const finalFailed = !hasRenderedSource && conversionFailed;
+
+  return {
+    src: finalSrc,
+    isProcessing: showProcessing,
+    failed: finalFailed,
+  };
+}
+
+async function handleDownloadImage(image: GeneratedImage) {
+  if (image.storageType === 'cache' && image.storageKey) {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    try {
+      const blob = await loadImageBlobFromCache(image.storageKey);
+      if (!blob) {
+        console.warn('handleDownloadImage: cache miss for image download', { imageId: image.id });
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const extension = (image.mimeType || blob.type || 'image/png').split('/')[1] || 'png';
+      link.href = objectUrl;
+      link.download = `${image.id}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      return;
+    } catch (downloadError) {
+      console.error('handleDownloadImage: failed to download cached image', { imageId: image.id, downloadError });
+    }
   }
 
-  globalObj.open(image.imageUrl, '_blank');
+  const globalObj = globalThis as unknown as { open?: (url?: string, target?: string) => void };
+  if (typeof globalObj.open === 'function' && image.imageUrl) {
+    globalObj.open(image.imageUrl, '_blank');
+  }
 }

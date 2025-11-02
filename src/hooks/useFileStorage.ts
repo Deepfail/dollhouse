@@ -1,3 +1,4 @@
+import { FILE_STORAGE_UPDATED_EVENT } from '@/constants/events';
 import { logger } from '@/lib/logger';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getDb, saveDatabase } from '../lib/db';
@@ -12,19 +13,23 @@ export function useFileStorage<T>(key: string, defaultValue: T) {
     defaultValueRef.current = defaultValue;
   }, [defaultValue]);
 
-  // Load data from database on mount
-  useEffect(() => {
-    const loadData = async () => {
+  const loadData = useCallback(
+    async (options?: { showLoading?: boolean }) => {
+      const showLoading = options?.showLoading === true;
+      if (showLoading) {
+        setIsLoading(true);
+      }
+
       try {
-      logger.log(`🔍 Loading file storage data for key: ${key}`);
+        logger.log(`🔍 Loading file storage data for key: ${key}`);
         const { db } = await getDb();
         const rows: any[] = [];
-        
+
         db.exec({
           sql: 'SELECT value FROM settings WHERE key = ?',
           bind: [key],
           rowMode: 'object',
-          callback: (r: any) => rows.push(r)
+          callback: (r: any) => rows.push(r),
         });
 
         if (rows.length > 0) {
@@ -41,15 +46,38 @@ export function useFileStorage<T>(key: string, defaultValue: T) {
           setData(defaultValueRef.current);
         }
       } catch (error) {
-  logger.error(`❌ Failed to load file storage data for ${key}:`, error);
+        logger.error(`❌ Failed to load file storage data for ${key}:`, error);
         setData(defaultValueRef.current);
       } finally {
         setIsLoading(false);
       }
+    },
+    [key],
+  );
+
+  // Load data from database on mount
+  useEffect(() => {
+    void loadData({ showLoading: true });
+  }, [loadData]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handler = (event: Event) => {
+      const { detail } = event as CustomEvent<{ key?: string }>;
+      if (detail?.key !== key) {
+        return;
+      }
+      void loadData();
     };
 
-    loadData();
-  }, [key]); // Remove defaultValue from dependency array
+    window.addEventListener(FILE_STORAGE_UPDATED_EVENT, handler as EventListener);
+    return () => {
+      window.removeEventListener(FILE_STORAGE_UPDATED_EVENT, handler as EventListener);
+    };
+  }, [key, loadData]);
 
   // Save data to database
   const setDataAndSave = useCallback(async (newData: T | ((prev: T) => T)) => {
@@ -85,6 +113,14 @@ export function useFileStorage<T>(key: string, defaultValue: T) {
       // Update local state immediately for better UX
       setData(updatedData);
   logger.log(`✅ Saved file storage data for ${key}`);
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent(FILE_STORAGE_UPDATED_EVENT, {
+            detail: { key },
+          }),
+        );
+      }
       
       // Optional: Verify the data was saved (but don't fail if verification has issues)
       try {

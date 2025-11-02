@@ -182,13 +182,11 @@ export class AIService {
         return '';
       }
 
-      // Currently only Venice AI is supported for image generation
+      // Support Venice AI and OpenRouter for image generation
       if (imageProvider === 'venice') {
         return AIService.generateVeniceImage(imageApiKey.trim(), prompt, imageModel, imageApiUrl);
       } else if (imageProvider === 'openrouter') {
-        // OpenRouter doesn't support image generation directly, log and return empty
-        logger.warn('OpenRouter does not support image generation');
-        return '';
+        return AIService.generateOpenRouterImage(imageApiKey.trim(), prompt, imageModel);
       }
 
       logger.warn('Unsupported image provider:', imageProvider);
@@ -218,7 +216,8 @@ export class AIService {
       seed: Math.floor(Math.random() * 1000000),
       safe_mode: false,
       return_binary: false,
-      format: 'webp'
+      format: 'webp',
+      hide_watermark: true,
     };
 
     logger.log('Making Venice AI image request to:', url);
@@ -261,6 +260,221 @@ export class AIService {
 
     logger.log('Image generated successfully, URL length:', imageUrl.length);
     return imageUrl;
+  }
+
+  private static async generateOpenRouterImage(
+    apiKey: string,
+    prompt: string,
+    model: string
+  ): Promise<string> {
+    const url = 'https://openrouter.ai/api/v1/chat/completions';
+
+    const requestBody = {
+      model: model || 'google/gemini-2.0-flash-exp:image-generation',
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      aspect_ratio: '1:1',
+      // Request smaller/compressed images to avoid storage limits
+      quality: 'standard', // vs 'hd'
+      max_tokens: 1024, // Limit response size
+    };
+
+    logger.log('Making OpenRouter image request to:', url, 'with model:', model);
+
+    const res = await safeFetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://dollhouse.ai',
+        'X-Title': 'Dollhouse Character Generator',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      logger.error('OpenRouter image error:', res.status, txt);
+      throw new Error(`OpenRouter image error: ${res.status} ${txt}`);
+    }
+
+    const data = await res.json();
+    
+    logger.log('OpenRouter image generation response received');
+    logger.log('Full OpenRouter response:', JSON.stringify(data, null, 2));
+    logger.log('OpenRouter metadata - num_media_completion:', data.num_media_completion);
+    logger.log('OpenRouter metadata - native_tokens_completion_images:', data.native_tokens_completion_images);
+    
+    // OpenRouter returns image URL in the message content for image models
+    if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+      throw new Error('No response from OpenRouter');
+    }
+
+    const message = data.choices[0].message;
+    
+    if (!message) {
+      throw new Error('No message in OpenRouter response');
+    }
+
+    // Check for images array (Gemini image models return this)
+    if (Array.isArray(message.images) && message.images.length > 0) {
+      const imageData = message.images[0];
+      logger.log('OpenRouter images array found, count:', message.images.length);
+      
+      // Handle different image data formats (same as Venice)
+      if (imageData.type === 'image_url' && imageData.image_url?.url) {
+        const imageUrl = imageData.image_url.url;
+        
+        // If it's already a data URL or http URL, return it directly
+        if (typeof imageUrl === 'string' && (imageUrl.startsWith('data:') || imageUrl.startsWith('http'))) {
+          logger.log('OpenRouter returned image URL from images array, length:', imageUrl.length, 'type:', imageUrl.substring(0, 20));
+          return imageUrl;
+        }
+        
+        // If it's base64 without data URL prefix, add it
+        if (typeof imageUrl === 'string' && !imageUrl.startsWith('data:')) {
+          const fullUrl = `data:image/png;base64,${imageUrl}`;
+          logger.log('OpenRouter base64 image converted to data URL, length:', fullUrl.length);
+          return fullUrl;
+        }
+      }
+      
+      // Sometimes the URL is directly in the image object
+      if (imageData.url) {
+        logger.log('OpenRouter returned image URL directly from images array');
+        return imageData.url;
+      }
+    }
+
+    const extractFromContent = (content: unknown): string | null => {
+      if (!content) {
+        return null;
+      }
+
+      if (Array.isArray(content)) {
+        for (const entry of content) {
+          const result = extractFromContent(entry);
+          if (result) {
+            return result;
+          }
+        }
+        return null;
+      }
+
+      if (typeof content === 'string') {
+        const urlMatch = content.match(/https?:\/\/[^\s\)]+/);
+        if (urlMatch) {
+          return urlMatch[0];
+        }
+        return null;
+      }
+
+      if (typeof content === 'object') {
+        const maybeUrl = (content as { url?: string }).url;
+        if (typeof maybeUrl === 'string' && maybeUrl) {
+          if (maybeUrl.startsWith('data:') || maybeUrl.startsWith('http')) {
+            return maybeUrl;
+          }
+        }
+
+        const part: any = content;
+
+        if (part.type === 'image_url' && part.image_url?.url) {
+          const imageUrl = part.image_url.url;
+          if (typeof imageUrl === 'string') {
+            return imageUrl.startsWith('data:') ? imageUrl : imageUrl;
+          }
+        }
+
+        if (part.type === 'output_image') {
+          const base64Payload = part.image_base64 || part.base64 || part.b64_json || part.inline_data?.data;
+          const mimeType = part.mime_type || part.content_type || part.inline_data?.mime_type || 'image/png';
+          if (typeof base64Payload === 'string' && base64Payload.length > 0) {
+            logger.log('OpenRouter returned image payload via output_image part', {
+              mimeType,
+              length: base64Payload.length,
+            });
+            return `data:${mimeType};base64,${base64Payload}`;
+          }
+        }
+
+        if (part.type === 'tool_result' && part.content) {
+          return extractFromContent(part.content);
+        }
+
+        if (part.inline_data?.data) {
+          const mimeType = part.inline_data?.mime_type || 'image/png';
+          const base64Payload = part.inline_data.data;
+          if (typeof base64Payload === 'string') {
+            logger.log('OpenRouter returned image via inline_data payload', {
+              mimeType,
+              length: base64Payload.length,
+            });
+            return `data:${mimeType};base64,${base64Payload}`;
+          }
+        }
+
+        if (part.content) {
+          return extractFromContent(part.content);
+        }
+      }
+
+      return null;
+    };
+
+    const structuredContentResult = extractFromContent(message.content);
+    if (structuredContentResult) {
+      return structuredContentResult;
+    }
+
+    const secondaryContentResult =
+      extractFromContent(data.output) ||
+      extractFromContent(data.data) ||
+      extractFromContent(data.response) ||
+      extractFromContent(data.media);
+
+    if (secondaryContentResult) {
+      return secondaryContentResult;
+    }
+
+    const fallbackText = typeof message.content === 'string' ? message.content : '';
+    if (fallbackText) {
+      const urlMatch = fallbackText.match(/https?:\/\/[^\s\)]+/);
+      if (urlMatch) {
+        const imageUrl = urlMatch[0];
+        logger.log('OpenRouter returned image URL from text content');
+        return imageUrl;
+      }
+    }
+
+    // Check common top-level fields used by certain providers
+    const topLevelCandidates = [
+      data.data?.[0]?.b64_json,
+      data.data?.[0]?.url,
+      data.output?.[0]?.content?.[0]?.image_base64,
+      data.output?.[0]?.content?.[0]?.image_url,
+    ];
+
+    for (const candidate of topLevelCandidates) {
+      if (typeof candidate === 'string') {
+        if (candidate.startsWith('http') || candidate.startsWith('data:')) {
+          logger.log('OpenRouter returned image URL from top-level candidate');
+          return candidate;
+        }
+
+        if (/^[a-z0-9+/=]+$/i.test(candidate)) {
+          logger.log('OpenRouter returned image base64 from top-level candidate');
+          return `data:image/png;base64,${candidate}`;
+        }
+      }
+    }
+
+    logger.error('No image URL found in OpenRouter response');
+    throw new Error('No image URL found in response');
   }
 
   private static async callOpenRouter(

@@ -67,6 +67,10 @@ export function AISettings({ children }: AISettingsProps) {
   const [imageApiKey, setImageApiKey] = useState("");
   const [imageModel, setImageModel] = useState("venice-sd35");
   const [imageApiUrl, setImageApiUrl] = useState("");
+  const [veniceImageApiKey, setVeniceImageApiKey] = useState("");
+  const [openrouterImageApiKey, setOpenrouterImageApiKey] = useState("");
+  const [veniceImageModel, setVeniceImageModel] = useState("venice-sd35");
+  const [openrouterImageModel, setOpenrouterImageModel] = useState("google/gemini-2.0-flash-exp:image-generation");
 
   // Venice AI text models with usage notes for clearer selection
   // Values map to Venice API model identifiers; labels include guidance only
@@ -113,6 +117,17 @@ export function AISettings({ children }: AISettingsProps) {
       setTextApiUrl("");
     }
   }, [textProvider]);
+
+  // Handle image provider switching
+  React.useEffect(() => {
+    if (imageProvider === "venice") {
+      setImageApiKey(veniceImageApiKey);
+      setImageModel(veniceImageModel || "venice-sd35");
+    } else if (imageProvider === "openrouter") {
+      setImageApiKey(openrouterImageApiKey);
+      setImageModel(openrouterImageModel || "google/gemini-2.0-flash-exp:image-generation");
+    }
+  }, [imageProvider]);
 
   const loadSettings = async () => {
     try {
@@ -167,9 +182,27 @@ export function AISettings({ children }: AISettingsProps) {
         setTextApiUrl("");
       }
 
-      setImageProvider(aiSettings.imageProvider || "venice");
-      setImageApiKey(aiSettings.imageApiKey || "");
-      setImageModel(aiSettings.imageModel || "venice-sd35");
+      const loadedImageProvider = aiSettings.imageProvider || "venice";
+      setImageProvider(loadedImageProvider);
+      
+      const loadedVeniceImageKey = aiSettings.veniceImageApiKey || (loadedImageProvider === "venice" ? aiSettings.imageApiKey : "") || "";
+      const loadedOpenRouterImageKey = aiSettings.openrouterImageApiKey || (loadedImageProvider === "openrouter" ? aiSettings.imageApiKey : "") || "";
+      const loadedVeniceImageModel = aiSettings.veniceImageModel || (loadedImageProvider === "venice" ? aiSettings.imageModel : undefined) || "venice-sd35";
+      const loadedOpenRouterImageModel = aiSettings.openrouterImageModel || (loadedImageProvider === "openrouter" ? aiSettings.imageModel : undefined) || "google/gemini-2.0-flash-exp:image-generation";
+      
+      setVeniceImageApiKey(loadedVeniceImageKey);
+      setOpenrouterImageApiKey(loadedOpenRouterImageKey);
+      setVeniceImageModel(loadedVeniceImageModel);
+      setOpenrouterImageModel(loadedOpenRouterImageModel);
+      
+      if (loadedImageProvider === "venice") {
+        setImageApiKey(loadedVeniceImageKey);
+        setImageModel(loadedVeniceImageModel);
+      } else {
+        setImageApiKey(loadedOpenRouterImageKey);
+        setImageModel(loadedOpenRouterImageModel);
+      }
+      
       setImageApiUrl(aiSettings.imageApiUrl || "");
     } catch (error) {
       logger.error("Failed to load AI settings:", error);
@@ -195,11 +228,15 @@ export function AISettings({ children }: AISettingsProps) {
         openrouterTextModel,
         veniceTextApiUrl: veniceTextApiUrl.trim(),
 
-        // Image settings unchanged
+        // Image settings with provider-specific keys
         imageProvider,
         imageApiKey: imageApiKey.trim(),
         imageModel,
         imageApiUrl: imageApiUrl.trim(),
+        veniceImageApiKey: veniceImageApiKey.trim(),
+        openrouterImageApiKey: openrouterImageApiKey.trim(),
+        veniceImageModel,
+        openrouterImageModel,
       };
 
       const updatedConfig = {
@@ -483,6 +520,7 @@ export function AISettings({ children }: AISettingsProps) {
                         <SelectContent>
                           <SelectItem value="none">Disabled</SelectItem>
                           <SelectItem value="venice">Venice AI</SelectItem>
+                          <SelectItem value="openrouter">OpenRouter</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -492,7 +530,10 @@ export function AISettings({ children }: AISettingsProps) {
                         <Label>Model</Label>
                         <Select
                           value={imageModel}
-                          onValueChange={setImageModel}
+                          onValueChange={(value) => {
+                            setImageModel(value);
+                            setVeniceImageModel(value);
+                          }}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select model" />
@@ -526,9 +567,55 @@ export function AISettings({ children }: AISettingsProps) {
                         </Select>
                       </div>
                     )}
+
+                    {imageProvider === "openrouter" && (
+                      <div>
+                        <Label>Model</Label>
+                        <Select
+                          value={imageModel}
+                          onValueChange={(value) => {
+                            setImageModel(value);
+                            setOpenrouterImageModel(value);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="google/gemini-2.5-flash-image">
+                              Gemini 2.5 Flash Image - Fast & Free
+                            </SelectItem>
+                            <SelectItem value="google/gemini-2.0-flash-exp:image-generation">
+                              Gemini 2.0 Flash - Fast & Free
+                            </SelectItem>
+                            <SelectItem value="black-forest-labs/flux-1.1-pro">
+                              FLUX 1.1 Pro - Highest Quality
+                            </SelectItem>
+                            <SelectItem value="black-forest-labs/flux-pro">
+                              FLUX Pro - High Quality
+                            </SelectItem>
+                            <SelectItem value="black-forest-labs/flux-dev">
+                              FLUX Dev - Development
+                            </SelectItem>
+                            <SelectItem value="stability-ai/stable-diffusion-3.5-large">
+                              SD 3.5 Large - High Detail
+                            </SelectItem>
+                            <SelectItem value="stability-ai/stable-diffusion-3.5-large-turbo">
+                              SD 3.5 Large Turbo - Fast
+                            </SelectItem>
+                            <SelectItem value="ideogram-ai/ideogram-v2">
+                              Ideogram V2 - Text in Images
+                            </SelectItem>
+                            <SelectItem value="recraft-ai/recraft-v3">
+                              Recraft V3 - Vector Style
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
 
-                  {imageProvider === "venice" && (
+                  {(imageProvider === "venice" || imageProvider === "openrouter") && (
                     <>
                       <div>
                         <div className="flex items-center gap-2 mb-2">
@@ -549,19 +636,28 @@ export function AISettings({ children }: AISettingsProps) {
                         <Input
                           type={showImageApiKey ? "text" : "password"}
                           value={imageApiKey}
-                          onChange={(e) => setImageApiKey(e.target.value)}
-                          placeholder="Enter your Venice AI API key"
+                          onChange={(e) => {
+                            setImageApiKey(e.target.value);
+                            if (imageProvider === "venice") {
+                              setVeniceImageApiKey(e.target.value);
+                            } else if (imageProvider === "openrouter") {
+                              setOpenrouterImageApiKey(e.target.value);
+                            }
+                          }}
+                          placeholder={imageProvider === "openrouter" ? "Enter your OpenRouter API key" : "Enter your Venice AI API key"}
                         />
                       </div>
 
-                      <div>
-                        <Label>API URL (optional)</Label>
-                        <Input
-                          value={imageApiUrl}
-                          onChange={(e) => setImageApiUrl(e.target.value)}
-                          placeholder="https://api.venice.ai/api/v1"
-                        />
-                      </div>
+                      {imageProvider === "venice" && (
+                        <div>
+                          <Label>API URL (optional)</Label>
+                          <Input
+                            value={imageApiUrl}
+                            onChange={(e) => setImageApiUrl(e.target.value)}
+                            placeholder="https://api.venice.ai/api/v1"
+                          />
+                        </div>
+                      )}
                     </>
                   )}
                 </CardContent>

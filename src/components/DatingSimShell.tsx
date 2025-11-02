@@ -1976,69 +1976,108 @@ export function DatingSimShell({
             className="relative flex h-full min-h-0 w-full"
           >
             <div className="flex h-full min-h-0 flex-1 flex-col">
-              {isCreateDialogOpen ? (
-                <CharacterAutoCreateInline
-                  active={isCreateDialogOpen}
-                  onClose={() => setIsCreateDialogOpen(false)}
-                  onCharacterCreated={handleCharacterCreatedFromDialog}
-                  initialGender={createDialogGender}
-                />
-              ) : (
-                <>
-                  {/* Center Pane Navigation Tabs */}
-                  <div className="flex items-center gap-6 border-b border-white/5 bg-[#090912]/80 px-6 py-3">
-                    <button
-                      onClick={() => setCenterView('chat')}
-                      className={`text-sm font-semibold transition ${
-                        centerView === 'chat'
-                          ? 'text-white border-b-2 border-[#ff1372] pb-1'
-                          : 'text-white/40 hover:text-white/70'
-                      }`}
-                    >
-                      CHAT
-                    </button>
-                    <button
-                      onClick={() => setCenterView('locations')}
-                      className={`text-sm font-semibold transition ${
-                        centerView === 'locations'
-                          ? 'text-white border-b-2 border-[#ff1372] pb-1'
-                          : 'text-white/40 hover:text-white/70'
-                      }`}
-                    >
-                      LOCATIONS
-                    </button>
-                  </div>
-                  
-                  {/* Conditional Content Based on Tab */}
-                  {centerView === 'chat' ? (
-                    <ChatPanel
-                      character={selectedCharacter}
-                      characters={characters}
-                      messages={messages}
-                      onSend={handleSendMessage}
-                      onStartChat={() =>
-                        selectedCharacter
-                          ? handleStartChat(selectedCharacter.id)
-                          : Promise.resolve()
-                      }
-                      isLoadingMessages={isLoadingMessages}
-                      sessions={sessions}
-                      onSwitchSession={handleSwitchSession}
-                      activeSessionId={activeSessionId}
-                      onOpenManager={() => {}}
-                      onClearChat={handleClearChat}
-                      onAnalyzeConversation={handleAnalyzeConversation}
+              <div className="flex items-center gap-6 border-b border-white/5 bg-[#090912]/80 px-6 py-3">
+                <button
+                  onClick={() => {
+                    setCenterView('chat');
+                    setIsCreateDialogOpen(false);
+                    if (isProfileOpen) {
+                      setIsProfileOpen(false);
+                      setProfileCharacterId(null);
+                    }
+                  }}
+                  className={`text-sm font-semibold transition ${
+                    centerView === 'chat'
+                      ? 'text-white border-b-2 border-[#ff1372] pb-1'
+                      : 'text-white/40 hover:text-white/70'
+                  }`}
+                >
+                  CHAT
+                </button>
+                <button
+                  onClick={() => {
+                    setCenterView('locations');
+                    setIsCreateDialogOpen(false);
+                    if (isProfileOpen) {
+                      setIsProfileOpen(false);
+                      setProfileCharacterId(null);
+                    }
+                  }}
+                  className={`text-sm font-semibold transition ${
+                    centerView === 'locations'
+                      ? 'text-white border-b-2 border-[#ff1372] pb-1'
+                      : 'text-white/40 hover:text-white/70'
+                  }`}
+                >
+                  LOCATIONS
+                </button>
+              </div>
+
+              <div className="relative flex-1 min-h-0">
+                {isCreateDialogOpen ? (
+                  <div className="flex h-full min-h-0 flex-col overflow-hidden">
+                    <CharacterAutoCreateInline
+                      active={isCreateDialogOpen}
+                      onClose={() => setIsCreateDialogOpen(false)}
+                      onCharacterCreated={handleCharacterCreatedFromDialog}
+                      initialGender={createDialogGender}
                     />
-                  ) : (
-                    <LocationView />
-                  )}
-                </>
-              )}
+                  </div>
+                ) : centerView === 'chat' ? (
+                  <ChatPanel
+                    character={selectedCharacter}
+                    characters={characters}
+                    messages={messages}
+                    onSend={handleSendMessage}
+                    onStartChat={() =>
+                      selectedCharacter
+                        ? handleStartChat(selectedCharacter.id)
+                        : Promise.resolve()
+                    }
+                    isLoadingMessages={isLoadingMessages}
+                    sessions={sessions}
+                    onSwitchSession={handleSwitchSession}
+                    activeSessionId={activeSessionId}
+                    onOpenManager={() => {}}
+                    onClearChat={handleClearChat}
+                    onAnalyzeConversation={handleAnalyzeConversation}
+                  />
+                ) : (
+                  <LocationView />
+                )}
+
+                {profileCharacter && isProfileOpen && (
+                  <div
+                    data-middle-pane-overlay
+                    className="pointer-events-auto absolute inset-0 z-[70] bg-[#05050c]"
+                  >
+                    <CharacterCard
+                      character={profileCharacter}
+                      onStartChat={(characterId: string) => {
+                        void handleStartChat(characterId);
+                        setIsProfileOpen(false);
+                        setProfileCharacterId(characterId);
+                      }}
+                      compact
+                      hideTrigger
+                      open={isProfileOpen}
+                      onSaveCharacter={handleSaveCharacterProfile}
+                      onDelete={async (characterId: string) => {
+                        await handleDeleteCharacter(characterId);
+                        setIsProfileOpen(false);
+                        setProfileCharacterId(null);
+                      }}
+                      onOpenChange={(open) => {
+                        setIsProfileOpen(open);
+                        if (!open) {
+                          setProfileCharacterId(null);
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
-            <div
-              data-middle-pane-overlay
-              className="pointer-events-none absolute inset-0 z-[70]"
-            />
           </div>
           <WingmanPanel
             selectedCharacter={selectedCharacter}
@@ -2060,32 +2099,6 @@ export function DatingSimShell({
             activeSessionId={activeSessionId}
           />
         </div>
-
-        {profileCharacter && (
-          <CharacterCard
-            character={profileCharacter}
-            onStartChat={(characterId: string) => {
-              void handleStartChat(characterId);
-              setIsProfileOpen(false);
-              setProfileCharacterId(characterId);
-            }}
-            compact
-            hideTrigger
-            open={isProfileOpen}
-            onSaveCharacter={handleSaveCharacterProfile}
-            onDelete={async (characterId: string) => {
-              await handleDeleteCharacter(characterId);
-              setIsProfileOpen(false);
-              setProfileCharacterId(null);
-            }}
-            onOpenChange={(open) => {
-              setIsProfileOpen(open);
-              if (!open) {
-                setProfileCharacterId(null);
-              }
-            }}
-          />
-        )}
 
         <HouseSettings open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
       </div>
